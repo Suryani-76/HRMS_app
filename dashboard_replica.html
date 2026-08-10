@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en" dir="">
+<head>
+    <title>sample - Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Dashboard Template">
+    <meta name="keywords" content="Dashboard Template">
+    <meta name="author" content="Rajodiya Infotech">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@1.41.1/iconfont/tabler-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color-customColor: #020434;
+            --bs-blue: #51459d;
+            --bs-indigo: #6610f2;
+            --bs-purple: #6f42c1;
+            --bs-pink: #e83e8c;
+            --bs-red: #ff3a6e;
+            --bs-orange: #fd7e14;
+            --bs-yellow: #ffa21d;
+            --bs-green: #6fd943;
+            --bs-teal: #20c997;
+            --bs-cyan: #3ec9d6;
+            --bs-white: #ffffff;
+            --bs-gray: #6c757d;
+            --bs-gray-dark: #343a40;
+            --bs-gray-100: #f8f9fa;
+            --bs-gray-200: #e9ecef;
+            --bs-gray-300: #dee2e6;
+            --bs-gray-400: #ced4da;
+            --bs-gray-500: #adb5bd;
+            --bs-gray-600: #6c757d;
+            --bs-gray-700: #495057;
+            --bs-gray-800: #343a40;
+            --bs-gray-900: #212529;
+            --bs-primary: #51459d;
+            --bs-secondary: #6c757d;
+            --bs-success: #6fd943;
+            --bs-info: #3ec9d6;
+            --bs-warning: #ffa21d;
+            --bs-danger: #ff3a6e;
+            --bs-light: #f8f9fa;
+            --bs-dark: #1c232f;
+            --bs-font-sans-serif: "Open Sans", sans-serif;
+            --bs-body-font-family: var(--bs-font-sans-serif);
+            --bs-body-font-size: 0.875rem;
+            --bs-body-font-weight: 400;
+            --bs-body-line-height: 1.5;
+            --bs-body-color: #293240;
+            --bs-body-bg: #f8f9fd;
+            --bs-border-width: 1px;
+            --bs-border-color: #f1f1f1;
+            --bs-border-radius: 10px;
+            --bs-border-radius-sm: 8px;
+            --bs-border-radius-lg: 15px;
+            --bs-link-color: #51459d;
+            --bs-link-hover-color: #51459d;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: var(--bs-body-font-family);
+            font-size: var(--bs-body-font-size);
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--bs-body-color);
+            background-color: var(--bs-body-bg);
+        }
+
+        a { color: var(--bs-link-color); text-decoration: none; }
+        a:hover { color: var(--bs-link-hover-color); text-decoration: underline; }
+
+        h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            line-height: 1.2;
+            color: #060606;
+        }
+
+        h4, .h4 { font-size: 1.25rem; }
+        h5, .h5 { font-size: 1rem; }
+
+        /* Custom Color Theme */
+        body.custom-color .bg-primary {
+            background: linear-gradient(141.55deg, var(--color-customColor) 3.46%, var(--color-customColor) 99.86%), var(--color-customColor) !important;
+        }
+        body.custom-color .btn-primary {
+            --bs-btn-color: #ffffff;
+            --bs-btn-bg: var(--color-customColor);
+            --bs-btn-border-color: var(--color-customColor);
+            --bs-btn-hover-color: #ffffff;
+            --bs-btn-hover-bg: var(--color-customColor);
+            --bs-btn-hover-border-color: var(--color-customColor);
+            --bs-btn-focus-shadow-rgb: 2, 4, 52;
+            --bs-btn-active-color: #ffffff;
+            --bs-btn-active-bg: var(--color-customColor);
+            --bs-btn-active-border-color: var(--color-customColor);
+            --bs-btn-active-shadow: inset 0 3px 5px rgba(0,0,0,0.125);
+            --bs-btn-disabled-color: #ffffff;
+            --bs-btn-disabled-bg: var(--color-customColor);
+            --bs-btn-disabled-border-color: var(--color-customColor);
+        }
+        body.custom-color .btn-outline-primary {
+            --bs-btn-color: var(--color-customColor);
+            --bs-btn-border-color: var(--color-customColor);
+            --bs-btn-hover-color: #ffffff;
+            --bs-btn-hover-bg: var(--color-customColor);
+            --bs-btn-hover-border-color: var(--color-customColor);
+            --bs-btn-active-color: #ffffff;
+            --bs-btn-active-bg: var(--color-customColor);
+            --bs-btn-active-border-color: var(--color-customColor);
+            --bs-btn-disabled-color: var(--color-customColor);
+            --bs-btn-disabled-bg: transparent;
+            --bs-btn-disabled-border-color: var(--color-customColor);
+        }
+        body.custom-color .form-control:focus,
+        body.custom-color .form-select:focus {
+            border-color: var(--color-customColor);
+            box-shadow: 0 0 0 0.2rem var(--color-customColor);
+        }
+        body.custom-color .form-check-input:checked {
+            background-color: var(--color-customColor);
+            border-color: var(--color-customColor);
+        }
+        body.custom-color .text-primary {
+            color: var(--color-customColor) !important;
+        }
+        body.custom-color .page-item.active .page-link {
+            background: var(--color-customColor);
+            border-color: var(--color-customColor);
+        }
+        body.custom-color a:not([class]) { color: var(--color-customColor); }
+        body.custom-color a:not([class]):hover { color: var(--color-customColor); }
+
+        /* Loader */
+        .loader-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            z-index: 9999;
+        }
+        .loader-track {
+            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .loader-fill {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--color-customColor);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Sidebar */
+        .dash-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: #fff;
+            box-shadow: 0 1px 20px 0 rgba(69, 90, 100, 0.08);
+            z-index: 1025;
+            transition: all 0.15s ease-in-out;
+        }
+        .dash-sidebar .navbar-wrapper { height: 100%; display: flex; flex-direction: column; }
+        .dash-sidebar .m-header {
+            height: 70px;
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            justify-content: center;
+        }
+        .dash-sidebar .m-header img { height: 40px; object-fit: contain; }
+        .dash-sidebar .navbar-content {
+            height: calc(100vh - 70px);
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        .dash-navbar { list-style: none; padding: 0; margin: 0; }
+        .dash-navbar > .dash-item { position: relative; }
+        .dash-navbar > .dash-item > .dash-link {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            margin: 4px 15px;
+            color: #333;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.15s ease-in-out;
+        }
+        .dash-navbar > .dash-item > .dash-link:hover {
+            background: #f0f0f0;
+            color: #51459d;
+        }
+        .dash-navbar > .dash-item > .dash-link .dash-micon {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            box-shadow: -3px 4px 23px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .dash-navbar > .dash-item > .dash-link .dash-micon i {
+            font-size: 18px;
+            color: #525b69;
+        }
+        .dash-navbar > .dash-item > .dash-link .dash-mtext { flex: 1; }
+        .dash-navbar > .dash-item > .dash-link .dash-arrow { margin-left: 5px; font-size: 14px; }
+        .dash-navbar > .dash-item.dash-hasmenu > .dash-link { cursor: pointer; }
+        .dash-submenu {
+            list-style: none;
+            padding: 0 0 0 50px;
+            margin: 0;
+            display: none;
+        }
+        .dash-submenu.open { display: block; }
+        .dash-submenu .dash-item .dash-link {
+            display: block;
+            padding: 8px 15px;
+            color: #333;
+            font-size: 13px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+        }
+        .dash-submenu .dash-item .dash-link:hover { color: #51459d; }
+
+        /* Header */
+        .dash-header {
+            position: fixed;
+            top: 0;
+            left: 280px;
+            right: 0;
+            z-index: 1024;
+            background: #fff;
+            box-shadow: 0 1px 20px 0 rgba(69, 90, 100, 0.08);
+            min-height: 70px;
+        }
+        .dash-header .header-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            min-height: 70px;
+        }
+        .dash-header .header-wrapper .list-unstyled {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        .dash-header .header-wrapper .ms-auto { margin-left: auto !important; }
+        .dash-h-item { display: inline-block; position: relative; }
+        .dash-head-link {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            color: #293240;
+            border-radius: 12px;
+            transition: all 0.15s ease;
+        }
+        .dash-head-link:hover { background: #f0f0f0; color: #51459d; }
+        .theme-avtar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .theme-avtar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .dropdown-menu.dash-h-dropdown {
+            padding: 10px 0;
+            border: none;
+            box-shadow: 0 6px 30px rgba(182, 186, 203, 0.3);
+            border-radius: 12px;
+        }
+        .dropdown-menu.dash-h-dropdown .dropdown-item {
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .dropdown-menu.dash-h-dropdown .dropdown-item i { font-size: 16px; }
+        .dropdown-menu.dash-h-dropdown .dropdown-item:hover { background: #f0f0f0; }
+        .drp-arrow { font-size: 14px; margin-left: 5px; }
+
+        /* Container */
+        .dash-container {
+            margin-left: 280px;
+            margin-top: 70px;
+            padding: 20px 30px;
+            min-height: calc(100vh - 70px);
+        }
+        .dash-content { max-width: 1400px; margin: 0 auto; }
+
+        /* Page Header */
+        .page-header { margin-bottom: 24px; }
+        .page-header .page-block { padding: 15px 0; }
+        .page-header-title h4 { margin-bottom: 5px; }
+        .breadcrumb { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; }
+
+        /* Card */
+        .card {
+            background: #fff;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 6px 30px rgba(182, 186, 203, 0.3);
+            margin-bottom: 24px;
+        }
+        .card .card-header {
+            padding: 20px 25px;
+            background: transparent;
+            border-bottom: 1px solid #f1f1f1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card .card-header h5 { margin-bottom: 0; }
+        .card .card-body { padding: 20px 25px; }
+
+        /* Table */
+        .table-responsive { overflow-x: auto; }
+        .table {
+            width: 100%;
+            margin-bottom: 0;
+            color: var(--bs-body-color);
+            border-collapse: collapse;
+        }
+        .table thead th {
+            padding: 12px 15px;
+            border-bottom: 2px solid #f1f1f1;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #6c757d;
+            white-space: nowrap;
+        }
+        .table tbody td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f1f1f1;
+            font-size: 13px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .btn-primary {
+            color: #fff;
+            background: var(--color-customColor);
+            border-color: var(--color-customColor);
+        }
+        .btn-primary:hover {
+            background: #01022a;
+            border-color: #01022a;
+        }
+        .btn-danger {
+            color: #fff;
+            background: #ff3a6e;
+            border-color: #ff3a6e;
+        }
+        .btn-danger:hover { background: #e01e54; border-color: #e01e54; }
+        .btn-danger.disabled, .btn-danger:disabled { opacity: 0.65; pointer-events: none; }
+        .d-grid { display: grid; }
+
+        /* Footer */
+        .dash-footer {
+            margin-left: 280px;
+            padding: 15px 30px;
+            background: #fff;
+            border-top: 1px solid #f1f1f1;
+        }
+        .dash-footer .footer-wrapper { display: flex; align-items: center; justify-content: center; }
+        .dash-footer .text-muted { color: #6c757d; font-size: 13px; }
+
+        /* Utility */
+        .text-muted { color: #6c757d; }
+        .m-b-10 { margin-bottom: 10px; }
+        .ms-auto { margin-left: auto !important; }
+        .me-auto { margin-right: auto !important; }
+        .me-0 { margin-right: 0 !important; }
+        .me-2 { margin-right: 0.5rem !important; }
+        .ms-2 { margin-left: 0.5rem !important; }
+        .ms-5 { margin-left: 3rem !important; }
+        .mb-0 { margin-bottom: 0 !important; }
+        .mb-4 { margin-bottom: 1.5rem !important; }
+        .mt-2 { margin-top: 0.5rem !important; }
+        .mt-5 { margin-top: 3rem !important; }
+        .py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+        .px-4 { padding-left: 1rem !important; padding-right: 1rem !important; }
+        .pb-0-5 { padding-bottom: 0.25rem !important; }
+        .float-end { float: right !important; }
+        .float-right { float: right !important; }
+        .float-left { float: left !important; }
+        .border-right { border-right: 1px solid #f1f1f1; }
+        .text-center { text-align: center !important; }
+        .d-flex { display: flex !important; }
+        .align-items-center { align-items: center !important; }
+        .justify-content-between { justify-content: space-between !important; }
+        .flex-wrap { flex-wrap: wrap !important; }
+        .d-none { display: none !important; }
+        .row { display: flex; flex-wrap: wrap; margin-right: -12px; margin-left: -12px; }
+        .row > [class*="col-"] { padding-right: 12px; padding-left: 12px; }
+        .col-xxl-6 { flex: 0 0 50%; max-width: 50%; }
+        .col-xl-12 { flex: 0 0 100%; max-width: 100%; }
+        .col-lg-12 { flex: 0 0 100%; max-width: 100%; }
+        .col-md-12 { flex: 0 0 100%; max-width: 100%; }
+        .col-lg-6 { flex: 0 0 50%; max-width: 50%; }
+        .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+        .col-auto { flex: 0 0 auto; width: auto; }
+        .col-sm-auto { flex: 0 0 auto; width: auto; }
+        .col-12 { flex: 0 0 100%; max-width: 100%; }
+
+        /* Hamburger */
+        .hamburger {
+            display: inline-block;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .hamburger-box { width: 24px; height: 14px; display: block; position: relative; }
+        .hamburger-inner {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #293240;
+            border-radius: 2px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .hamburger-inner::before, .hamburger-inner::after {
+            content: "";
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #293240;
+            border-radius: 2px;
+            position: absolute;
+        }
+        .hamburger-inner::before { top: -6px; }
+        .hamburger-inner::after { bottom: -6px; }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1050;
+            display: none;
+            background: rgba(0,0,0,0.5);
+        }
+        .modal.show { display: block; }
+        .modal-dialog {
+            position: relative;
+            max-width: 500px;
+            margin: 30px auto;
+        }
+        .modal-content {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 30px rgba(182,186,203,0.3);
+        }
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f1f1f1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-body { padding: 20px; }
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #f1f1f1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .btn-close {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-light-danger { background: #ffe0e6; color: #ff3a6e; border: none; }
+        .btn-light-primary { background: #e2dff0; color: #51459d; border: none; }
+
+        /* Toast */
+        .position-fixed.top-0.end-0 { position: fixed; top: 0; right: 0; }
+        .p-3 { padding: 1rem !important; }
+        .toast {
+            max-width: 350px;
+            background: #333;
+            color: #fff;
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 6px 30px rgba(0,0,0,0.2);
+        }
+        .toast-body { flex: 1; }
+        .btn-close-white { color: #fff; }
+
+        .form-check { display: flex; align-items: center; gap: 10px; }
+        .form-check-input.switch {
+            width: 40px;
+            height: 20px;
+            border-radius: 10px;
+            appearance: none;
+            background: #ddd;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .form-check-input.switch:checked { background: var(--color-customColor); }
+        .form-check-input.switch::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            top: 2px;
+            left: 2px;
+            transition: left 0.15s ease;
+        }
+        .form-check-input.switch:checked::after { left: 22px; }
+        .f-w-600 { font-weight: 600; }
+        hr { margin: 1rem 0; border: 0; border-top: 1px solid #f1f1f1; }
+
+        .table-border-style .card-header:last-child { border-bottom: none; }
+
+        /* Indian Calendar */
+        .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        .cal-nav { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px 10px; border-radius: 8px; color: var(--color-customColor); }
+        .cal-nav:hover { background: #f0f0f0; }
+        .cal-title { font-size: 16px; font-weight: 600; }
+        .cal-table { width: 100%; border-collapse: collapse; }
+        .cal-table th { padding: 8px 5px; font-size: 12px; text-transform: uppercase; color: #6c757d; text-align: center; font-weight: 600; }
+        .cal-table td { padding: 8px 5px; text-align: center; font-size: 13px; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
+        .cal-table td:hover { background: #f0f0f0; }
+        .cal-table td.today { background: var(--color-customColor); color: #fff; font-weight: 600; }
+        .cal-table td.event-day { background: #e8f5e9; font-weight: 600; color: #2e7d32; position: relative; }
+        .cal-table td.event-day::after { content: ""; width: 4px; height: 4px; background: #2e7d32; border-radius: 50%; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); }
+        .cal-table td.other-month { color: #ccc; }
+        .cal-events { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f1f1; min-height: 40px; font-size: 13px; }
+        .cal-events .event-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+        .cal-events .event-dot { width: 8px; height: 8px; border-radius: 50%; background: #2e7d32; flex-shrink: 0; }
+        .cal-events .event-date { color: #6c757d; font-size: 11px; min-width: 30px; }
+
+        @media (max-width: 1024px) {
+            .dash-sidebar { left: -280px; }
+            .dash-sidebar.mob-open { left: 0; }
+            .dash-header { left: 0; }
+            .dash-container { margin-left: 0; }
+            .dash-footer { margin-left: 0; }
+            .col-xxl-6 { flex: 0 0 100%; max-width: 100%; }
+        }
+    </style>
+</head>
+<body class="custom-color">
+    <!-- Loader -->
+    <div class="loader-bg" id="loader">
+        <div class="loader-track">
+            <div class="loader-fill"></div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <nav class="dash-sidebar light-sidebar" id="sidebar">
+        <div class="navbar-wrapper">
+            <div class="m-header main-logo">
+                <a href="#" class="b-brand">
+                    <img src="assets/oklut-logo.png" alt="sample" class="logo logo-lg" style="height: 40px;">
+                </a>
+            </div>
+            <div class="navbar-content">
+                <ul class="dash-navbar">
+                    <li class="dash-item"><a href="dashboard_replica.html" class="dash-link"><span class="dash-micon"><i class="ti ti-home"></i></span><span class="dash-mtext">Dashboard</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-license"></i></span><span class="dash-mtext">Recruitment</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="job-postings.html">Job Postings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="candidates.html">Candidates</a></li>
+                            <li class="dash-item"><a class="dash-link" href="interview-rounds.html">Interview Rounds</a></li>
+                            <li class="dash-item"><a class="dash-link" href="offers.html">Offers</a></li>
+                            <li class="dash-item"><a class="dash-link" href="onboarding.html">Onboarding</a></li>
+                            <li class="dash-item"><a class="dash-link" href="career-management.html">Career Management</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="employee.html" class="dash-link"><span class="dash-micon"><i class="ti ti-user"></i></span><span class="dash-mtext">Employee</span></a></li>
+                    <li class="dash-item"><a href="bank-details.html" class="dash-link"><span class="dash-micon"><i class="ti ti-building-bank"></i></span><span class="dash-mtext">Bank Details</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-clock"></i></span><span class="dash-mtext">Attendance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="attendanceemployee.html">Mark Attendance</a></li>
+                            <li class="dash-item"><a class="dash-link" href="attendance-log.html">Attendance Log</a></li>
+                            <li class="dash-item"><a class="dash-link" href="deduction-rules.html">Deduction Rules</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-receipt"></i></span><span class="dash-mtext">Payroll</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="payslip.html">Payslip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="monthly-payout.html">Monthly Payout</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-star"></i></span><span class="dash-mtext">Performance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="performance.html">Monthly Ratings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="performance.html#cycles">Review Cycles</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-user-plus"></i></span><span class="dash-mtext">HR Admin</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="hr-targets.html">HR Targets</a></li>
+                            <li class="dash-item"><a class="dash-link" href="award.html">Award</a></li>
+                            <li class="dash-item"><a class="dash-link" href="resignation.html">Resignation</a></li>
+                            <li class="dash-item"><a class="dash-link" href="travel.html">Trip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="promotion.html">Promotion</a></li>
+                            <li class="dash-item"><a class="dash-link" href="complaint.html">Complaints</a></li>
+                            <li class="dash-item"><a class="dash-link" href="warning.html">Warning</a></li>
+                            <li class="dash-item"><a class="dash-link" href="termination.html">Termination</a></li>
+                            <li class="dash-item"><a class="dash-link" href="announcement.html">Announcement</a></li>
+                            <li class="dash-item"><a class="dash-link" href="holiday.html">Holidays</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-shield"></i></span><span class="dash-mtext">Insurance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="nominees.html">Insurance Details</a></li>
+                            <li class="dash-item"><a class="dash-link" href="family-details.html">Family Details</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-device-floppy"></i></span><span class="dash-mtext">Assets</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="assets.html">Asset List</a></li>
+                            <li class="dash-item"><a class="dash-link" href="assets.html#policies">Policies</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="contract.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file-text"></i></span><span class="dash-mtext">Contracts</span></a></li>
+                    <li class="dash-item"><a href="ticket.html" class="dash-link"><span class="dash-micon"><i class="ti ti-ticket"></i></span><span class="dash-mtext">Ticket</span></a></li>
+                    <li class="dash-item"><a href="event.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-event"></i></span><span class="dash-mtext">Event</span></a></li>
+                    <li class="dash-item"><a href="meeting.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-time"></i></span><span class="dash-mtext">Meeting</span></a></li>
+                    <li class="dash-item"><a href="document-upload.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file"></i></span><span class="dash-mtext">Document</span></a></li>
+                    <li class="dash-item"><a href="task.html" class="dash-link"><span class="dash-micon"><i class="ti ti-checklist"></i></span><span class="dash-mtext">Tasks</span></a></li>
+</nav>
+
+
+    <!-- Header -->
+    <header class="dash-header">
+        <div class="header-wrapper">
+            <div class="me-auto dash-mob-drp"></div>
+            <div class="ms-auto">
+                <ul class="list-unstyled">
+                    <li class="dash-h-item mob-hamburger">
+                        <a href="#" class="dash-head-link" id="mobile-collapse" onclick="toggleSidebar()">
+                            <div class="hamburger hamburger--arrowturn">
+                                <div class="hamburger-box">
+                                    <div class="hamburger-inner"></div>
+                                </div>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="dropdown dash-h-item drp-company">
+                        <a class="dash-head-link dropdown-toggle arrow-none me-0" href="#" onclick="toggleDropdown(event)" role="button">
+                            <span class="theme-avtar">
+                                <img alt="avatar" src="https://hrm.oklut.com/storage/uploads/avatar/avatar.png" class="header-avtar" style="width: 100%; border-radius:50%">
+                            </span>
+                            <span class="hide-mob ms-2"> Hi, employee2! <i class="ti ti-chevron-down drp-arrow nocolor hide-mob"></i></span>
+                        </a>
+                        <div class="dropdown-menu dash-h-dropdown" id="userDropdown" style="display:none;">
+                            <a href="profile.html" class="dropdown-item"><i class="ti ti-user"></i><span>My Profile</span></a>
+                            <a href="index.html" class="dropdown-item"><i class="ti ti-power"></i><span>Logout</span></a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification Modal -->
+    <div class="modal fade" id="notification-modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <button type="button" class="btn-close float-end" onclick="closeModal('notification-modal')" aria-label="Close"></button>
+                    <h6 class="mt-2"><i class="ti ti-device-desktop me-2"></i>Desktop settings</h6>
+                    <hr>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input switch" id="pcsetting1" checked>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting1">Allow desktop notification</label>
+                    </div>
+                    <p class="text-muted ms-5">you get lettest content at a time when data will updated</p>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input switch" id="pcsetting2">
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting2">Store Cookie</label>
+                    </div>
+                    <h6 class="mb-0 mt-5"><i class="ti ti-device-floppy me-2"></i>Application settings</h6>
+                    <hr>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input switch" id="pcsetting3">
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting3">Backup Storage</label>
+                    </div>
+                    <p class="text-muted mb-4 ms-5">Automaticaly take backup as par schedule</p>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input switch" id="pcsetting4">
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting4">Allow guest to print file</label>
+                    </div>
+                    <h6 class="mb-0 mt-5"><i class="ti ti-cpu me-2"></i>System settings</h6>
+                    <hr>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input switch" id="pcsetting5" checked>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting5">View other user chat</label>
+                    </div>
+                    <p class="text-muted ms-5">Allow to show public user message</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light-danger btn-sm" onclick="closeModal('notification-modal')">Close</button>
+                    <button type="button" class="btn btn-light-primary btn-sm">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <section class="dash-container">
+        <div class="dash-content">
+            <!-- Breadcrumb -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="page-header-title">
+                                <h4 class="m-b-10">Dashboard</h4>
+                            </div>
+                            <ul class="breadcrumb"></ul>
+                        </div>
+                        <div class="col-sm-auto col-md">
+                            <div class="float-end"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Content -->
+            <div class="row">
+                <!-- Calendar -->
+                <div class="col-xxl-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="row" style="width:100%;">
+                                <div class="col-lg-6">
+                                    <h5>Calendar</h5>
+                                </div>
+                                <div class="col-lg-6"></div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="event_calendar" class="calendar">
+                            <div class="cal-header">
+                                <button onclick="prevMonth()" class="cal-nav"><i class="ti ti-chevron-left"></i></button>
+                                <span id="calMonthYear" class="cal-title"></span>
+                                <button onclick="nextMonth()" class="cal-nav"><i class="ti ti-chevron-right"></i></button>
+                            </div>
+                            <table class="cal-table">
+                                <thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+                                <tbody id="calBody"></tbody>
+                            </table>
+                            <div id="calEvents" class="cal-events"></div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="col-xxl-6">
+                    <!-- Mark Attendance -->
+                    <div class="card" style="height: 230px;">
+                        <div class="card-header">
+                            <h5>Mark Attandance</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted pb-0-5">My Office Time: 09:00 to 18:00</p>
+                            <div class="row">
+                                <div class="col-md-6 float-right border-right">
+                                    <form>
+                                        <button type="submit" value="0" name="in" id="clock_in" class="btn btn-primary">CLOCK IN</button>
+                                    </form>
+                                </div>
+                                <div class="col-md-6 float-left">
+                                    <button type="submit" value="1" name="out" id="clock_out" class="btn btn-danger disabled" disabled>CLOCK OUT</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Meeting Schedule -->
+                    <div class="card" style="height: 402px;">
+                        <div class="card-header card-body table-border-style">
+                            <h5>Meeting schedule</h5>
+                        </div>
+                        <div class="card-body" style="height: 320px;">
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Meeting title</th>
+                                            <th>Meeting Date</th>
+                                            <th>Meeting Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="list">
+                                        <tr>
+                                            <td>project</td>
+                                            <td>Feb 26, 2025</td>
+                                            <td>4:28 PM</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Announcement List -->
+                <div class="col-xl-12 col-lg-12 col-md-12">
+                    <div class="card">
+                        <div class="card-header card-body table-border-style">
+                            <h5>Announcement List</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Start Date</th>
+                                            <th>End Date</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="list">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Common Modal -->
+    <div class="modal fade" id="commonModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"></h5>
+                    <button type="button" class="btn-close" onclick="closeModal('commonModal')" aria-label="Close"></button>
+                </div>
+                <div class="body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
+        <div id="liveToast" class="toast text-white fade" role="alert" aria-live="assertive" aria-atomic="true" style="display:none;">
+            <div class="d-flex">
+                <div class="toast-body"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="hideToast()" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="dash-footer">
+        <div class="footer-wrapper">
+            <div class="py-1">
+                <span class="text-muted">&copy; 2026 sample</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ===== Indian Calendar =====
+        var indianHolidays = {
+            '1-1': 'New Year',
+            '1-14': 'Makar Sankranti / Pongal',
+            '1-26': 'Republic Day',
+            '2-19': 'Maha Shivaratri',
+            '3-14': 'Holi',
+            '3-25': 'Ugadi / Gudi Padwa',
+            '3-31': 'Eid-ul-Fitr',
+            '4-14': 'Baisakhi / Ambedkar Jayanti',
+            '4-17': 'Rama Navami',
+            '5-1': 'Labour Day',
+            '6-7': 'Eid-ul-Adha',
+            '7-6': 'Rath Yatra',
+            '7-17': 'Muharram',
+            '8-15': 'Independence Day',
+            '8-26': 'Janmashtami',
+            '9-7': 'Milad-un-Nabi',
+            '10-1': 'Gandhi Jayanti',
+            '10-2': 'Gandhi Jayanti',
+            '10-7': 'Dussehra / Durga Puja',
+            '10-20': 'Karwa Chauth',
+            '10-25': 'Diwali',
+            '10-26': 'Diwali',
+            '10-27': 'Govardhan Puja',
+            '10-28': 'Bhai Dooj',
+            '10-29': 'Chhath Puja',
+            '11-5': 'Guru Nanak Jayanti',
+            '12-25': 'Christmas',
+            '12-31': 'New Year Eve'
+        };
+        var calCurrentDate = new Date();
+        var calMonth = calCurrentDate.getMonth();
+        var calYear = calCurrentDate.getFullYear();
+
+        function renderCalendar() {
+            var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            document.getElementById('calMonthYear').textContent = monthNames[calMonth] + ' ' + calYear;
+
+            var firstDay = new Date(calYear, calMonth, 1).getDay();
+            var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+            var daysInPrev = new Date(calYear, calMonth, 0).getDate();
+
+            var today = new Date();
+            var tDay = today.getDate(), tMon = today.getMonth(), tYr = today.getFullYear();
+            var tbody = document.getElementById('calBody');
+            tbody.innerHTML = '';
+            var date = 1;
+            var selectedDate = null;
+            var selectedName = null;
+
+            for (var i = 0; i < 6; i++) {
+                var row = document.createElement('tr');
+                for (var j = 0; j < 7; j++) {
+                    var cell = document.createElement('td');
+                    if (i === 0 && j < firstDay) {
+                        cell.textContent = daysInPrev - firstDay + j + 1;
+                        cell.className = 'other-month';
+                    } else if (date > daysInMonth) {
+                        cell.textContent = date - daysInMonth;
+                        cell.className = 'other-month';
+                        date++;
+                    } else {
+                        var d = date;
+                        var key = (calMonth + 1) + '-' + d;
+                        var holidayName = indianHolidays[key];
+                        cell.textContent = d;
+                        if (d === tDay && calMonth === tMon && calYear === tYr) {
+                            cell.className = 'today';
+                        }
+                        if (holidayName) {
+                            cell.className = (cell.className ? cell.className + ' ' : '') + 'event-day';
+                            cell.setAttribute('data-event', holidayName);
+                            cell.setAttribute('data-day', d);
+                            cell.onclick = (function(day, name) {
+                                return function() {
+                                    showEvent(day, name);
+                                };
+                            })(d, holidayName);
+                            if (!selectedDate) { selectedDate = d; selectedName = holidayName; }
+                        } else {
+                            cell.onclick = (function(day) {
+                                return function() {
+                                    showEvent(day, null);
+                                };
+                            })(d);
+                        }
+                        date++;
+                    }
+                    row.appendChild(cell);
+                }
+                tbody.appendChild(row);
+                if (date > daysInMonth) break;
+            }
+            showEvent(selectedDate || tDay, selectedName);
+        }
+
+        function showEvent(day, name) {
+            var el = document.getElementById('calEvents');
+            if (name) {
+                var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                el.innerHTML = '<div class="event-item"><span class="event-dot"></span><strong>' + name + '</strong><span class="event-date">' + day + ' ' + monthNames[calMonth] + '</span></div>';
+            } else {
+                el.innerHTML = '<div class="text-muted">No events for this day</div>';
+            }
+        }
+
+        function prevMonth() {
+            calMonth--;
+            if (calMonth < 0) { calMonth = 11; calYear--; }
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            calMonth++;
+            if (calMonth > 11) { calMonth = 0; calYear++; }
+            renderCalendar();
+        }
+
+        // Hide loader
+        window.addEventListener('load', function() {
+            document.getElementById('loader').style.display = 'none';
+            renderCalendar();
+        });
+
+        // Toggle sidebar on mobile
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('mob-open');
+        }
+
+        // Toggle submenu
+        function toggleSubmenu(el) {
+            var submenu = el.nextElementSibling;
+            if (submenu) {
+                submenu.classList.toggle('open');
+                var arrow = el.querySelector('.dash-arrow i');
+                if (arrow) {
+                    arrow.classList.toggle('ti-chevron-down');
+                    arrow.classList.toggle('ti-chevron-right');
+                }
+            }
+        }
+
+        // Open submenus by default for demo
+        document.querySelectorAll('.dash-hasmenu > .dash-link').forEach(function(link) {
+            var submenu = link.nextElementSibling;
+            if (submenu && submenu.classList.contains('dash-submenu')) {
+                // Uncomment to open all by default
+                // submenu.classList.add('open');
+            }
+        });
+
+        // Dropdown toggle
+        function toggleDropdown(e) {
+            e.preventDefault();
+            var dropdown = document.getElementById('userDropdown');
+            if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+                dropdown.style.display = 'block';
+                dropdown.style.position = 'absolute';
+                dropdown.style.top = '100%';
+                dropdown.style.right = '0';
+                dropdown.style.minWidth = '200px';
+                dropdown.style.zIndex = '9999';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            var dropdown = document.getElementById('userDropdown');
+            var toggle = document.querySelector('.drp-company .dash-head-link');
+            if (dropdown && toggle && !toggle.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Modal functions
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function showToast(message) {
+            var toast = document.getElementById('liveToast');
+            toast.querySelector('.toast-body').textContent = message;
+            toast.style.display = 'flex';
+            setTimeout(function() { toast.style.display = 'none'; }, 3000);
+        }
+
+        function hideToast() {
+            document.getElementById('liveToast').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

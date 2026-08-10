@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" dir="">
+<head>
+    <title>sample - Offer Management</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Dashboard Template">
+    <meta name="keywords" content="Dashboard Template">
+    <meta name="author" content="Rajodiya Infotech">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@1.41.1/iconfont/tabler-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-customColor: #020434;
+            --bs-blue: #51459d;
+            --bs-indigo: #6610f2;
+            --bs-purple: #6f42c1;
+            --bs-pink: #e83e8c;
+            --bs-red: #ff3a6e;
+            --bs-orange: #fd7e14;
+            --bs-yellow: #ffa21d;
+            --bs-green: #6fd943;
+            --bs-teal: #20c997;
+            --bs-cyan: #3ec9d6;
+            --bs-white: #ffffff;
+            --bs-gray: #6c757d;
+            --bs-gray-dark: #343a40;
+            --bs-gray-100: #f8f9fa;
+            --bs-gray-200: #e9ecef;
+            --bs-gray-300: #dee2e6;
+            --bs-gray-400: #ced4da;
+            --bs-gray-500: #adb5bd;
+            --bs-gray-600: #6c757d;
+            --bs-gray-700: #495057;
+            --bs-gray-800: #343a40;
+            --bs-gray-900: #212529;
+            --bs-primary: #51459d;
+            --bs-secondary: #6c757d;
+            --bs-success: #6fd943;
+            --bs-info: #3ec9d6;
+            --bs-warning: #ffa21d;
+            --bs-danger: #ff3a6e;
+            --bs-light: #f8f9fa;
+            --bs-dark: #1c232f;
+            --bs-font-sans-serif: "Open Sans", sans-serif;
+            --bs-body-font-family: var(--bs-font-sans-serif);
+            --bs-body-font-size: 0.875rem;
+            --bs-body-font-weight: 400;
+            --bs-body-line-height: 1.5;
+            --bs-body-color: #293240;
+            --bs-body-bg: #f8f9fd;
+            --bs-border-radius: 10px;
+            --bs-link-color: #51459d;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: var(--bs-body-font-family); font-size: var(--bs-body-font-size); font-weight: 400; line-height: 1.5; color: var(--bs-body-color); background-color: var(--bs-body-bg); }
+        a { color: var(--bs-link-color); text-decoration: none; }
+        a:hover { color: var(--bs-link-color); text-decoration: underline; }
+        h4, .h4 { font-size: 1.25rem; margin-top: 0; margin-bottom: 0.5rem; font-weight: 600; color: #060606; }
+        h5 { font-size: 1rem; margin-top: 0; margin-bottom: 0.5rem; font-weight: 600; color: #060606; }
+
+        body.custom-color .bg-primary { background: linear-gradient(141.55deg, var(--color-customColor) 3.46%, var(--color-customColor) 99.86%), var(--color-customColor) !important; }
+        body.custom-color .btn-primary { --bs-btn-color: #ffffff; --bs-btn-bg: var(--color-customColor); --bs-btn-border-color: var(--color-customColor); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--color-customColor); --bs-btn-hover-border-color: var(--color-customColor); --bs-btn-focus-shadow-rgb: 2, 4, 52; --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--color-customColor); --bs-btn-active-border-color: var(--color-customColor); --bs-btn-disabled-color: #ffffff; --bs-btn-disabled-bg: var(--color-customColor); --bs-btn-disabled-border-color: var(--color-customColor); }
+        body.custom-color .form-control:focus { border-color: var(--color-customColor); box-shadow: 0 0 0 0.2rem var(--color-customColor); }
+        body.custom-color .form-check-input:checked { background-color: var(--color-customColor); border-color: var(--color-customColor); }
+        body.custom-color .text-primary { color: var(--color-customColor) !important; }
+
+        .dash-sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100vh; background: #fff; box-shadow: 0 1px 20px 0 rgba(69,90,100,0.08); z-index: 1025; transition: all 0.15s ease-in-out; }
+        .dash-sidebar .navbar-wrapper { height: 100%; display: flex; flex-direction: column; }
+        .dash-sidebar .m-header { height: 70px; display: flex; align-items: center; padding: 15px 20px; justify-content: center; }
+        .dash-sidebar .m-header img { height: 40px; object-fit: contain; }
+        .dash-sidebar .navbar-content { height: calc(100vh - 70px); overflow-y: auto; padding: 10px 0; }
+        .dash-navbar { list-style: none; padding: 0; margin: 0; }
+        .dash-navbar > .dash-item { position: relative; }
+        .dash-navbar > .dash-item > .dash-link { display: flex; align-items: center; padding: 10px 15px; margin: 4px 15px; color: #333; border-radius: 12px; font-size: 14px; transition: all 0.15s; }
+        .dash-navbar > .dash-item > .dash-link:hover { background: #f0f0f0; color: #51459d; }
+        .dash-navbar > .dash-item > .dash-link .dash-micon { width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; background: #fff; box-shadow: -3px 4px 23px rgba(0,0,0,0.1); border-radius: 10px; margin-right: 10px; flex-shrink: 0; }
+        .dash-navbar > .dash-item > .dash-link .dash-micon i { font-size: 18px; color: #525b69; }
+        .dash-navbar > .dash-item > .dash-link .dash-mtext { flex: 1; }
+        .dash-navbar > .dash-item > .dash-link .dash-arrow { margin-left: 5px; font-size: 14px; }
+        .dash-submenu { list-style: none; padding: 0 0 0 50px; margin: 0; display: none; }
+        .dash-submenu.open { display: block; }
+        .dash-submenu .dash-item .dash-link { display: block; padding: 8px 15px; color: #333; font-size: 13px; border-radius: 8px; transition: all 0.15s; }
+        .dash-submenu .dash-item .dash-link:hover { color: #51459d; }
+        .dash-submenu .dash-item.active > .dash-link { color: var(--color-customColor); font-weight: 600; }
+        .dash-navbar > .dash-item.active > .dash-link { background: #f0f0f0; color: var(--color-customColor); }
+        .dash-navbar > .dash-item.active > .dash-link .dash-micon i { color: var(--color-customColor); }
+
+        .dash-header { position: fixed; top: 0; left: 280px; right: 0; z-index: 1024; background: #fff; box-shadow: 0 1px 20px 0 rgba(69,90,100,0.08); min-height: 70px; }
+        .dash-header .header-wrapper { display: flex; align-items: center; justify-content: space-between; padding: 0 30px; min-height: 70px; }
+        .dash-header .header-wrapper .list-unstyled { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; }
+        .dash-head-link { display: flex; align-items: center; padding: 10px 15px; color: #293240; border-radius: 12px; }
+        .dash-head-link:hover { background: #f0f0f0; }
+        .theme-avtar { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; }
+        .theme-avtar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .dropdown-menu.dash-h-dropdown { padding: 10px 0; border: none; box-shadow: 0 6px 30px rgba(182,186,203,0.3); border-radius: 12px; background: #fff; position: absolute; top: 100%; right: 0; min-width: 200px; z-index: 9999; }
+        .dropdown-menu.dash-h-dropdown .dropdown-item { padding: 8px 20px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #293240; }
+        .dropdown-menu.dash-h-dropdown .dropdown-item:hover { background: #f0f0f0; }
+
+        .dash-container { margin-left: 280px; margin-top: 70px; padding: 20px 30px; min-height: calc(100vh - 70px); }
+        .dash-content { max-width: 1400px; margin: 0 auto; }
+        .page-header { margin-bottom: 24px; }
+        .page-header .page-block { padding: 15px 0; }
+        .page-header-title h4 { margin-bottom: 5px; }
+        .breadcrumb { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; font-size: 13px; }
+        .breadcrumb-item + .breadcrumb-item::before { content: "/"; padding: 0 8px; color: #6c757d; }
+        .breadcrumb-item a { color: var(--color-customColor); }
+
+        .card { background: #fff; border: none; border-radius: 12px; box-shadow: 0 6px 30px rgba(182,186,203,0.3); margin-bottom: 24px; }
+        .card .card-header { padding: 20px 25px; background: transparent; border-bottom: 1px solid #f1f1f1; }
+        .card .card-header h5 { margin-bottom: 0; }
+        .card .card-body { padding: 20px 25px; }
+
+        .table-responsive { overflow-x: auto; }
+        .table { width: 100%; margin-bottom: 0; color: var(--bs-body-color); border-collapse: collapse; }
+        .table thead th { padding: 12px 15px; border-bottom: 2px solid #f1f1f1; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #6c757d; white-space: nowrap; }
+        .table tbody td { padding: 12px 15px; border-bottom: 1px solid #f1f1f1; font-size: 13px; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; border: 1px solid transparent; }
+        .btn-primary { color: #fff; background: var(--color-customColor); border-color: var(--color-customColor); }
+        .btn-primary:hover { background: #01022a; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .action-btn { width: 29px; height: 28px; border-radius: 9px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .action-btn.bg-info { background: #3ec9d6; }
+        .action-btn i { color: #fff; font-size: 14px; }
+        .badge { display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; }
+        .badge.bg-success { background: #6fd943; color: #fff; }
+        .badge.bg-warning { background: #ffa21d; color: #fff; }
+        .badge.bg-danger { background: #ff3a6e; color: #fff; }
+
+        .dash-footer { margin-left: 280px; padding: 15px 30px; background: #fff; border-top: 1px solid #f1f1f1; }
+        .dash-footer .footer-wrapper { display: flex; align-items: center; justify-content: center; }
+        .dash-footer .text-muted { color: #6c757d; font-size: 13px; }
+        .text-muted { color: #6c757d; }
+        .m-b-10 { margin-bottom: 10px; }
+        .ms-auto { margin-left: auto !important; }
+        .me-auto { margin-right: auto !important; }
+        .me-0 { margin-right: 0 !important; }
+        .me-2 { margin-right: 0.5rem !important; }
+        .ms-2 { margin-left: 0.5rem !important; }
+        .mt-3 { margin-top: 1rem !important; }
+        .py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+        .float-end { float: right !important; }
+        .text-center { text-align: center !important; }
+        .d-flex { display: flex !important; }
+        .align-items-center { align-items: center !important; }
+        .row { display: flex; flex-wrap: wrap; margin-right: -12px; margin-left: -12px; }
+        .row > [class*="col-"] { padding-right: 12px; padding-left: 12px; }
+        .col-xl-12 { flex: 0 0 100%; max-width: 100%; }
+        .col-md-4 { flex: 0 0 33.333%; max-width: 33.333%; }
+        .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+        .col-md-8 { flex: 0 0 66.667%; max-width: 66.667%; }
+        .col-auto { flex: 0 0 auto; width: auto; }
+        .col-sm-auto { flex: 0 0 auto; width: auto; }
+        .col-12 { flex: 0 0 100%; max-width: 100%; }
+        hr { margin: 1rem 0; border: 0; border-top: 1px solid #f1f1f1; }
+        .img-fluid { max-width: 100%; height: auto; }
+        .rounded-circle { border-radius: 50% !important; }
+
+        @media (max-width: 1024px) {
+            .dash-sidebar { left: -280px; }
+            .dash-sidebar.mob-open { left: 0; }
+            .dash-header { left: 0; }
+            .dash-container { margin-left: 0; }
+            .dash-footer { margin-left: 0; }
+        }
+    </style>
+</head>
+<body class="custom-color">
+    <nav class="dash-sidebar light-sidebar" id="sidebar">
+        <div class="navbar-wrapper">
+            <div class="m-header main-logo">
+                <a href="dashboard_replica.html" class="b-brand">
+                    <img src="assets/oklut-logo.png" alt="sample" class="logo logo-lg" style="height: 40px;">
+                </a>
+            </div>
+            <div class="navbar-content">
+                <ul class="dash-navbar">
+                    <li class="dash-item"><a href="dashboard_replica.html" class="dash-link"><span class="dash-micon"><i class="ti ti-home"></i></span><span class="dash-mtext">Dashboard</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-license"></i></span><span class="dash-mtext">Recruitment</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="job-postings.html">Job Postings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="candidates.html">Candidates</a></li>
+                            <li class="dash-item"><a class="dash-link" href="interview-rounds.html">Interview Rounds</a></li>
+                            <li class="dash-item"><a class="dash-link" href="offers.html">Offers</a></li>
+                            <li class="dash-item"><a class="dash-link" href="onboarding.html">Onboarding</a></li>
+                            <li class="dash-item"><a class="dash-link" href="career-management.html">Career Management</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="employee.html" class="dash-link"><span class="dash-micon"><i class="ti ti-user"></i></span><span class="dash-mtext">Employee</span></a></li>
+                    <li class="dash-item"><a href="bank-details.html" class="dash-link"><span class="dash-micon"><i class="ti ti-building-bank"></i></span><span class="dash-mtext">Bank Details</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-clock"></i></span><span class="dash-mtext">Attendance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="attendanceemployee.html">Mark Attendance</a></li>
+                            <li class="dash-item"><a class="dash-link" href="attendance-log.html">Attendance Log</a></li>
+                            <li class="dash-item"><a class="dash-link" href="deduction-rules.html">Deduction Rules</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-receipt"></i></span><span class="dash-mtext">Payroll</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="payslip.html">Payslip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="monthly-payout.html">Monthly Payout</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-star"></i></span><span class="dash-mtext">Performance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="performance.html">Monthly Ratings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="performance.html#cycles">Review Cycles</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-user-plus"></i></span><span class="dash-mtext">HR Admin</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="hr-targets.html">HR Targets</a></li>
+                            <li class="dash-item"><a class="dash-link" href="award.html">Award</a></li>
+                            <li class="dash-item"><a class="dash-link" href="resignation.html">Resignation</a></li>
+                            <li class="dash-item"><a class="dash-link" href="travel.html">Trip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="promotion.html">Promotion</a></li>
+                            <li class="dash-item"><a class="dash-link" href="complaint.html">Complaints</a></li>
+                            <li class="dash-item"><a class="dash-link" href="warning.html">Warning</a></li>
+                            <li class="dash-item"><a class="dash-link" href="termination.html">Termination</a></li>
+                            <li class="dash-item"><a class="dash-link" href="announcement.html">Announcement</a></li>
+                            <li class="dash-item"><a class="dash-link" href="holiday.html">Holidays</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-shield"></i></span><span class="dash-mtext">Insurance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="nominees.html">Insurance Details</a></li>
+                            <li class="dash-item"><a class="dash-link" href="family-details.html">Family Details</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-device-floppy"></i></span><span class="dash-mtext">Assets</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="assets.html">Asset List</a></li>
+                            <li class="dash-item"><a class="dash-link" href="assets.html#policies">Policies</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="contract.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file-text"></i></span><span class="dash-mtext">Contracts</span></a></li>
+                    <li class="dash-item"><a href="ticket.html" class="dash-link"><span class="dash-micon"><i class="ti ti-ticket"></i></span><span class="dash-mtext">Ticket</span></a></li>
+                    <li class="dash-item"><a href="event.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-event"></i></span><span class="dash-mtext">Event</span></a></li>
+                    <li class="dash-item"><a href="meeting.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-time"></i></span><span class="dash-mtext">Meeting</span></a></li>
+                    <li class="dash-item"><a href="document-upload.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file"></i></span><span class="dash-mtext">Document</span></a></li>
+                    <li class="dash-item"><a href="task.html" class="dash-link"><span class="dash-micon"><i class="ti ti-checklist"></i></span><span class="dash-mtext">Tasks</span></a></li>
+</nav>
+
+
+    <header class="dash-header">
+        <div class="header-wrapper">
+            <div class="me-auto dash-mob-drp"></div>
+            <div class="ms-auto">
+                <ul class="list-unstyled">
+                    <li class="dash-h-item mob-hamburger">
+                        <a href="#" class="dash-head-link" onclick="toggleSidebar()">
+                            <div class="hamburger hamburger--arrowturn">
+                                <div class="hamburger-box"><div class="hamburger-inner"></div></div>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="dropdown dash-h-item drp-company">
+                        <a class="dash-head-link me-0" href="#" onclick="toggleDropdown(event)">
+                            <span class="theme-avtar">
+                                <img alt="avatar" src="https://hrm.oklut.com/storage/uploads/avatar/avatar.png" style="width: 100%; border-radius:50%">
+                            </span>
+                            <span class="ms-2"> Hi, employee2! <i class="ti ti-chevron-down drp-arrow"></i></span>
+                        </a>
+                        <div class="dropdown-menu dash-h-dropdown" id="userDropdown" style="display:none;">
+                            <a href="profile.html" class="dropdown-item"><i class="ti ti-user"></i><span>My Profile</span></a>
+                            <a href="index.html" class="dropdown-item"><i class="ti ti-power"></i><span>Logout</span></a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <section class="dash-container">
+        <div class="dash-content">
+            
+    <section class="dash-container">
+        <div class="dash-content">
+            
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="page-header-title">
+                                <h4 class="m-b-10">Offer Management</h4>
+                            </div>
+                            <ul class="breadcrumb"><li class="breadcrumb-item"><a href="dashboard_replica.html">Home</a></li>
+    <li class="breadcrumb-item">Recruitment / Offers</li></ul>
+                        </div>
+                        <div class="col-sm-auto col-md">
+                            <div class="float-end"><a href="#" class="btn btn-sm btn-primary"><i class="ti ti-file-export"></i></a> <a href="#" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> Add</a></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xl-12">
+                    <div class="card">
+                        <div class="card-header card-body table-border-style">
+                            
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead><tr><th>Candidate</th><th>Role</th><th>CTC Offered (LPA)</th><th>Relocation</th><th>Bond</th><th>Joining Date</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody class="list"><tr><td>Vikram Singh</td><td>Marketing Lead</td><td>12.5</td><td>Yes</td><td>2 years</td><td>Jul 15, 2026</td><td><span class="badge bg-success">Accepted</span></td><td><div class="action-btn bg-info ms-2"><a href="#" class="mx-3 btn btn-sm align-items-center"><i class="ti ti-pencil text-white"></i></a></div></td></tr><tr><td>Amit Patel</td><td>Accountant</td><td>6.8</td><td>No</td><td>1 year</td><td>Jul 10, 2026</td><td><span class="badge bg-warning">Negotiating</span></td><td><div class="action-btn bg-info ms-2"><a href="#" class="mx-3 btn btn-sm align-items-center"><i class="ti ti-pencil text-white"></i></a></div></td></tr><tr><td>Priya Sharma</td><td>HR Executive</td><td>5.5</td><td>Yes</td><td>2 years</td><td>-</td><td><span class="badge bg-info">Offer Sent</span></td><td><div class="action-btn bg-info ms-2"><a href="#" class="mx-3 btn btn-sm align-items-center"><i class="ti ti-pencil text-white"></i></a></div></td></tr><tr><td>Sneha Reddy</td><td>UI/UX Designer</td><td>8.0</td><td>No</td><td>1 year</td><td>-</td><td><span class="badge bg-primary">Pending</span></td><td><div class="action-btn bg-info ms-2"><a href="#" class="mx-3 btn btn-sm align-items-center"><i class="ti ti-pencil text-white"></i></a></div></td></tr><tr><td>Rajesh Iyer</td><td>Software Engineer</td><td>9.0</td><td>Yes</td><td>-</td><td>-</td><td><span class="badge bg-danger">Rejected</span></td><td><div class="action-btn bg-info ms-2"><a href="#" class="mx-3 btn btn-sm align-items-center"><i class="ti ti-pencil text-white"></i></a></div></td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>        </div>
+    </section>
+
+    <footer class="dash-footer">
+        <div class="footer-wrapper">
+            <div class="py-1">
+                <span class="text-muted">&copy; 2026 sample</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('mob-open'); }
+        function toggleSubmenu(el) {
+            var sub = el.nextElementSibling;
+            if (sub) { sub.classList.toggle('open');
+                var arr = el.querySelector('.dash-arrow i');
+                if (arr) { arr.classList.toggle('ti-chevron-down'); arr.classList.toggle('ti-chevron-right'); } }
+        }
+        function toggleDropdown(e) {
+            e.preventDefault();
+            var d = document.getElementById('userDropdown');
+            d.style.display = d.style.display === 'none' || d.style.display === '' ? 'block' : 'none';
+        }
+        document.addEventListener('click', function(e) {
+            var d = document.getElementById('userDropdown');
+            var t = document.querySelector('.drp-company .dash-head-link');
+            if (d && t && !t.contains(e.target) && !d.contains(e.target)) d.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

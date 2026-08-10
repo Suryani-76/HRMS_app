@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en" dir="">
+<head>
+    <title>sample - Career Management</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Dashboard Template">
+    <meta name="keywords" content="Dashboard Template">
+    <meta name="author" content="Rajodiya Infotech">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@1.41.1/iconfont/tabler-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-customColor: #020434;
+            --bs-blue: #51459d;
+            --bs-indigo: #6610f2;
+            --bs-purple: #6f42c1;
+            --bs-pink: #e83e8c;
+            --bs-red: #ff3a6e;
+            --bs-orange: #fd7e14;
+            --bs-yellow: #ffa21d;
+            --bs-green: #6fd943;
+            --bs-teal: #20c997;
+            --bs-cyan: #3ec9d6;
+            --bs-white: #ffffff;
+            --bs-gray: #6c757d;
+            --bs-gray-dark: #343a40;
+            --bs-gray-100: #f8f9fa;
+            --bs-gray-200: #e9ecef;
+            --bs-gray-300: #dee2e6;
+            --bs-gray-400: #ced4da;
+            --bs-gray-500: #adb5bd;
+            --bs-gray-600: #6c757d;
+            --bs-gray-700: #495057;
+            --bs-gray-800: #343a40;
+            --bs-gray-900: #212529;
+            --bs-primary: #51459d;
+            --bs-secondary: #6c757d;
+            --bs-success: #6fd943;
+            --bs-info: #3ec9d6;
+            --bs-warning: #ffa21d;
+            --bs-danger: #ff3a6e;
+            --bs-light: #f8f9fa;
+            --bs-dark: #1c232f;
+            --bs-font-sans-serif: "Open Sans", sans-serif;
+            --bs-body-font-family: var(--bs-font-sans-serif);
+            --bs-body-font-size: 0.875rem;
+            --bs-body-font-weight: 400;
+            --bs-body-line-height: 1.5;
+            --bs-body-color: #293240;
+            --bs-body-bg: #f8f9fd;
+            --bs-border-radius: 10px;
+            --bs-link-color: #51459d;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: var(--bs-body-font-family); font-size: var(--bs-body-font-size); font-weight: 400; line-height: 1.5; color: var(--bs-body-color); background-color: var(--bs-body-bg); }
+        a { color: var(--bs-link-color); text-decoration: none; }
+        a:hover { color: var(--bs-link-color); text-decoration: underline; }
+        h4, .h4 { font-size: 1.25rem; margin-top: 0; margin-bottom: 0.5rem; font-weight: 600; color: #060606; }
+        h5 { font-size: 1rem; margin-top: 0; margin-bottom: 0.5rem; font-weight: 600; color: #060606; }
+
+        body.custom-color .bg-primary { background: linear-gradient(141.55deg, var(--color-customColor) 3.46%, var(--color-customColor) 99.86%), var(--color-customColor) !important; }
+        body.custom-color .btn-primary { --bs-btn-color: #ffffff; --bs-btn-bg: var(--color-customColor); --bs-btn-border-color: var(--color-customColor); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--color-customColor); --bs-btn-hover-border-color: var(--color-customColor); --bs-btn-focus-shadow-rgb: 2, 4, 52; --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--color-customColor); --bs-btn-active-border-color: var(--color-customColor); --bs-btn-disabled-color: #ffffff; --bs-btn-disabled-bg: var(--color-customColor); --bs-btn-disabled-border-color: var(--color-customColor); }
+        body.custom-color .form-control:focus { border-color: var(--color-customColor); box-shadow: 0 0 0 0.2rem var(--color-customColor); }
+        body.custom-color .form-check-input:checked { background-color: var(--color-customColor); border-color: var(--color-customColor); }
+        body.custom-color .text-primary { color: var(--color-customColor) !important; }
+
+        .dash-sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100vh; background: #fff; box-shadow: 0 1px 20px 0 rgba(69,90,100,0.08); z-index: 1025; transition: all 0.15s ease-in-out; }
+        .dash-sidebar .navbar-wrapper { height: 100%; display: flex; flex-direction: column; }
+        .dash-sidebar .m-header { height: 70px; display: flex; align-items: center; padding: 15px 20px; justify-content: center; }
+        .dash-sidebar .m-header img { height: 40px; object-fit: contain; }
+        .dash-sidebar .navbar-content { height: calc(100vh - 70px); overflow-y: auto; padding: 10px 0; }
+        .dash-navbar { list-style: none; padding: 0; margin: 0; }
+        .dash-navbar > .dash-item { position: relative; }
+        .dash-navbar > .dash-item > .dash-link { display: flex; align-items: center; padding: 10px 15px; margin: 4px 15px; color: #333; border-radius: 12px; font-size: 14px; transition: all 0.15s; }
+        .dash-navbar > .dash-item > .dash-link:hover { background: #f0f0f0; color: #51459d; }
+        .dash-navbar > .dash-item > .dash-link .dash-micon { width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; background: #fff; box-shadow: -3px 4px 23px rgba(0,0,0,0.1); border-radius: 10px; margin-right: 10px; flex-shrink: 0; }
+        .dash-navbar > .dash-item > .dash-link .dash-micon i { font-size: 18px; color: #525b69; }
+        .dash-navbar > .dash-item > .dash-link .dash-mtext { flex: 1; }
+        .dash-navbar > .dash-item > .dash-link .dash-arrow { margin-left: 5px; font-size: 14px; }
+        .dash-submenu { list-style: none; padding: 0 0 0 50px; margin: 0; display: none; }
+        .dash-submenu.open { display: block; }
+        .dash-submenu .dash-item .dash-link { display: block; padding: 8px 15px; color: #333; font-size: 13px; border-radius: 8px; transition: all 0.15s; }
+        .dash-submenu .dash-item .dash-link:hover { color: #51459d; }
+        .dash-submenu .dash-item.active > .dash-link { color: var(--color-customColor); font-weight: 600; }
+        .dash-navbar > .dash-item.active > .dash-link { background: #f0f0f0; color: var(--color-customColor); }
+        .dash-navbar > .dash-item.active > .dash-link .dash-micon i { color: var(--color-customColor); }
+
+        .dash-header { position: fixed; top: 0; left: 280px; right: 0; z-index: 1024; background: #fff; box-shadow: 0 1px 20px 0 rgba(69,90,100,0.08); min-height: 70px; }
+        .dash-header .header-wrapper { display: flex; align-items: center; justify-content: space-between; padding: 0 30px; min-height: 70px; }
+        .dash-header .header-wrapper .list-unstyled { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; }
+        .dash-head-link { display: flex; align-items: center; padding: 10px 15px; color: #293240; border-radius: 12px; }
+        .dash-head-link:hover { background: #f0f0f0; }
+        .theme-avtar { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; }
+        .theme-avtar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .dropdown-menu.dash-h-dropdown { padding: 10px 0; border: none; box-shadow: 0 6px 30px rgba(182,186,203,0.3); border-radius: 12px; background: #fff; position: absolute; top: 100%; right: 0; min-width: 200px; z-index: 9999; }
+        .dropdown-menu.dash-h-dropdown .dropdown-item { padding: 8px 20px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #293240; }
+        .dropdown-menu.dash-h-dropdown .dropdown-item:hover { background: #f0f0f0; }
+
+        .dash-container { margin-left: 280px; margin-top: 70px; padding: 20px 30px; min-height: calc(100vh - 70px); }
+        .dash-content { max-width: 1400px; margin: 0 auto; }
+        .page-header { margin-bottom: 24px; }
+        .page-header .page-block { padding: 15px 0; }
+        .page-header-title h4 { margin-bottom: 5px; }
+        .breadcrumb { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; font-size: 13px; }
+        .breadcrumb-item + .breadcrumb-item::before { content: "/"; padding: 0 8px; color: #6c757d; }
+        .breadcrumb-item a { color: var(--color-customColor); }
+
+        .card { background: #fff; border: none; border-radius: 12px; box-shadow: 0 6px 30px rgba(182,186,203,0.3); margin-bottom: 24px; }
+        .card .card-header { padding: 20px 25px; background: transparent; border-bottom: 1px solid #f1f1f1; }
+        .card .card-header h5 { margin-bottom: 0; }
+        .card .card-body { padding: 20px 25px; }
+
+        .table-responsive { overflow-x: auto; }
+        .table { width: 100%; margin-bottom: 0; color: var(--bs-body-color); border-collapse: collapse; }
+        .table thead th { padding: 12px 15px; border-bottom: 2px solid #f1f1f1; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #6c757d; white-space: nowrap; }
+        .table tbody td { padding: 12px 15px; border-bottom: 1px solid #f1f1f1; font-size: 13px; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; border: 1px solid transparent; }
+        .btn-primary { color: #fff; background: var(--color-customColor); border-color: var(--color-customColor); }
+        .btn-primary:hover { background: #01022a; }
+        .btn-secondary { color: #fff; background: #6c757d; border-color: #6c757d; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .action-btn { width: 29px; height: 28px; border-radius: 9px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .action-btn.bg-info { background: #3ec9d6; }
+        .action-btn.bg-danger { background: #ff3a6e; }
+        .action-btn i { color: #fff; font-size: 14px; }
+        .badge { display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; }
+        .badge.bg-success { background: #6fd943; color: #fff; }
+        .badge.bg-warning { background: #ffa21d; color: #fff; }
+        .badge.bg-danger { background: #ff3a6e; color: #fff; }
+        .badge.bg-info { background: #3ec9d6; color: #fff; }
+        .badge.bg-secondary { background: #6c757d; color: #fff; }
+        .badge.bg-light { background: #f0f0f0; color: #525b69; }
+
+        .stat-card .card-body { display: flex; align-items: center; gap: 15px; }
+        .stat-card .stat-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; flex-shrink: 0; }
+        .stat-card h4 { margin-bottom: 2px; }
+        .stat-card .text-muted { font-size: 12px; }
+
+        .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(2,4,52,0.55); z-index: 2000; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 15px; }
+        .modal-box { background: #fff; border-radius: 14px; width: 100%; max-width: 680px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+        .modal-box.wide { max-width: 860px; }
+        .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #f1f1f1; }
+        .modal-head h5 { margin: 0; }
+        .modal-close { background: #f0f0f0; border: none; width: 30px; height: 30px; border-radius: 8px; font-size: 16px; line-height: 1; cursor: pointer; color: #525b69; }
+        .modal-close:hover { background: #e2e2e2; }
+        .modal-body { padding: 20px 24px; }
+        .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid #f1f1f1; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: #525b69; margin-bottom: 6px; }
+        .form-control { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid #d6d9e4; border-radius: 8px; background: #fff; }
+        .form-control:focus { outline: none; border-color: var(--color-customColor); }
+        textarea.form-control { resize: vertical; min-height: 90px; }
+        .text-danger { color: #ff3a6e !important; }
+        .text-success { color: #6fd943 !important; }
+        .text-info { color: #3ec9d6 !important; }
+        .text-warning { color: #ffa21d !important; }
+        .fw-semibold { font-weight: 600 !important; }
+        .mb-0 { margin-bottom: 0 !important; }
+        .mb-2 { margin-bottom: 0.5rem !important; }
+        .mb-3 { margin-bottom: 1rem !important; }
+        .mb-4 { margin-bottom: 1.5rem !important; }
+        .mt-3 { margin-top: 1rem !important; }
+
+        .dash-footer { margin-left: 280px; padding: 15px 30px; background: #fff; border-top: 1px solid #f1f1f1; }
+        .dash-footer .footer-wrapper { display: flex; align-items: center; justify-content: center; }
+        .dash-footer .text-muted { color: #6c757d; font-size: 13px; }
+        .text-muted { color: #6c757d; }
+        .m-b-10 { margin-bottom: 10px; }
+        .ms-auto { margin-left: auto !important; }
+        .me-auto { margin-right: auto !important; }
+        .me-0 { margin-right: 0 !important; }
+        .ms-2 { margin-left: 0.5rem !important; }
+        .float-end { float: right !important; }
+        .d-flex { display: flex !important; }
+        .align-items-center { align-items: center !important; }
+        .row { display: flex; flex-wrap: wrap; margin-right: -12px; margin-left: -12px; }
+        .row > [class*="col-"] { padding-right: 12px; padding-left: 12px; }
+        .col-xl-12 { flex: 0 0 100%; max-width: 100%; }
+        .col-md-4 { flex: 0 0 33.333%; max-width: 33.333%; }
+        .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+        .col-md-8 { flex: 0 0 66.667%; max-width: 66.667%; }
+        .col-auto { flex: 0 0 auto; width: auto; }
+        .col-sm-auto { flex: 0 0 auto; width: auto; }
+        .col-12 { flex: 0 0 100%; max-width: 100%; }
+
+        @media (max-width: 1024px) {
+            .dash-sidebar { left: -280px; }
+            .dash-sidebar.mob-open { left: 0; }
+            .dash-header { left: 0; }
+            .dash-container { margin-left: 0; }
+            .dash-footer { margin-left: 0; }
+            .col-md-4 { flex: 0 0 100%; max-width: 100%; }
+            .col-md-6 { flex: 0 0 100%; max-width: 100%; }
+        }
+    </style>
+</head>
+<body class="custom-color">
+    <nav class="dash-sidebar light-sidebar" id="sidebar">
+        <div class="navbar-wrapper">
+            <div class="m-header main-logo">
+                <a href="dashboard_replica.html" class="b-brand">
+                    <img src="assets/oklut-logo.png" alt="sample" class="logo logo-lg" style="height: 40px;">
+                </a>
+            </div>
+            <div class="navbar-content">
+                <ul class="dash-navbar">
+                    <li class="dash-item"><a href="dashboard_replica.html" class="dash-link"><span class="dash-micon"><i class="ti ti-home"></i></span><span class="dash-mtext">Dashboard</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-license"></i></span><span class="dash-mtext">Recruitment</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="job-postings.html">Job Postings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="candidates.html">Candidates</a></li>
+                            <li class="dash-item"><a class="dash-link" href="interview-rounds.html">Interview Rounds</a></li>
+                            <li class="dash-item"><a class="dash-link" href="offers.html">Offers</a></li>
+                            <li class="dash-item"><a class="dash-link" href="onboarding.html">Onboarding</a></li>
+                            <li class="dash-item"><a class="dash-link" href="career-management.html">Career Management</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="employee.html" class="dash-link"><span class="dash-micon"><i class="ti ti-user"></i></span><span class="dash-mtext">Employee</span></a></li>
+                    <li class="dash-item"><a href="bank-details.html" class="dash-link"><span class="dash-micon"><i class="ti ti-building-bank"></i></span><span class="dash-mtext">Bank Details</span></a></li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-clock"></i></span><span class="dash-mtext">Attendance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="attendanceemployee.html">Mark Attendance</a></li>
+                            <li class="dash-item"><a class="dash-link" href="attendance-log.html">Attendance Log</a></li>
+                            <li class="dash-item"><a class="dash-link" href="deduction-rules.html">Deduction Rules</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-receipt"></i></span><span class="dash-mtext">Payroll</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="payslip.html">Payslip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="monthly-payout.html">Monthly Payout</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-star"></i></span><span class="dash-mtext">Performance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="performance.html">Monthly Ratings</a></li>
+                            <li class="dash-item"><a class="dash-link" href="performance.html#cycles">Review Cycles</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-user-plus"></i></span><span class="dash-mtext">HR Admin</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="hr-targets.html">HR Targets</a></li>
+                            <li class="dash-item"><a class="dash-link" href="award.html">Award</a></li>
+                            <li class="dash-item"><a class="dash-link" href="resignation.html">Resignation</a></li>
+                            <li class="dash-item"><a class="dash-link" href="travel.html">Trip</a></li>
+                            <li class="dash-item"><a class="dash-link" href="promotion.html">Promotion</a></li>
+                            <li class="dash-item"><a class="dash-link" href="complaint.html">Complaints</a></li>
+                            <li class="dash-item"><a class="dash-link" href="warning.html">Warning</a></li>
+                            <li class="dash-item"><a class="dash-link" href="termination.html">Termination</a></li>
+                            <li class="dash-item"><a class="dash-link" href="announcement.html">Announcement</a></li>
+                            <li class="dash-item"><a class="dash-link" href="holiday.html">Holidays</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-shield"></i></span><span class="dash-mtext">Insurance</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="nominees.html">Insurance Details</a></li>
+                            <li class="dash-item"><a class="dash-link" href="family-details.html">Family Details</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#" class="dash-link" onclick="toggleSubmenu(this)"><span class="dash-micon"><i class="ti ti-device-floppy"></i></span><span class="dash-mtext">Assets</span><span class="dash-arrow"><i class="ti ti-chevron-right"></i></span></a>
+                        <ul class="dash-submenu">
+                            <li class="dash-item"><a class="dash-link" href="assets.html">Asset List</a></li>
+                            <li class="dash-item"><a class="dash-link" href="assets.html#policies">Policies</a></li>
+                        </ul>
+                    </li>
+                    <li class="dash-item"><a href="contract.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file-text"></i></span><span class="dash-mtext">Contracts</span></a></li>
+                    <li class="dash-item"><a href="ticket.html" class="dash-link"><span class="dash-micon"><i class="ti ti-ticket"></i></span><span class="dash-mtext">Ticket</span></a></li>
+                    <li class="dash-item"><a href="event.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-event"></i></span><span class="dash-mtext">Event</span></a></li>
+                    <li class="dash-item"><a href="meeting.html" class="dash-link"><span class="dash-micon"><i class="ti ti-calendar-time"></i></span><span class="dash-mtext">Meeting</span></a></li>
+                    <li class="dash-item"><a href="document-upload.html" class="dash-link"><span class="dash-micon"><i class="ti ti-file"></i></span><span class="dash-mtext">Document</span></a></li>
+                    <li class="dash-item"><a href="task.html" class="dash-link"><span class="dash-micon"><i class="ti ti-checklist"></i></span><span class="dash-mtext">Tasks</span></a></li>
+</nav>
+
+    <header class="dash-header">
+        <div class="header-wrapper">
+            <div class="me-auto dash-mob-drp"></div>
+            <div class="ms-auto">
+                <ul class="list-unstyled">
+                    <li class="dash-h-item mob-hamburger">
+                        <a href="#" class="dash-head-link" onclick="toggleSidebar()">
+                            <div class="hamburger hamburger--arrowturn">
+                                <div class="hamburger-box"><div class="hamburger-inner"></div></div>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="dropdown dash-h-item drp-company">
+                        <a class="dash-head-link me-0" href="#" onclick="toggleDropdown(event)">
+                            <span class="theme-avtar">
+                                <img alt="avatar" src="https://hrm.oklut.com/storage/uploads/avatar/avatar.png" style="width: 100%; border-radius:50%">
+                            </span>
+                            <span class="ms-2"> Hi, employee2! <i class="ti ti-chevron-down drp-arrow"></i></span>
+                        </a>
+                        <div class="dropdown-menu dash-h-dropdown" id="userDropdown" style="display:none;">
+                            <a href="profile.html" class="dropdown-item"><i class="ti ti-user"></i><span>My Profile</span></a>
+                            <a href="index.html" class="dropdown-item"><i class="ti ti-power"></i><span>Logout</span></a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <section class="dash-container">
+        <div class="dash-content">
+
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="page-header-title">
+                                <h4 class="m-b-10">Career Management</h4>
+                            </div>
+                            <ul class="breadcrumb"><li class="breadcrumb-item"><a href="dashboard_replica.html">Home</a></li>
+    <li class="breadcrumb-item"><a href="job-postings.html">Recruitment</a></li>
+    <li class="breadcrumb-item">Career</li></ul>
+                        </div>
+                        <div class="col-sm-auto col-md">
+                            <div class="float-end">
+                                <a href="career.html" target="_blank" class="btn btn-sm btn-primary"><i class="ti ti-external-link"></i> View Careers Page</a>
+                                <a href="#" class="btn btn-sm btn-primary" onclick="openJobModal()"><i class="ti ti-plus"></i> Add Job</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card mb-0">
+                        <div class="card-body">
+                            <div class="stat-icon bg-primary"><i class="ti ti-briefcase"></i></div>
+                            <div>
+                                <h4 class="mb-0" id="statTotal">0</h4>
+                                <span class="text-muted">Total Postings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card mb-0">
+                        <div class="card-body">
+                            <div class="stat-icon bg-success"><i class="ti ti-circle-check"></i></div>
+                            <div>
+                                <h4 class="mb-0" id="statOpen">0</h4>
+                                <span class="text-muted">Open Positions</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card mb-0">
+                        <div class="card-body">
+                            <div class="stat-icon bg-info"><i class="ti ti-users"></i></div>
+                            <div>
+                                <h4 class="mb-0" id="statApps">0</h4>
+                                <span class="text-muted">Total Applications</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-xl-12">
+                    <div class="card">
+                        <div class="card-header"><h5>Job Postings</h5></div>
+                        <div class="card-header card-body table-border-style">
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead><tr><th>Job Title</th><th>Department</th><th>Location</th><th>Openings</th><th>Type</th><th>Status</th><th>Applicants</th><th>Actions</th></tr></thead>
+                                    <tbody class="list" id="jobTableBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="emptyState" class="text-center py-4" style="display:none;">
+                                <p class="text-muted mb-0">No job postings yet. Click "Add Job" to create your first posting.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="modal-backdrop" id="jobModal" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-head">
+                <h5 id="jobModalTitle">Add Job Posting</h5>
+                <button type="button" class="modal-close" onclick="closeJobModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="jobId">
+                <div class="form-group">
+                    <label>Job Title</label>
+                    <input type="text" class="form-control" id="jobTitle" placeholder="e.g. PHP Developer">
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Department</label>
+                            <input type="text" class="form-control" id="jobDept" placeholder="e.g. IT">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Location</label>
+                            <input type="text" class="form-control" id="jobLoc" placeholder="e.g. Hyderabad">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Number of Openings</label>
+                            <input type="number" class="form-control" id="jobOpenings" value="1" min="1">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Employment Type</label>
+                            <select class="form-control" id="jobType">
+                                <option value="Full-time">Full-time</option>
+                                <option value="Part-time">Part-time</option>
+                                <option value="Contract">Contract</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Job Description</label>
+                    <textarea class="form-control" id="jobDesc" rows="4" placeholder="Describe the role..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Requirements (one per line)</label>
+                    <textarea class="form-control" id="jobReq" rows="4" placeholder="e.g. 3+ years of PHP experience"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select class="form-control" id="jobStatus">
+                                <option value="Open">Open</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Published</label>
+                            <select class="form-control" id="jobPublished">
+                                <option value="1">Published (visible on Careers page)</option>
+                                <option value="0">Unpublished</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-secondary" onclick="closeJobModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveJob()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="appsModal" style="display:none;">
+        <div class="modal-box wide">
+            <div class="modal-head">
+                <h5 id="appsModalTitle">Applicants</h5>
+                <button type="button" class="modal-close" onclick="closeAppsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Resume</th><th>Applied</th><th>Cover Letter</th></tr></thead>
+                        <tbody id="appsTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="appsEmpty" class="text-center py-4" style="display:none;">
+                    <p class="text-muted mb-0">No applications received for this job yet.</p>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-secondary" onclick="closeAppsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="dash-footer">
+        <div class="footer-wrapper">
+            <div class="py-1">
+                <span class="text-muted">&copy; 2026 sample</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        var JOBS_KEY = 'hrms_career_jobs';
+        var APPS_KEY = 'hrms_career_applications';
+        var currentAppsJobId = null;
+
+        function defaultJobs() {
+            return [
+                { id: 'JB-se-001', title: 'Software Engineer', department: 'IT', location: 'Hyderabad', openings: 2, description: 'Build and maintain scalable web applications using modern PHP and JavaScript frameworks. Collaborate with cross-functional teams to deliver high-quality features on time.', requirements: '3+ years of experience in PHP development\nStrong knowledge of MySQL and REST APIs\nExperience with Git and agile workflows\nGood problem-solving and communication skills', employmentType: 'Full-time', status: 'Open', published: true, createdAt: '2026-07-01' },
+                { id: 'JB-php-001', title: 'PHP Developer', department: 'IT', location: 'Hyderabad', openings: 2, description: 'Develop robust server-side logic, integrate front-end elements and build reusable, testable code. Work closely with designers and product managers to ship features for our clients.', requirements: '2+ years of PHP (Laravel) experience\nSolid understanding of HTML, CSS and JavaScript\nExperience with PostgreSQL or MySQL\nFamiliarity with version control (Git)', employmentType: 'Full-time', status: 'Open', published: true, createdAt: '2026-07-02' },
+                { id: 'JB-ui-001', title: 'UI Designer', department: 'Design', location: 'Hyderabad', openings: 1, description: 'Design clean, modern and intuitive interfaces for our HRM platform. Build design systems, wireframes and interactive prototypes that delight users.', requirements: '2+ years of UI/UX design experience\nProficiency with Figma or Sketch\nStrong portfolio demonstrating visual design skills\nKnowledge of responsive design principles', employmentType: 'Full-time', status: 'Open', published: true, createdAt: '2026-07-03' },
+                { id: 'JB-hr-001', title: 'HR Executive', department: 'HR', location: 'Bangalore', openings: 1, description: 'Support the HR team in recruitment, onboarding and employee engagement. Maintain HR records and assist with payroll and policy administration.', requirements: '1-3 years of HR experience\nStrong organizational and communication skills\nKnowledge of labour laws is a plus\nProficiency in MS Office', employmentType: 'Full-time', status: 'Open', published: true, createdAt: '2026-06-25' },
+                { id: 'JB-acc-001', title: 'Accountant', department: 'Finance', location: 'Hyderabad', openings: 1, description: 'Handle day-to-day accounting operations, reconciliations and month-end closing. Prepare financial reports and support audits.', requirements: '2-4 years of accounting experience\nKnowledge of Tally or similar ERP\nStrong attention to detail\nFamiliarity with tax regulations', employmentType: 'Full-time', status: 'Closed', published: true, createdAt: '2026-06-15' },
+                { id: 'JB-mkt-001', title: 'Marketing Lead', department: 'Marketing', location: 'Mumbai', openings: 1, description: 'Own the marketing strategy for our product lines. Lead campaigns, manage brand presence and drive lead generation across channels.', requirements: '5-7 years of marketing experience\nExperience managing a team\nStrong analytical and storytelling skills\nBackground in B2B SaaS is a plus', employmentType: 'Full-time', status: 'Open', published: false, createdAt: '2026-06-20' }
+            ];
+        }
+
+        function defaultApps() {
+            return [
+                { id: 'AP-001', jobId: 'JB-se-001', name: 'Ravi Kumar', email: 'ravi.k@email.com', phone: '+91 98765 43210', resumeName: 'Ravi_Kumar_Resume.pdf', coverLetter: 'I have 4 years of experience building scalable PHP applications and I am excited about the opportunity to contribute to your engineering team.', appliedAt: '2026-07-02' },
+                { id: 'AP-002', jobId: 'JB-se-001', name: 'Neha Gupta', email: 'neha.g@email.com', phone: '+91 91234 56780', resumeName: 'Neha_Gupta_CV.pdf', coverLetter: 'Passionate software engineer with a strong background in PHP and React. I believe my skills align well with this role.', appliedAt: '2026-07-03' },
+                { id: 'AP-003', jobId: 'JB-php-001', name: 'Arun Nair', email: 'arun.n@email.com', phone: '+91 90000 12345', resumeName: 'Arun_Nair_Resume.pdf', coverLetter: 'Laravel developer with 3 years of hands-on experience. I enjoy building clean, testable backend systems.', appliedAt: '2026-07-04' }
+            ];
+        }
+
+        function loadJobs() {
+            var raw = localStorage.getItem(JOBS_KEY);
+            if (!raw) {
+                var seeds = defaultJobs();
+                localStorage.setItem(JOBS_KEY, JSON.stringify(seeds));
+                return seeds;
+            }
+            try { return JSON.parse(raw); } catch (e) { return defaultJobs(); }
+        }
+
+        function saveJobs(jobs) { localStorage.setItem(JOBS_KEY, JSON.stringify(jobs)); }
+
+        function loadApps() {
+            var raw = localStorage.getItem(APPS_KEY);
+            if (!raw) {
+                var seeds = defaultApps();
+                localStorage.setItem(APPS_KEY, JSON.stringify(seeds));
+                return seeds;
+            }
+            try { return JSON.parse(raw); } catch (e) { return []; }
+        }
+
+        function saveApps(apps) { localStorage.setItem(APPS_KEY, JSON.stringify(apps)); }
+
+        function uid(prefix) { return prefix + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase(); }
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function appsForJob(jobId) { return loadApps().filter(function (a) { return a.jobId === jobId; }); }
+
+        function renderStats(jobs, apps) {
+            var open = jobs.filter(function (j) { return j.status === 'Open'; }).length;
+            document.getElementById('statTotal').textContent = jobs.length;
+            document.getElementById('statOpen').textContent = open;
+            document.getElementById('statApps').textContent = apps.length;
+        }
+
+        function renderJobs() {
+            var jobs = loadJobs();
+            var apps = loadApps();
+            renderStats(jobs, apps);
+            var tbody = document.getElementById('jobTableBody');
+            var empty = document.getElementById('emptyState');
+            if (!jobs.length) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+            tbody.innerHTML = jobs.map(function (j) {
+                var count = appsForJob(j.id).length;
+                var statusBadge = j.status === 'Open'
+                    ? '<span class="badge bg-success">Open</span>'
+                    : '<span class="badge bg-secondary">Closed</span>';
+                var pubBadge = j.published
+                    ? '<span class="badge bg-info">Published</span>'
+                    : '<span class="badge bg-light">Unpublished</span>';
+                var typeBadge = j.employmentType === 'Contract'
+                    ? '<span class="badge bg-warning">' + esc(j.employmentType) + '</span>'
+                    : '<span class="badge bg-light">' + esc(j.employmentType) + '</span>';
+                return '<tr>'
+                    + '<td class="fw-semibold">' + esc(j.title) + '</td>'
+                    + '<td>' + esc(j.department) + '</td>'
+                    + '<td>' + esc(j.location) + '</td>'
+                    + '<td>' + esc(j.openings) + '</td>'
+                    + '<td>' + typeBadge + '</td>'
+                    + '<td>' + statusBadge + ' ' + pubBadge + '</td>'
+                    + '<td><a href="#" onclick="openAppsModal(\'' + j.id + '\');return false;"><span class="badge bg-info">' + count + '</span> Applicants</a></td>'
+                    + '<td><div class="d-flex">'
+                    + '<div class="action-btn bg-info ms-2"><a href="#" onclick="openAppsModal(\'' + j.id + '\');return false;" title="Applicants"><i class="ti ti-users text-white"></i></a></div>'
+                    + '<div class="action-btn bg-info ms-2"><a href="#" onclick="editJob(\'' + j.id + '\');return false;" title="Edit"><i class="ti ti-pencil text-white"></i></a></div>'
+                    + '<div class="action-btn bg-info ms-2"><a href="#" onclick="togglePublish(\'' + j.id + '\');return false;" title="' + (j.published ? 'Unpublish' : 'Publish') + '"><i class="ti ti-' + (j.published ? 'eye-off' : 'eye') + ' text-white"></i></a></div>'
+                    + '<div class="action-btn bg-danger ms-2"><a href="#" onclick="deleteJob(\'' + j.id + '\');return false;" title="Delete"><i class="ti ti-trash text-white"></i></a></div>'
+                    + '</div></td>'
+                    + '</tr>';
+            }).join('');
+        }
+
+        function openJobModal(job) {
+            var isEdit = !!job;
+            document.getElementById('jobModalTitle').textContent = isEdit ? 'Edit Job Posting' : 'Add Job Posting';
+            document.getElementById('jobId').value = job ? job.id : '';
+            document.getElementById('jobTitle').value = job ? job.title : '';
+            document.getElementById('jobDept').value = job ? job.department : '';
+            document.getElementById('jobLoc').value = job ? job.location : '';
+            document.getElementById('jobOpenings').value = job ? job.openings : 1;
+            document.getElementById('jobType').value = job ? job.employmentType : 'Full-time';
+            document.getElementById('jobDesc').value = job ? job.description : '';
+            document.getElementById('jobReq').value = job ? job.requirements : '';
+            document.getElementById('jobStatus').value = job ? job.status : 'Open';
+            document.getElementById('jobPublished').value = job ? (job.published ? '1' : '0') : '1';
+            document.getElementById('jobModal').style.display = 'flex';
+        }
+
+        function closeJobModal() { document.getElementById('jobModal').style.display = 'none'; }
+
+        function editJob(id) {
+            var jobs = loadJobs();
+            var job = jobs.filter(function (j) { return j.id === id; })[0];
+            if (job) openJobModal(job);
+        }
+
+        function saveJob() {
+            var title = document.getElementById('jobTitle').value.trim();
+            var dept = document.getElementById('jobDept').value.trim();
+            var loc = document.getElementById('jobLoc').value.trim();
+            var openings = parseInt(document.getElementById('jobOpenings').value, 10) || 1;
+            var type = document.getElementById('jobType').value;
+            var desc = document.getElementById('jobDesc').value.trim();
+            var req = document.getElementById('jobReq').value.trim();
+            var status = document.getElementById('jobStatus').value;
+            var published = document.getElementById('jobPublished').value === '1';
+
+            if (!title || !dept || !loc || !desc) {
+                alert('Please fill in Job Title, Department, Location and Job Description.');
+                return;
+            }
+
+            var jobs = loadJobs();
+            var id = document.getElementById('jobId').value;
+            if (id) {
+                for (var i = 0; i < jobs.length; i++) {
+                    if (jobs[i].id === id) {
+                        jobs[i].title = title; jobs[i].department = dept; jobs[i].location = loc;
+                        jobs[i].openings = openings; jobs[i].employmentType = type; jobs[i].description = desc;
+                        jobs[i].requirements = req; jobs[i].status = status; jobs[i].published = published;
+                        jobs[i].updatedAt = new Date().toISOString();
+                    }
+                }
+            } else {
+                jobs.unshift({
+                    id: uid('JB-'), title: title, department: dept, location: loc, openings: openings,
+                    employmentType: type, description: desc, requirements: req, status: status,
+                    published: published, createdAt: new Date().toISOString().slice(0, 10)
+                });
+            }
+            saveJobs(jobs);
+            closeJobModal();
+            renderJobs();
+        }
+
+        function togglePublish(id) {
+            var jobs = loadJobs();
+            for (var i = 0; i < jobs.length; i++) {
+                if (jobs[i].id === id) { jobs[i].published = !jobs[i].published; break; }
+            }
+            saveJobs(jobs);
+            renderJobs();
+        }
+
+        function deleteJob(id) {
+            if (!confirm('Delete this job posting? Its applications will also be removed.')) return;
+            var jobs = loadJobs().filter(function (j) { return j.id !== id; });
+            var apps = loadApps().filter(function (a) { return a.jobId !== id; });
+            saveJobs(jobs);
+            saveApps(apps);
+            renderJobs();
+        }
+
+        function openAppsModal(jobId) {
+            currentAppsJobId = jobId;
+            var jobs = loadJobs();
+            var job = jobs.filter(function (j) { return j.id === jobId; })[0];
+            document.getElementById('appsModalTitle').textContent = job ? ('Applicants - ' + job.title) : 'Applicants';
+            var apps = appsForJob(jobId);
+            var tbody = document.getElementById('appsTableBody');
+            var empty = document.getElementById('appsEmpty');
+            if (!apps.length) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                tbody.innerHTML = apps.map(function (a) {
+                    return '<tr>'
+                        + '<td class="fw-semibold">' + esc(a.name) + '</td>'
+                        + '<td>' + esc(a.email) + '</td>'
+                        + '<td>' + esc(a.phone) + '</td>'
+                        + '<td><i class="ti ti-file-text"></i> ' + esc(a.resumeName) + '</td>'
+                        + '<td>' + esc(a.appliedAt) + '</td>'
+                        + '<td style="max-width:260px;">' + esc(a.coverLetter) + '</td>'
+                        + '</tr>';
+                }).join('');
+            }
+            document.getElementById('appsModal').style.display = 'flex';
+        }
+
+        function closeAppsModal() {
+            document.getElementById('appsModal').style.display = 'none';
+            currentAppsJobId = null;
+        }
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('mob-open'); }
+        function toggleSubmenu(el) {
+            var sub = el.nextElementSibling;
+            if (sub) { sub.classList.toggle('open');
+                var arr = el.querySelector('.dash-arrow i');
+                if (arr) { arr.classList.toggle('ti-chevron-down'); arr.classList.toggle('ti-chevron-right'); } }
+        }
+        function toggleDropdown(e) {
+            e.preventDefault();
+            var d = document.getElementById('userDropdown');
+            d.style.display = d.style.display === 'none' || d.style.display === '' ? 'block' : 'none';
+        }
+        document.addEventListener('click', function(e) {
+            var d = document.getElementById('userDropdown');
+            var t = document.querySelector('.drp-company .dash-head-link');
+            if (d && t && !t.contains(e.target) && !d.contains(e.target)) d.style.display = 'none';
+        });
+
+        renderJobs();
+    </script>
+</body>
+</html>

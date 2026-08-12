@@ -303,6 +303,7 @@ export interface Interview {
   scheduled_at: string
   mode?: string | null
   meeting_link?: string | null
+  exam_link?: string | null
   status?: string | null
   feedback?: string | null
   rating?: number | null

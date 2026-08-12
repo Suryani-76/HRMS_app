@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -476,10 +476,11 @@ function InterviewsTab() {
   const [candidateId, setCandidateId] = useState('')
   const [jobId, setJobId] = useState('')
   const [interviewerId, setInterviewerId] = useState('')
-  const [round, setRound] = useState('First Round')
+  const [round, setRound] = useState('Screening')
   const [scheduledAt, setScheduledAt] = useState('')
   const [mode, setMode] = useState('video')
   const [link, setLink] = useState('')
+  const [examLink, setExamLink] = useState('')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -492,9 +493,10 @@ function InterviewsTab() {
       scheduled_at: new Date(scheduledAt).toISOString(),
       mode: mode || undefined,
       meeting_link: link || undefined,
+      exam_link: examLink || undefined,
     })
     setDialog(false)
-    setCandidateId(''); setJobId(''); setInterviewerId(''); setLink('')
+    setCandidateId(''); setJobId(''); setInterviewerId(''); setLink(''); setExamLink('')
   }
 
   return (
@@ -604,8 +606,6 @@ function InterviewsTab() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Screening">Screening</SelectItem>
-                    <SelectItem value="First Round">First Round</SelectItem>
-                    <SelectItem value="Second Round">Second Round</SelectItem>
                     <SelectItem value="Technical">Technical</SelectItem>
                     <SelectItem value="HR">HR</SelectItem>
                   </SelectContent>
@@ -643,6 +643,10 @@ function InterviewsTab() {
                 <Label>Scheduled at *</Label>
                 <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} required />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Exam link</Label>
+              <Input value={examLink} onChange={(e) => setExamLink(e.target.value)} placeholder="https://test.com/..." />
             </div>
             <div className="space-y-2">
               <Label>Meeting link</Label>
@@ -836,6 +840,142 @@ function OffersTab() {
   )
 }
 
+interface EmailLog {
+  id: string
+  candidateName: string
+  subject: string
+  messageSnippet: string
+  timestamp: string
+  status: string
+}
+
+function EmailsTab() {
+  const { data: candidates = [] } = useCandidates()
+  const [dialog, setDialog] = useState(false)
+  const [candidateId, setCandidateId] = useState('')
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [logs, setLogs] = useState<EmailLog[]>([])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!candidateId || !subject || !message) return
+    setIsSending(true)
+    
+    const candidate = candidates.find(c => c.id === candidateId)
+    if (candidate && candidate.email) {
+      let bodyParam = `&body=${encodeURIComponent(message)}`
+      if (message.length > 500) {
+        bodyParam = ''
+        navigator.clipboard.writeText(message).catch(() => {})
+        toast.info('Message copied to clipboard (too long for URL). Please paste it into Gmail.')
+      }
+      
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${candidate.email}&su=${encodeURIComponent(subject)}${bodyParam}`
+      window.open(gmailUrl, '_blank')
+      
+      const newLog: EmailLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        candidateName: candidate.name,
+        subject,
+        messageSnippet: message.length > 50 ? message.substring(0, 50) + '...' : message,
+        timestamp: new Date().toISOString(),
+        status: 'Compose Triggered'
+      }
+      setLogs(prev => [newLog, ...prev])
+    } else {
+      toast.error('Candidate email not found.')
+    }
+    
+    setIsSending(false)
+    setDialog(false)
+    setCandidateId(''); setSubject(''); setMessage('')
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Compose Email
+        </Button>
+      </div>
+
+      {logs.length === 0 ? (
+        <EmptyState title="No emails sent" description="Forward emails to candidates regarding their application." icon={Mail} />
+      ) : (
+        <div className="rounded-xl border bg-card">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-3">Candidate</th>
+                  <th className="px-4 py-3">Subject</th>
+                  <th className="px-4 py-3">Message Snippet</th>
+                  <th className="px-4 py-3">Timestamp</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id} className="border-b last:border-0">
+                    <td className="px-4 py-2.5 font-medium">{log.candidateName}</td>
+                    <td className="px-4 py-2.5">{log.subject}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{log.messageSnippet}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(log.timestamp)}</td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email Forwarding</DialogTitle>
+            <DialogDescription>Send an email to a candidate.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Candidate *</Label>
+              <Select value={candidateId || undefined} onValueChange={setCandidateId}>
+                <SelectTrigger><SelectValue placeholder="Select candidate" /></SelectTrigger>
+                <SelectContent>
+                  {candidates.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name} ({c.email})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subject *</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Message *</Label>
+              <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSending}>
+                {isSending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Send Email
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export default function RecruitmentPage() {
   const { isManager } = useAuth()
   if (!isManager) return <PageHeader title="Recruitment" description="Only managers can access recruitment." />
@@ -848,11 +988,13 @@ export default function RecruitmentPage() {
           <TabsTrigger value="candidates">Candidates</TabsTrigger>
           <TabsTrigger value="interviews">Interviews</TabsTrigger>
           <TabsTrigger value="offers">Offers</TabsTrigger>
+          <TabsTrigger value="emails">Email Forwarding</TabsTrigger>
         </TabsList>
         <TabsContent value="jobs" className="mt-4"><JobsTab /></TabsContent>
         <TabsContent value="candidates" className="mt-4"><CandidatesTab /></TabsContent>
         <TabsContent value="interviews" className="mt-4"><InterviewsTab /></TabsContent>
         <TabsContent value="offers" className="mt-4"><OffersTab /></TabsContent>
+        <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
       </Tabs>
     </div>
   )

@@ -166,6 +166,7 @@ export async function createInterview(input: {
   scheduled_at: string
   mode?: string
   meeting_link?: string
+  exam_link?: string
 }) {
   const { data, error } = await supabase.from('interviews').insert(input).select().single()
   if (error) throw error

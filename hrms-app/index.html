@@ -6,6 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Oklut HRMS - Human Resource Management System" />
     <title>Oklut HRMS</title>
+    <script>
+      // Handle GitHub Pages SPA redirect from 404.html
+      (function() {
+        var redirect = sessionStorage.getItem('redirect');
+        if (redirect) {
+          sessionStorage.removeItem('redirect');
+          var l = window.location;
+          var newUrl = l.protocol + '//' + l.host + l.pathname.slice(0, -1) + redirect;
+          history.replaceState(null, null, newUrl);
+        }
+        // Also handle ?p= param from 404.html
+        var search = l ? l.search : window.location.search;
+        if (search) {
+          var p = new URLSearchParams(search).get('p');
+          if (p) {
+            history.replaceState(null, null, '/' + decodeURIComponent(p));
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

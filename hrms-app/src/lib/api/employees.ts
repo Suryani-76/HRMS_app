@@ -43,17 +43,79 @@ export async function fetchEmployees(options?: { search?: string; departmentId?:
     )
   }
 
-  const { data, error } = await query
+  let { data, error } = await query
+
+  if (error) {
+    console.warn('fetchEmployees full join error, trying fallback without manager join:', error)
+    let fallbackQuery = supabase
+      .from('employees')
+      .select('*, department:departments(*), designation:designations(*)')
+      .order('created_at', { ascending: false })
+
+    if (options?.departmentId) fallbackQuery = fallbackQuery.eq('department_id', options.departmentId)
+    if (options?.status) fallbackQuery = fallbackQuery.eq('status', options.status)
+    if (options?.search) {
+      fallbackQuery = fallbackQuery.or(
+        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`,
+      )
+    }
+
+    const res = await fallbackQuery
+    data = res.data
+    error = res.error
+  }
+
+  if (error) {
+    console.warn('fetchEmployees fallback join error, trying simple select *:', error)
+    let simpleQuery = supabase
+      .from('employees')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (options?.departmentId) simpleQuery = simpleQuery.eq('department_id', options.departmentId)
+    if (options?.status) simpleQuery = simpleQuery.eq('status', options.status)
+    if (options?.search) {
+      simpleQuery = simpleQuery.or(
+        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`,
+      )
+    }
+
+    const res = await simpleQuery
+    data = res.data
+    error = res.error
+  }
+
   if (error) throw error
   return (data ?? []) as Employee[]
 }
 
 export async function fetchEmployee(id: string) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('employees')
     .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
     .eq('id', id)
     .single()
+
+  if (error) {
+    const res = await supabase
+      .from('employees')
+      .select('*, department:departments(*), designation:designations(*)')
+      .eq('id', id)
+      .single()
+    data = res.data
+    error = res.error
+  }
+
+  if (error) {
+    const res = await supabase
+      .from('employees')
+      .select('*')
+      .eq('id', id)
+      .single()
+    data = res.data
+    error = res.error
+  }
+
   if (error) throw error
   return data as Employee
 }

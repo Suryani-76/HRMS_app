@@ -2,10 +2,17 @@ import { supabase } from '@/lib/supabase'
 import type { Department, Designation } from '@/lib/database.types'
 
 export async function fetchDepartments() {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('departments')
     .select('*, head:employees(first_name, last_name)')
     .order('name')
+
+  if (error) {
+    const res = await supabase.from('departments').select('*').order('name')
+    data = res.data
+    error = res.error
+  }
+
   if (error) throw error
   return (data ?? []) as Department[]
 }
@@ -28,10 +35,17 @@ export async function deleteDepartment(id: string) {
 }
 
 export async function fetchDesignations() {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('designations')
     .select('*, department:departments(*)')
     .order('level', { ascending: true })
+
+  if (error) {
+    const res = await supabase.from('designations').select('*').order('level', { ascending: true })
+    data = res.data
+    error = res.error
+  }
+
   if (error) throw error
   return (data ?? []) as Designation[]
 }

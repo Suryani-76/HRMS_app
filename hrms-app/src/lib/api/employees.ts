@@ -92,45 +92,65 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
   const code = await nextEmployeeCode(input)
   const email = input.email || officialEmail(input.first_name, input.last_name)
 
-  const { data, error } = await supabase
+  const payload: Record<string, unknown> = {
+    employee_code: code,
+    first_name: input.first_name,
+    last_name: input.last_name,
+    email,
+    phone: input.phone ?? null,
+    gender: input.gender ?? null,
+    date_of_birth: input.date_of_birth ?? null,
+    address: input.address ?? null,
+    city: input.city ?? null,
+    state: input.state ?? null,
+    country: input.country ?? null,
+    postal_code: input.postal_code ?? null,
+    marital_status: input.marital_status ?? null,
+    blood_group: input.blood_group ?? null,
+    joining_date: input.joining_date,
+    employment_type: input.employment_type ?? 'Full-time',
+    department_id: input.department_id ?? null,
+    designation_id: input.designation_id ?? null,
+    manager_id: input.manager_id ?? null,
+    status: input.status ?? 'Active',
+  }
+
+  if (input.branch) {
+    payload.branch = input.branch
+  }
+
+  let { data, error } = await supabase
     .from('employees')
-    .insert({
-      employee_code: code,
-      first_name: input.first_name,
-      last_name: input.last_name,
-      email,
-      phone: input.phone ?? null,
-      gender: input.gender ?? null,
-      date_of_birth: input.date_of_birth ?? null,
-      address: input.address ?? null,
-      city: input.city ?? null,
-      state: input.state ?? null,
-      country: input.country ?? null,
-      postal_code: input.postal_code ?? null,
-      marital_status: input.marital_status ?? null,
-      blood_group: input.blood_group ?? null,
-      joining_date: input.joining_date,
-      employment_type: input.employment_type ?? 'Full-time',
-      department_id: input.department_id ?? null,
-      designation_id: input.designation_id ?? null,
-      manager_id: input.manager_id ?? null,
-      status: input.status ?? 'Active',
-      branch: input.branch ?? null,
-    })
+    .insert(payload)
     .select()
     .single()
+
+  if (error && error.message?.includes('branch')) {
+    delete payload.branch
+    const retry = await supabase
+      .from('employees')
+      .insert(payload)
+      .select()
+      .single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) throw error
   const employee = data as Employee
 
   // Payroll profile
-  await supabase.from('payroll_profiles').upsert({
-    employee_id: employee.id,
-    basic_salary: input.basic_salary ?? 0,
-    hra: input.hra ?? 0,
-    allowances: input.allowances ?? 0,
-    bonus: input.bonus ?? 0,
-  })
+  try {
+    await supabase.from('payroll_profiles').upsert({
+      employee_id: employee.id,
+      basic_salary: input.basic_salary ?? 0,
+      hra: input.hra ?? 0,
+      allowances: input.allowances ?? 0,
+      bonus: input.bonus ?? 0,
+    })
+  } catch (e) {
+    console.warn('Payroll profile upsert warning:', e)
+  }
 
   // Provision auth login (works with service role; skipped gracefully on client-side)
   let userId: string | null = null
@@ -166,12 +186,32 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
 }
 
 export async function updateEmployee(id: string, patch: Partial<EmployeeInput>) {
-  const { data, error } = await supabase
+  const cleanPatch: Record<string, unknown> = { ...patch }
+  delete cleanPatch.password
+  delete cleanPatch.basic_salary
+  delete cleanPatch.hra
+  delete cleanPatch.allowances
+  delete cleanPatch.bonus
+
+  let { data, error } = await supabase
     .from('employees')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ ...cleanPatch, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('*')
     .single()
+
+  if (error && error.message?.includes('branch')) {
+    delete cleanPatch.branch
+    const retry = await supabase
+      .from('employees')
+      .update({ ...cleanPatch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single()
+    data = retry.data
+    error = retry.error
+  }
+
   if (error) throw error
   await logAudit('employee.update', 'employees', id, patch)
   return data as Employee
@@ -184,17 +224,25 @@ export async function deleteEmployee(id: string) {
 }
 
 async function defaultEmployeeRoleId(): Promise<string | null> {
-  const { data } = await supabase.from('roles').select('id').eq('name', 'Employee').single()
-  return data?.id ?? null
+  try {
+    const { data } = await supabase.from('roles').select('id').eq('name', 'Employee').single()
+    return data?.id ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function logAudit(action: string, entityType: string, entityId: string, details?: Record<string, unknown>) {
-  const { data: session } = await supabase.auth.getSession()
-  await supabase.from('audit_logs').insert({
-    user_id: session.session?.user.id ?? null,
-    action,
-    entity_type: entityType,
-    entity_id: entityId,
-    details,
-  })
+  try {
+    const { data: session } = await supabase.auth.getSession()
+    await supabase.from('audit_logs').insert({
+      user_id: session.session?.user.id ?? null,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      details: details ?? null,
+    })
+  } catch (e) {
+    console.warn('Audit log write skipped:', e)
+  }
 }

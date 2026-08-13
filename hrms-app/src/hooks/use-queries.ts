@@ -25,7 +25,13 @@ function useInvalidate() {
   const qc = useQueryClient()
   const invalidate = (keys: ReadonlyArray<readonly unknown[]>) => keys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
   const toastError = (e: unknown) => {
-    toast.error(e instanceof Error ? e.message : 'Operation failed')
+    const msg =
+      (e as { message?: string })?.message ||
+      (e as { error_description?: string })?.error_description ||
+      (e as { details?: string })?.details ||
+      (typeof e === 'string' ? e : 'Operation failed')
+    console.error('API Error:', e)
+    toast.error(msg)
   }
   return { qc, invalidate, toastError }
 }

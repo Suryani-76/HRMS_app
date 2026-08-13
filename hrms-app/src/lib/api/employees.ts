@@ -132,25 +132,32 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
     bonus: input.bonus ?? 0,
   })
 
-  // Provision auth login (works with service role; skipped gracefully otherwise)
+  // Provision auth login (works with service role; skipped gracefully on client-side)
   let userId: string | null = null
   if (input.password) {
-    const { data: created, error: authErr } = await supabase.auth.admin.createUser({
-      email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { name: `${input.first_name} ${input.last_name}` },
-    })
-    if (!authErr && created?.user) {
-      userId = created.user.id
-      await supabase.from('employees').update({ user_id: userId }).eq('id', employee.id)
-      await supabase.from('users').insert({
-        id: userId,
-        email,
-        role_id: (await defaultEmployeeRoleId()) as string,
-        employee_id: employee.id,
-        status: 'Active',
-      })
+    try {
+      const authAdmin = (supabase.auth as unknown as { admin?: { createUser?: Function } })?.admin
+      if (authAdmin && typeof authAdmin.createUser === 'function') {
+        const { data: created, error: authErr } = await authAdmin.createUser({
+          email,
+          password: input.password,
+          email_confirm: true,
+          user_metadata: { name: `${input.first_name} ${input.last_name}` },
+        })
+        if (!authErr && created?.user) {
+          userId = created.user.id
+          await supabase.from('employees').update({ user_id: userId }).eq('id', employee.id)
+          await supabase.from('users').insert({
+            id: userId,
+            email,
+            role_id: (await defaultEmployeeRoleId()) as string,
+            employee_id: employee.id,
+            status: 'Active',
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('Auth provision skipped on client:', e)
     }
   }
 

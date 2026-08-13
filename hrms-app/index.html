@@ -7,21 +7,13 @@
     <meta name="description" content="Oklut HRMS - Human Resource Management System" />
     <title>Oklut HRMS</title>
     <script>
-      // Handle GitHub Pages SPA redirect from 404.html
+      // Restore path saved by 404.html for GitHub Pages SPA routing
       (function() {
-        var redirect = sessionStorage.getItem('redirect');
+        var redirect = sessionStorage.getItem('redirect_path');
         if (redirect) {
-          sessionStorage.removeItem('redirect');
-          var l = window.location;
-          var newUrl = l.protocol + '//' + l.host + l.pathname.slice(0, -1) + redirect;
-          history.replaceState(null, null, newUrl);
-        }
-        // Also handle ?p= param from 404.html
-        var search = l ? l.search : window.location.search;
-        if (search) {
-          var p = new URLSearchParams(search).get('p');
-          if (p) {
-            history.replaceState(null, null, '/' + decodeURIComponent(p));
+          sessionStorage.removeItem('redirect_path');
+          if (redirect && redirect !== '/') {
+            window.history.replaceState(null, '', '/HRMS_app' + redirect);
           }
         }
       })();

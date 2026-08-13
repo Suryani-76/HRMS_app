@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <title>Oklut HRMS</title>
     <script>
-      // GitHub Pages SPA redirect workaround
-      // Stores the full path in sessionStorage and redirects to root
-      var l = window.location;
-      l.replace(
-        l.protocol + '//' + l.host + l.pathname.split('/').slice(0, 2).join('/') +
-        '/?p=' + encodeURIComponent(l.pathname.slice(1) + l.search) + l.hash
-      );
+      // GitHub Pages SPA redirect: store the path and redirect to the base
+      var path = window.location.pathname;
+      var base = '/HRMS_app/';
+      // Strip the base from the path to get the sub-path
+      var sub = path.startsWith(base) ? path.slice(base.length - 1) : path;
+      sessionStorage.setItem('redirect_path', sub);
+      window.location.replace(base);
     </script>
   </head>
   <body></body>

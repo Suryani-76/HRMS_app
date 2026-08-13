@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import logoUrl from '/oklut-logo.png'
 
 interface LogoProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -16,7 +17,7 @@ export function Logo({ className, size = 'md', showText = true, ...props }: Logo
   return (
     <div className={cn('flex items-center gap-2', className)} {...props}>
       <img
-        src="/oklut-logo.png"
+        src={logoUrl}
         alt="OKLUT Logo"
         className={cn('object-contain', sizeClasses[size])}
       />

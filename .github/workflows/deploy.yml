@@ -35,14 +35,18 @@ jobs:
         run: npm ci
         working-directory: hrms-app
 
+      - name: Create .env file for production build
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}" > .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_APP_URL=https://suryani-76.github.io/HRMS_app" >> .env
+        working-directory: hrms-app
+
       - name: Build React app
         run: npm run build
         working-directory: hrms-app
         env:
           NODE_ENV: production
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

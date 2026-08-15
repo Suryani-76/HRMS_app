@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ListChecks, Plus, Loader2, CalendarDays, Trash2 } from 'lucide-react'
+import { ListChecks, Plus, Loader2, CalendarDays, Trash2, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,24 +50,33 @@ function TaskCard({
           <Badge variant={priorityVariant(task.priority)}>{task.priority ?? 'normal'}</Badge>
         </div>
         {task.description && <p className="line-clamp-2 text-xs text-muted-foreground">{task.description}</p>}
-        <div className="flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
-          <span>
-            {task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : 'Unassigned'} · {timeAgo(task.created_at)}
+        <div className="flex flex-col gap-1 border-t pt-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1 flex-wrap">
+            Assigned to: <strong className="text-foreground">{task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : 'Unassigned'}</strong>
+            {task.assignee?.employee_code && (
+              <span className="font-mono text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded">
+                {task.assignee.employee_code}
+              </span>
+            )}
           </span>
+          {(task as any).assigner && (
+            <span>Created by: {(task as any).assigner.first_name} {(task as any).assigner.last_name}</span>
+          )}
+          <span className="text-[10px] text-muted-foreground">{timeAgo(task.created_at)}</span>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 pt-1">
           {task.status !== 'todo' && (
-            <Button size="sm" variant="outline" className="h-7 flex-1" onClick={() => onStatusChange(task.id, 'todo')}>
+            <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => onStatusChange(task.id, 'todo')}>
               To Do
             </Button>
           )}
           {task.status !== 'in_progress' && (
-            <Button size="sm" variant="outline" className="h-7 flex-1" onClick={() => onStatusChange(task.id, 'in_progress')}>
+            <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => onStatusChange(task.id, 'in_progress')}>
               In Progress
             </Button>
           )}
           {task.status !== 'completed' && (
-            <Button size="sm" variant="success" className="h-7 flex-1" onClick={() => onStatusChange(task.id, 'completed')}>
+            <Button size="sm" variant="success" className="h-7 flex-1 text-xs" onClick={() => onStatusChange(task.id, 'completed')}>
               Done
             </Button>
           )}
@@ -85,6 +94,9 @@ export default function TasksPage() {
   const updateStatus = useUpdateTaskStatus()
   const del = useDeleteTask()
 
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
+  const [filterType, setFilterType] = useState<'all' | 'assigned' | 'created'>('all')
+
   const [dialog, setDialog] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -92,7 +104,16 @@ export default function TasksPage() {
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState('medium')
 
-  const visible = tasks
+  // Filter tasks based on selected tab
+  const filteredTasks = tasks.filter((t) => {
+    if (filterType === 'assigned') {
+      return employee?.id && t.assignee_id === employee.id
+    }
+    if (filterType === 'created') {
+      return employee?.id && t.assigner_id === employee.id
+    }
+    return true
+  })
 
   const columns: { key: string; label: string; color: string }[] = [
     { key: 'todo', label: 'To Do', color: 'bg-muted' },
@@ -115,25 +136,185 @@ export default function TasksPage() {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title="Tasks"
-        description="Assign and track tasks across the team."
+        title="Tasks Management"
+        description="View and track all assigned and created tasks in tabular format."
         actions={
-          <Button onClick={() => setDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" /> New Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border bg-muted p-1">
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 gap-1 text-xs"
+                onClick={() => setViewMode('table')}
+              >
+                <TableIcon className="h-3.5 w-3.5" /> Table
+              </Button>
+              <Button
+                variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 gap-1 text-xs"
+                onClick={() => setViewMode('kanban')}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Board
+              </Button>
+            </div>
+            <Button onClick={() => setDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Task
+            </Button>
+          </div>
         }
       />
 
+      {/* Filter Tabs */}
+      <div className="flex items-center justify-between border-b pb-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={filterType === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('all')}
+          >
+            All Tasks ({tasks.length})
+          </Button>
+          {employee?.id && (
+            <>
+              <Button
+                variant={filterType === 'assigned' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilterType('assigned')}
+              >
+                Assigned to Me ({tasks.filter((t) => t.assignee_id === employee.id).length})
+              </Button>
+              <Button
+                variant={filterType === 'created' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilterType('created')}
+              >
+                Created by Me ({tasks.filter((t) => t.assigner_id === employee.id).length})
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
       {isLoading ? (
         <TableSkeleton rows={6} />
-      ) : visible.length === 0 ? (
-        <EmptyState title="No tasks" description="No tasks found. Create a new task to get started." icon={ListChecks} />
+      ) : filteredTasks.length === 0 ? (
+        <EmptyState
+          title="No tasks found"
+          description={
+            filterType === 'assigned'
+              ? 'No tasks assigned to you.'
+              : filterType === 'created'
+              ? 'You have not created any tasks.'
+              : 'No tasks match the view. Create a new task to get started.'
+          }
+          icon={ListChecks}
+        />
+      ) : viewMode === 'table' ? (
+        /* Tabular View */
+        <div className="rounded-xl border bg-card shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
+                  <th className="px-4 py-3">Task Details</th>
+                  <th className="px-4 py-3">Assigned To</th>
+                  <th className="px-4 py-3">Created By</th>
+                  <th className="px-4 py-3">Priority</th>
+                  <th className="px-4 py-3">Due Date</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredTasks.map((t) => {
+                  const overdue = t.due_date && t.due_date < new Date().toISOString().slice(0, 10) && t.status !== 'completed'
+                  const assignerName = (t as any).assigner
+                    ? `${(t as any).assigner.first_name} ${(t as any).assigner.last_name}`
+                    : 'System / HR'
+                  const assigneeName = t.assignee
+                    ? `${t.assignee.first_name} ${t.assignee.last_name}`
+                    : 'Unassigned'
+
+                  return (
+                    <tr key={t.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 max-w-xs">
+                        <p className={cn('font-semibold text-foreground', t.status === 'completed' && 'line-through text-muted-foreground')}>
+                          {t.title}
+                        </p>
+                        {t.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{t.description}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground mt-1">Created {timeAgo(t.created_at)}</p>
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        <div>{assigneeName}</div>
+                        {t.assignee?.employee_code ? (
+                          <span className="inline-block mt-0.5 font-mono text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md">
+                            {t.assignee.employee_code}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-normal">No Code</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{assignerName}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={priorityVariant(t.priority)} className="capitalize">
+                          {t.priority ?? 'normal'}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {t.due_date ? (
+                          <span className={cn(overdue && 'font-semibold text-destructive')}>
+                            {formatDate(t.due_date)}
+                            {overdue && <span className="block text-[10px] font-bold text-destructive">OVERDUE</span>}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Select
+                          value={t.status || 'todo'}
+                          onValueChange={(val) => updateStatus.mutate({ id: t.id, status: val })}
+                        >
+                          <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todo">To Do</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {(isManager || (employee?.id && t.assigner_id === employee.id)) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => del.mutate(t.id)}
+                            title="Delete Task"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* Kanban Board View */
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map((col) => {
-            const colTasks = visible
+            const colTasks = filteredTasks
               .filter((t) => {
                 const s = (t.status || 'todo').toLowerCase()
                 if (col.key === 'todo') return s === 'todo' || s === 'pending' || s === 'open'
@@ -155,7 +336,7 @@ export default function TasksPage() {
                   {colTasks.map((t) => (
                     <div key={t.id} className="relative">
                       <TaskCard task={t} onStatusChange={(id, s) => updateStatus.mutate({ id, status: s })} />
-                      {isManager && (
+                      {(isManager || (employee?.id && t.assigner_id === employee.id)) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -174,6 +355,7 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* New Task Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent>
           <DialogHeader>
@@ -196,7 +378,9 @@ export default function TasksPage() {
                   <SelectTrigger><SelectValue placeholder="Assign to" /></SelectTrigger>
                   <SelectContent>
                     {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.employee_code ? `${e.employee_code} — ${e.first_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

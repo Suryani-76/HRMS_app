@@ -128,12 +128,22 @@ export async function deleteDocument(id: string) {
 export async function fetchTasks(options?: { status?: string; assigneeId?: string }) {
   let query = supabase
     .from('tasks')
-    .select('*, assignee:employees(first_name, last_name, employee_code), assigner:employees(first_name, last_name)')
+    .select(`
+      *,
+      assignee:employees!assignee_id(id, first_name, last_name, employee_code, department:departments(name)),
+      assigner:employees!assigner_id(id, first_name, last_name, employee_code)
+    `)
     .order('created_at', { ascending: false })
   if (options?.status) query = query.eq('status', options.status)
   if (options?.assigneeId) query = query.eq('assignee_id', options.assigneeId)
   const { data, error } = await query
-  if (error) throw error
+  if (error) {
+    const { data: fallback } = await supabase
+      .from('tasks')
+      .select('*, assignee:employees!assignee_id(id, first_name, last_name, employee_code), assigner:employees!assigner_id(id, first_name, last_name)')
+      .order('created_at', { ascending: false })
+    return (fallback ?? []) as Task[]
+  }
   return (data ?? []) as Task[]
 }
 
@@ -147,13 +157,25 @@ export async function createTask(input: {
   const { data: session } = await supabase.auth.getSession()
   const userId = session.session?.user.id ?? null
   const { data: profile } = await supabase.from('users').select('employee_id').eq('id', userId).maybeSingle()
+
+  let taskData: Task | null = null
   const { data, error } = await supabase
     .from('tasks')
     .insert({ ...input, assigner_id: profile?.employee_id ?? null })
-    .select('*, assignee:employees(id, first_name, last_name, user_id)')
+    .select('*, assignee:employees!assignee_id(id, first_name, last_name, user_id)')
     .single()
 
-  if (error) throw error
+  if (error) {
+    const { data: simpleData, error: simpleErr } = await supabase
+      .from('tasks')
+      .insert({ ...input, assigner_id: profile?.employee_id ?? null })
+      .select()
+      .single()
+    if (simpleErr) throw simpleErr
+    taskData = simpleData as Task
+  } else {
+    taskData = data as Task
+  }
 
   if (input.assignee_id) {
     try {
@@ -177,7 +199,7 @@ export async function createTask(input: {
     }
   }
 
-  return data as Task
+  return taskData as Task
 }
 
 export async function updateTaskStatus(id: string, status: string) {

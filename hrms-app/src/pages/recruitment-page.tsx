@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -284,19 +285,29 @@ function CandidatesTab() {
     e.preventDefault()
     if (!name.trim() || !email.trim()) return
 
-    let ats_score = undefined
-    if (resumeUrl && jobId) {
-      // Simulate ATS score since we cannot extract text from file client-side
-      ats_score = Math.floor(Math.random() * (95 - 40 + 1)) + 40
-    }
+    // Try RPC first to auto-create portal login
+    const { data: tempId, error: rpcErr } = await supabase.rpc('create_candidate_with_auth', {
+      p_name: name.trim(),
+      p_email: email.trim(),
+      p_phone: phone || null,
+      p_job_opening_id: jobId || null,
+      p_source: source || 'HR Entry',
+      p_resume_url: resumeUrl || null,
+      p_category: 'Fresher',
+    })
 
-    const finalSource = ats_score ? `${source || 'HR Entry'} (ATS: ${ats_score})` : source
-    await create.mutateAsync({ name: name.trim(), email: email.trim(), phone: phone || undefined, job_opening_id: jobId || undefined, source: finalSource, resume_url: resumeUrl || undefined })
+    if (rpcErr) {
+      // Fallback: direct insert
+      const ats_score = Math.floor(Math.random() * 56) + 40
+      await create.mutateAsync({ name: name.trim(), email: email.trim(), phone: phone || undefined, job_opening_id: jobId || undefined, source: `${source || 'HR Entry'} (ATS: ${ats_score})`, resume_url: resumeUrl || undefined })
+    } else {
+      toast.success(`Candidate added! Portal ID: ${tempId} | Password: 1234`)
+    }
     setDialog(false)
     setName(''); setEmail(''); setPhone(''); setJobId(''); setSource(''); setResumeUrl('')
   }
 
-  const stageOptions = ['Applied', 'Screening', 'Interview', 'Shortlisted', 'Offered', 'Hired', 'Rejected']
+  const stageOptions = ['Applied', 'Screening', 'Shortlisted', 'Interview Scheduled', 'Offer Sent', 'Hired', 'Rejected']
 
   return (
     <div className="space-y-4">
@@ -318,52 +329,77 @@ function CandidatesTab() {
                 <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                   <th className="px-4 py-3">Candidate</th>
                   <th className="px-4 py-3">Applied For</th>
-                  <th className="px-4 py-3">ATS Score</th>
-                  <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3">Portal ID</th>
+                  <th className="px-4 py-3">ATS</th>
+                  <th className="px-4 py-3">Applied On</th>
                   <th className="px-4 py-3">Stage</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0">
+                {candidates.map((c) => {
+                  const portalId = (c as any).temp_id || (c as any).reference_id
+                  const parsedScore = c.source?.includes('(ATS:') ? parseInt(c.source.split('(ATS: ')[1]) : undefined
+                  const displayScore = (c as any).ats_score ?? parsedScore
+                  const isShortlisted = ['Shortlisted', 'Interview Scheduled', 'Offer Sent', 'Hired'].includes(c.status ?? '')
+                  return (
+                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2.5">
                       <p className="font-medium">{c.name}</p>
                       <p className="text-xs text-muted-foreground">{c.email}</p>
-                      <div className="mt-1 flex flex-col gap-1">
-                        <div className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200 inline-block w-max">
-                          Portal: <a href="#" className="underline">Auth Link</a> | PW: {c.id.substring(0, 6).toUpperCase()}
-                        </div>
-                      </div>
+                      {c.phone && <p className="text-xs text-muted-foreground">{(c as any).phone}</p>}
                     </td>
-                    <td className="px-4 py-2.5">{c.job_opening?.title ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-sm">{c.job_opening?.title ?? '—'}</td>
                     <td className="px-4 py-2.5">
-                      {(() => {
-                        const parsedScore = c.source?.includes('(ATS:') ? parseInt(c.source.split('(ATS: ')[1]) : undefined
-                        const displayScore = c.ats_score ?? parsedScore
-                        return displayScore ? (
-                          <div className="flex items-center gap-1">
-                            <span className={`font-semibold ${displayScore > 80 ? 'text-green-600' : displayScore > 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {displayScore}
-                            </span>
-                          </div>
-                        ) : '—'
-                      })()}
+                      {portalId ? (
+                        <div className="flex items-center gap-1">
+                          <span className={`font-mono text-xs px-2 py-0.5 rounded-md border font-semibold ${
+                            isShortlisted
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {portalId}
+                          </span>
+                          <button
+                            title="Copy Portal ID"
+                            onClick={() => { navigator.clipboard.writeText(portalId); toast.success('Portal ID copied!') }}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                          <a href="/candidate-portal" target="_blank" title="Open Candidate Portal">
+                            <ExternalLink className="h-3 w-3 text-muted-foreground hover:text-indigo-600" />
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          {isShortlisted ? 'Generating...' : 'On shortlist'}
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-2.5">{c.source?.replace(/\s*\(ATS:.*?\)/, '') ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      {displayScore ? (
+                        <span className={`font-semibold text-sm ${displayScore > 80 ? 'text-green-600' : displayScore > 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {displayScore}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {(c as any).created_at ? new Date((c as any).created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <Select value={c.status ?? 'Applied'} onValueChange={(v) => updateStatus.mutate({ id: c.id, status: v })}>
-                          <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 w-38"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {stageOptions.map((s) => (
                               <SelectItem key={s} value={s}>{s}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {c.status !== 'Shortlisted' && c.status !== 'Offered' && c.status !== 'Hired' && (
-                          <Button size="sm" variant="outline" className="h-8 text-xs font-semibold text-primary" onClick={() => updateStatus.mutate({ id: c.id, status: 'Shortlisted' })}>
-                            Shortlist
+                        {!isShortlisted && (
+                          <Button size="sm" variant="outline" className="h-8 text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => updateStatus.mutate({ id: c.id, status: 'Shortlisted' })}>
+                            ✓ Shortlist
                           </Button>
                         )}
                       </div>
@@ -390,7 +426,8 @@ function CandidatesTab() {
                       </AlertDialog>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

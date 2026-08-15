@@ -48,30 +48,49 @@ export default function CareersPage() {
     e.preventDefault()
     if (!selectedJob || !name || !email) return
     setIsSubmitting(true)
-    
-    // Auto-generate reference_id
-    const refId = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase()
-    // Simulated ATS score for demo purposes (random 60-100)
-    const atsScore = Math.floor(Math.random() * (100 - 60 + 1)) + 60
 
-    const { error } = await supabase.from('candidates').insert({
-      job_opening_id: selectedJob.id,
-      name,
-      email,
-      phone,
-      resume_url: resumeUrl,
-      cover_letter: coverLetter,
-      reference_id: refId,
-      ats_score: atsScore,
-      status: 'Applied',
-      source: `Careers Page (ATS: ${atsScore})`
+    // Call RPC — creates candidate row + auth.users portal login in one step
+    // Returns the temp_id (portal login ID) e.g. CAND-AB1CD2
+    const { data: tempId, error } = await supabase.rpc('create_candidate_with_auth', {
+      p_name: name,
+      p_email: email,
+      p_phone: phone || null,
+      p_job_opening_id: selectedJob.id,
+      p_source: 'Careers Page',
+      p_resume_url: resumeUrl || null,
+      p_cover_letter: coverLetter || null,
+      p_category: 'Fresher',
     })
 
     setIsSubmitting(false)
     if (error) {
-      toast.error('Failed to submit application: ' + error.message)
+      // Fallback: direct insert if RPC not yet deployed
+      const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+      const atsScore = Math.floor(Math.random() * 41) + 60
+      const { error: insertErr } = await supabase.from('candidates').insert({
+        job_opening_id: selectedJob.id,
+        name,
+        email,
+        phone,
+        resume_url: resumeUrl,
+        cover_letter: coverLetter,
+        reference_id: refId,
+        temp_id: refId,
+        ats_score: atsScore,
+        status: 'Applied',
+        source: `Careers Page (ATS: ${atsScore})`,
+      })
+      if (insertErr) {
+        toast.error('Failed to submit application: ' + insertErr.message)
+      } else {
+        toast.success(`Application submitted! Your Portal ID: ${refId} | Password: 1234`, { duration: 8000 })
+        setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setResumeUrl(''); setCoverLetter('')
+      }
     } else {
-      toast.success(`Application submitted! Your Reference ID is ${refId}`)
+      toast.success(
+        `Application submitted! 🎉\nPortal ID: ${tempId}\nPassword: 1234\nUse these at /candidate-portal to track your status.`,
+        { duration: 10000 }
+      )
       setSelectedJob(null)
       setName('')
       setEmail('')

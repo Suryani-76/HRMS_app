@@ -146,9 +146,37 @@ export async function createTask(input: {
 }) {
   const { data: session } = await supabase.auth.getSession()
   const userId = session.session?.user.id ?? null
-  const { data: profile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
-  const { data, error } = await supabase.from('tasks').insert({ ...input, assigner_id: profile?.employee_id ?? null }).select().single()
+  const { data: profile } = await supabase.from('users').select('employee_id').eq('id', userId).maybeSingle()
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({ ...input, assigner_id: profile?.employee_id ?? null })
+    .select('*, assignee:employees(id, first_name, last_name, user_id)')
+    .single()
+
   if (error) throw error
+
+  if (input.assignee_id) {
+    try {
+      const { data: empUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('employee_id', input.assignee_id)
+        .maybeSingle()
+
+      await supabase.from('notifications').insert({
+        user_id: empUser?.id ?? null,
+        employee_id: input.assignee_id,
+        type: 'info',
+        title: 'New Task Assigned: ' + input.title,
+        message: input.description || `You have been assigned a new task: "${input.title}"`,
+        link: '/tasks',
+        is_read: false,
+      })
+    } catch (e) {
+      console.warn('Task notification creation skipped:', e)
+    }
+  }
+
   return data as Task
 }
 

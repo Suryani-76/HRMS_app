@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog } from '@/lib/database.types'
+import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog, MeetingHallBooking } from '@/lib/database.types'
 
 // ---------- Performance ----------
 export async function fetchPerformanceGoals(employeeId?: string) {
@@ -225,4 +225,17 @@ export async function fetchAuditLogs() {
     .limit(200)
   if (error) throw error
   return (data ?? []) as AuditLog[]
+}
+
+// ---------- Meeting Hall Bookings ----------
+export async function fetchMeetingHallBookings() {
+  const { data, error } = await supabase
+    .from('meeting_hall_bookings')
+    .select(`
+      *,
+      requester:employees(id, first_name, last_name, email)
+    `)
+    .order('start_time', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as MeetingHallBooking[]
 }

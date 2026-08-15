@@ -631,13 +631,13 @@ create policy "documents delete own or admin" on public.documents
 
 -- Tasks
 create policy "tasks read" on public.tasks
-  for select to authenticated using (assignee_id = public.current_employee_id() or public.is_manager() or assigner_id = public.current_employee_id());
-create policy "tasks insert admin" on public.tasks
-  for insert to authenticated with check (public.is_manager());
+  for select to authenticated using (assignee_id = public.current_employee_id() or public.is_manager() or assigner_id = public.current_employee_id() or assignee_id is null);
+create policy "tasks insert authenticated" on public.tasks
+  for insert to authenticated with check (true);
 create policy "tasks update" on public.tasks
-  for update to authenticated using (assignee_id = public.current_employee_id() or public.is_manager());
+  for update to authenticated using (assignee_id = public.current_employee_id() or assigner_id = public.current_employee_id() or public.is_manager());
 create policy "tasks delete" on public.tasks
-  for delete to authenticated using (public.is_manager());
+  for delete to authenticated using (assigner_id = public.current_employee_id() or public.is_manager());
 
 -- Announcements
 create policy "announcements read" on public.announcements for select to authenticated using (true);
@@ -664,13 +664,18 @@ create policy "reviews write admin" on public.performance_reviews
   for all to authenticated using (public.is_manager()) with check (public.is_manager());
 
 -- Recruitment
-create policy "job_openings read" on public.job_openings for select to authenticated using (true);
+create policy "job_openings read" on public.job_openings for select to public using (true);
 create policy "job_openings write admin" on public.job_openings for all to authenticated using (public.is_manager()) with check (public.is_manager());
-create policy "candidates read" on public.candidates for select to authenticated using (public.is_manager());
+
+create policy "candidates insert public" on public.candidates for insert to public with check (true);
+create policy "candidates read public" on public.candidates for select to public using (true);
 create policy "candidates write admin" on public.candidates for all to authenticated using (public.is_manager()) with check (public.is_manager());
-create policy "interviews read" on public.interviews for select to authenticated using (public.is_manager());
+
+create policy "interviews read public" on public.interviews for select to public using (true);
 create policy "interviews write admin" on public.interviews for all to authenticated using (public.is_manager()) with check (public.is_manager());
-create policy "offers read" on public.offers for select to authenticated using (public.is_manager());
+
+create policy "offers read public" on public.offers for select to public using (true);
+create policy "offers update public" on public.offers for update to public using (true) with check (true);
 create policy "offers write admin" on public.offers for all to authenticated using (public.is_manager()) with check (public.is_manager());
 
 -- Audit logs

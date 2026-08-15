@@ -33,7 +33,22 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     .single()
 
   if (!user) return { user: null, employee: null }
-  return { user, employee: user.employee ?? null }
+  
+  let employee = user.employee ?? null
+  
+  if (!employee) {
+    const { data: empFallback } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle()
+      
+    if (empFallback) {
+      employee = empFallback
+    }
+  }
+
+  return { user, employee }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -51,6 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const profile = await fetchProfile(session.user.id)
+    if (profile.user?.status === 'Blocked' || profile.user?.status === 'Terminated' || profile.user?.status === 'Inactive' || profile.employee?.status === 'Terminated') {
+      await supabase.auth.signOut()
+      setState(null)
+      setEmployee(null)
+      setLoading(false)
+      return
+    }
     setState(profile.user)
     setEmployee(profile.employee)
     setLoading(false)
@@ -65,8 +87,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
       } else {
         fetchProfile(session.user.id).then((p) => {
-          setState(p.user)
-          setEmployee(p.employee)
+          if (p.user?.status === 'Blocked' || p.user?.status === 'Terminated' || p.user?.status === 'Inactive' || p.employee?.status === 'Terminated') {
+            supabase.auth.signOut()
+            setState(null)
+            setEmployee(null)
+          } else {
+            setState(p.user)
+            setEmployee(p.employee)
+          }
           setLoading(false)
         })
       }
@@ -76,9 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
-        // Provide clear human-readable messages
         const msg = error.message || ''
         if (!msg || msg === '{}') {
           return { error: 'Cannot connect to the server. Please check your internet connection.' }
@@ -94,6 +121,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return { error: msg }
       }
+
+      if (signInData.session?.user) {
+        const profile = await fetchProfile(signInData.session.user.id)
+        if (profile.user?.status === 'Blocked' || profile.user?.status === 'Terminated' || profile.user?.status === 'Inactive' || profile.employee?.status === 'Terminated') {
+          await supabase.auth.signOut()
+          return { error: 'Your account has been terminated/blocked by HR. Access denied.' }
+        }
+      }
+
       await refresh()
       return { error: null }
     } catch (e: unknown) {

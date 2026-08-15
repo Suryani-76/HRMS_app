@@ -8,6 +8,7 @@ import { PaginationBar } from '@/components/shared/pagination-bar'
 import { useAuditLogs } from '@/hooks/use-queries'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import type { AuditLog } from '@/lib/database.types'
 
 const PAGE_SIZE = 20
 
@@ -45,7 +46,7 @@ export default function AuditLogsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paged.map((log) => (
+                  {paged.map((log: AuditLog) => (
                     <tr key={log.id} className="border-b last:border-0">
                       <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(log.created_at)}</td>
                       <td className="px-4 py-2.5">

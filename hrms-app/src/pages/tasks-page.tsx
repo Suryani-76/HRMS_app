@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ListChecks, Plus, Loader2, CalendarDays, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -92,8 +92,7 @@ export default function TasksPage() {
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState('medium')
 
-  const mine = useMemo(() => tasks.filter((t) => t.assignee_id === employee?.id), [tasks, employee?.id])
-  const visible = isManager ? tasks : mine
+  const visible = tasks
 
   const columns: { key: string; label: string; color: string }[] = [
     { key: 'todo', label: 'To Do', color: 'bg-muted' },
@@ -107,7 +106,7 @@ export default function TasksPage() {
     await create.mutateAsync({
       title: title.trim(),
       description: description || undefined,
-      assignee_id: assigneeId || undefined,
+      assignee_id: assigneeId || employee?.id || undefined,
       due_date: dueDate || undefined,
       priority,
     })
@@ -119,7 +118,7 @@ export default function TasksPage() {
     <div>
       <PageHeader
         title="Tasks"
-        description={isManager ? 'Assign and track tasks across the team.' : 'Track your assigned tasks.'}
+        description="Assign and track tasks across the team."
         actions={
           <Button onClick={() => setDialog(true)}>
             <Plus className="mr-2 h-4 w-4" /> New Task
@@ -130,11 +129,19 @@ export default function TasksPage() {
       {isLoading ? (
         <TableSkeleton rows={6} />
       ) : visible.length === 0 ? (
-        <EmptyState title="No tasks" description="No tasks match this view." icon={ListChecks} />
+        <EmptyState title="No tasks" description="No tasks found. Create a new task to get started." icon={ListChecks} />
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map((col) => {
-            const colTasks = visible.filter((t) => t.status === col.key).sort((a, b) => (PRIORITY_ORDER[a.priority ?? 'normal'] ?? 3) - (PRIORITY_ORDER[b.priority ?? 'normal'] ?? 3))
+            const colTasks = visible
+              .filter((t) => {
+                const s = (t.status || 'todo').toLowerCase()
+                if (col.key === 'todo') return s === 'todo' || s === 'pending' || s === 'open'
+                if (col.key === 'in_progress') return s === 'in_progress' || s === 'in-progress' || s === 'doing'
+                if (col.key === 'completed') return s === 'completed' || s === 'done' || s === 'closed'
+                return s === col.key
+              })
+              .sort((a, b) => (PRIORITY_ORDER[a.priority ?? 'normal'] ?? 3) - (PRIORITY_ORDER[b.priority ?? 'normal'] ?? 3))
             return (
               <div key={col.key} className="rounded-xl border bg-card p-3">
                 <div className="mb-3 flex items-center justify-between px-1">

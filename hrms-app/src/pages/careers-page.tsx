@@ -61,6 +61,9 @@ export default function CareersPage() {
       phone,
       resume_url: resumeUrl,
       cover_letter: coverLetter,
+      reference_id: refId,
+      ats_score: atsScore,
+      status: 'Applied',
       source: `Careers Page (ATS: ${atsScore})`
     })
 

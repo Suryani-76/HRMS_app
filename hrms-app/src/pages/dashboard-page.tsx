@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users,
@@ -10,7 +11,10 @@ import {
   ListChecks,
   Briefcase,
   Cake,
+  Calendar,
+  ChevronRight,
 } from 'lucide-react'
+import { format, isToday } from 'date-fns'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -36,12 +40,83 @@ import {
   useAnnouncements,
   useTasks,
   useLeaveBalances,
+  useMeetingHallBookings,
 } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, timeAgo } from '@/lib/format'
 import { TodayAttendanceCard } from '@/components/dashboard/today-attendance-card'
 
 const DEPT_COLORS = ['#51459d', '#7c6fd6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6']
+
+function ScheduledMeetingsCard() {
+  const { data: bookings = [], isLoading } = useMeetingHallBookings()
+
+  const upcomingBookings = useMemo(() => {
+    const now = new Date()
+    return bookings
+      .filter((b) => b.status !== 'Rejected' && new Date(b.end_time) >= now)
+      .slice(0, 5)
+  }, [bookings])
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-indigo-500" />
+          Scheduled Meetings
+        </CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/meeting-hall" className="flex items-center gap-1 text-xs">
+            Meeting Hall <ChevronRight className="h-3 w-3" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          </div>
+        ) : upcomingBookings.length === 0 ? (
+          <EmptyState title="No scheduled meetings" description="All clear for upcoming sessions." icon={Calendar} />
+        ) : (
+          <div className="divide-y">
+            {upcomingBookings.map((b) => {
+              const startDate = new Date(b.start_time)
+              const endDate = new Date(b.end_time)
+              const today = isToday(startDate)
+              return (
+                <div key={b.id} className="flex items-center justify-between py-3 gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${today ? 'bg-indigo-500/10 text-indigo-600 font-semibold' : 'bg-muted text-muted-foreground'}`}>
+                      <Building2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">{b.title}</p>
+                      <p className="truncate text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3 inline shrink-0" />
+                        {today ? 'Today, ' : format(startDate, 'MMM d, ')}
+                        {format(startDate, 'h:mm a')} - {format(endDate, 'h:mm a')}
+                      </p>
+                      {b.requester && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          By {b.requester.first_name} {b.requester.last_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant={b.status === 'Approved' ? 'success' : 'warning'} className="shrink-0">
+                    {b.status}
+                  </Badge>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 function ManagerDashboard() {
   const { data: stats, isLoading } = useDashboardStats()
@@ -213,39 +288,42 @@ function ManagerDashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Employees</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employees.length === 0 ? (
-            <EmptyState title="No employees yet" description="Add your first employee to get started." />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {employees.slice(0, 6).map((e) => (
-                <Link
-                  key={e.id}
-                  to={`/employees/${e.id}`}
-                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                    {e.first_name[0]}
-                    {e.last_name[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {e.first_name} {e.last_name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {e.department?.name ?? '—'} · <Clock className="inline h-3 w-3" /> {timeAgo(e.joining_date)}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ScheduledMeetingsCard />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Employees</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {employees.length === 0 ? (
+              <EmptyState title="No employees yet" description="Add your first employee to get started." />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {employees.slice(0, 6).map((e) => (
+                  <Link
+                    key={e.id}
+                    to={`/employees/${e.id}`}
+                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {e.first_name[0]}
+                      {e.last_name[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {e.first_name} {e.last_name}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {e.department?.name ?? '—'} · <Clock className="inline h-3 w-3" /> {timeAgo(e.joining_date)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
@@ -272,7 +350,8 @@ function EmployeeDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <ScheduledMeetingsCard />
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">My Tasks</CardTitle>

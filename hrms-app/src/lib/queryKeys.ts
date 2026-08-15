@@ -28,5 +28,6 @@ export const queryKeys = {
   offers: ['offers'] as const,
   notifications: ['notifications'] as const,
   auditLogs: ['auditLogs'] as const,
+  meetingHallBookings: ['meetingHallBookings'] as const,
   dashboardStats: ['dashboardStats'] as const,
 }

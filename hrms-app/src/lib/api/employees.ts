@@ -280,9 +280,39 @@ export async function updateEmployee(id: string, patch: Partial<EmployeeInput>) 
 }
 
 export async function deleteEmployee(id: string) {
+  const { data: emp } = await supabase.from('employees').select('id, user_id, first_name, last_name, employee_code').eq('id', id).maybeSingle()
+  
+  if (emp?.user_id) {
+    await supabase.from('users').update({ status: 'Blocked' }).eq('id', emp.user_id)
+  }
+  await supabase.from('users').update({ status: 'Blocked' }).eq('employee_id', id)
+
+  await supabase.from('employees').update({ status: 'Terminated' }).eq('id', id)
   const { error } = await supabase.from('employees').delete().eq('id', id)
-  if (error) throw error
-  await logAudit('employee.delete', 'employees', id, {})
+  if (error) {
+    console.warn('Could not hard-delete employee, status set to Terminated:', error)
+  }
+  await logAudit('employee.delete', 'employees', id, { code: emp?.employee_code, name: emp ? `${emp.first_name} ${emp.last_name}` : id })
+}
+
+export async function deleteEmployeeByIdOrCode(idOrCode: string) {
+  const queryStr = idOrCode.trim()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryStr)
+  
+  let query = supabase.from('employees').select('id, user_id, first_name, last_name, email, employee_code')
+  if (isUuid) {
+    query = query.eq('id', queryStr)
+  } else {
+    query = query.or(`employee_code.eq.${queryStr},id.eq.${queryStr}`)
+  }
+
+  const { data: emp, error: findErr } = await query.maybeSingle()
+  if (findErr || !emp) {
+    throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
+  }
+
+  await deleteEmployee(emp.id)
+  return emp
 }
 
 async function defaultEmployeeRoleId(): Promise<string | null> {

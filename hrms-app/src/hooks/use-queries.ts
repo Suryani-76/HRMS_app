@@ -19,6 +19,7 @@ import type {
   PerformanceGoal,
   PerformanceReview,
   Task,
+  MeetingHallBooking,
 } from '@/lib/database.types'
 
 function useInvalidate() {
@@ -82,7 +83,19 @@ export function useDeleteEmployee() {
     mutationFn: (id: string) => api.deleteEmployee(id),
     onSuccess: () => {
       invalidate([queryKeys.employees, queryKeys.employeeStats, queryKeys.dashboardStats, queryKeys.payroll, queryKeys.attendance])
-      toast.success('Employee deleted')
+      toast.success('Employee deleted & login blocked')
+    },
+    onError: toastError,
+  })
+}
+
+export function useDeleteEmployeeByIdOrCode() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (idOrCode: string) => api.deleteEmployeeByIdOrCode(idOrCode),
+    onSuccess: (emp) => {
+      invalidate([queryKeys.employees, queryKeys.employeeStats, queryKeys.dashboardStats, queryKeys.payroll, queryKeys.attendance])
+      toast.success(`Employee ${emp.first_name} ${emp.last_name} (${emp.employee_code ?? emp.id}) deleted & login blocked!`)
     },
     onError: toastError,
   })
@@ -512,9 +525,15 @@ export function useDashboardStats() {
   return useQuery({ queryKey: queryKeys.dashboardStats, queryFn: api.fetchDashboardStats })
 }
 
-// ---- Audit ----
+// ---- Meeting Hall ----
+export function useMeetingHallBookings() {
+  return useQuery({ queryKey: queryKeys.meetingHallBookings, queryFn: api.fetchMeetingHallBookings })
+}
+
+// ---- Audit Logs ----
 export function useAuditLogs() {
   return useQuery({ queryKey: queryKeys.auditLogs, queryFn: api.fetchAuditLogs })
 }
 
-export type { Employee, Department, Designation, Attendance, LeaveRequest, Payroll, Document, Task, Announcement, Notification, Holiday, PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview }
+export type { Employee, Department, Designation, Attendance, LeaveRequest, Payroll, Document, Task, Announcement, Notification, Holiday, PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, MeetingHallBooking }
+

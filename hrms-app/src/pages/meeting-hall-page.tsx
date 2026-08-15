@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/queryKeys'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +23,8 @@ import {
 } from '@/components/ui/dialog'
 
 export default function MeetingHallPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, employee, isAdmin } = useAuth()
+  const queryClient = useQueryClient()
   const [bookings, setBookings] = useState<MeetingHallBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -45,6 +48,7 @@ export default function MeetingHallPage() {
 
       if (error) throw error
       setBookings(data || [])
+      queryClient.invalidateQueries({ queryKey: queryKeys.meetingHallBookings })
     } catch (error) {
       console.error('Error fetching bookings:', error)
       toast.error('Failed to load meeting hall schedule')
@@ -94,7 +98,31 @@ export default function MeetingHallPage() {
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.employee_id) return toast.error('Employee ID not found')
+    
+    let currentEmployeeId = employee?.id || user?.employee_id
+
+    if (!currentEmployeeId && isAdmin && user) {
+      setSubmitting(true)
+      try {
+        const { data: newEmp, error: empError } = await supabase.from('employees').insert({
+          user_id: user.id,
+          first_name: 'System',
+          last_name: 'Admin',
+          email: user.email
+        }).select().single()
+
+        if (empError) throw empError
+        
+        currentEmployeeId = newEmp.id
+        await supabase.from('users').update({ employee_id: currentEmployeeId }).eq('id', user.id)
+      } catch (err: any) {
+        setSubmitting(false)
+        return toast.error('Could not create admin employee profile: ' + err.message)
+      }
+      setSubmitting(false)
+    }
+
+    if (!currentEmployeeId) return toast.error('Employee ID not found')
 
     const start = new Date(`${date}T${startTime}`)
     const end = new Date(`${date}T${endTime}`)
@@ -122,7 +150,7 @@ export default function MeetingHallPage() {
         description,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        requested_by: user.employee_id,
+        requested_by: currentEmployeeId,
         status: isAdmin ? 'Approved' : 'Pending',
       })
 

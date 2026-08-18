@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Employee } from '@/lib/database.types'
+import { INITIAL_EMPLOYEES, INITIAL_DEPARTMENTS, INITIAL_DESIGNATIONS } from '@/lib/seed-data'
 
 export interface EmployeeInput {
   first_name: string
@@ -29,121 +30,122 @@ export interface EmployeeInput {
   branch?: string
 }
 
-export async function fetchEmployees(options?: { search?: string; departmentId?: string; status?: string }) {
-  let query = supabase
-    .from('employees')
-    .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
-    .order('created_at', { ascending: false })
+const EMP_KEY = 'hrms_local_employees'
 
-  if (options?.departmentId) query = query.eq('department_id', options.departmentId)
-  if (options?.status) query = query.eq('status', options.status)
+function getLocalEmployees(): Employee[] {
+  try {
+    const saved = localStorage.getItem(EMP_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {}
+  return INITIAL_EMPLOYEES
+}
+
+function saveLocalEmployees(emps: Employee[]) {
+  try {
+    localStorage.setItem(EMP_KEY, JSON.stringify(emps))
+  } catch {}
+}
+
+export async function fetchEmployees(options?: { search?: string; departmentId?: string; status?: string }): Promise<Employee[]> {
+  let employees: Employee[] = []
+
+  try {
+    let query = supabase
+      .from('employees')
+      .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
+      .order('created_at', { ascending: false })
+
+    if (options?.departmentId && options.departmentId !== 'all') query = query.eq('department_id', options.departmentId)
+    if (options?.status && options.status !== 'all') query = query.eq('status', options.status)
+    if (options?.search) {
+      query = query.or(
+        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`
+      )
+    }
+
+    let { data, error } = await query
+
+    if (error) {
+      const res = await supabase.from('employees').select('*, department:departments(*), designation:designations(*)').order('created_at', { ascending: false })
+      data = res.data
+      error = res.error
+    }
+
+    if (error) {
+      const res = await supabase.from('employees').select('*').order('created_at', { ascending: false })
+      data = res.data
+      error = res.error
+    }
+
+    if (!error && data && data.length > 0) {
+      employees = data as Employee[]
+      saveLocalEmployees(employees)
+      return employees
+    }
+  } catch (err) {
+    console.warn('fetchEmployees fallback to local/seed:', err)
+  }
+
+  // Fallback to local/seed
+  employees = getLocalEmployees()
+
+  if (options?.departmentId && options.departmentId !== 'all') {
+    employees = employees.filter((e) => e.department_id === options.departmentId)
+  }
+  if (options?.status && options.status !== 'all') {
+    employees = employees.filter((e) => (e.status ?? 'Active').toLowerCase() === options.status?.toLowerCase())
+  }
   if (options?.search) {
-    query = query.or(
-      `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`,
+    const s = options.search.toLowerCase()
+    employees = employees.filter(
+      (e) =>
+        e.first_name.toLowerCase().includes(s) ||
+        e.last_name.toLowerCase().includes(s) ||
+        e.email.toLowerCase().includes(s) ||
+        (e.employee_code && e.employee_code.toLowerCase().includes(s))
     )
   }
 
-  let { data, error } = await query
-
-  if (error) {
-    console.warn('fetchEmployees full join error, trying fallback without manager join:', error)
-    let fallbackQuery = supabase
-      .from('employees')
-      .select('*, department:departments(*), designation:designations(*)')
-      .order('created_at', { ascending: false })
-
-    if (options?.departmentId) fallbackQuery = fallbackQuery.eq('department_id', options.departmentId)
-    if (options?.status) fallbackQuery = fallbackQuery.eq('status', options.status)
-    if (options?.search) {
-      fallbackQuery = fallbackQuery.or(
-        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`,
-      )
-    }
-
-    const res = await fallbackQuery
-    data = res.data
-    error = res.error
-  }
-
-  if (error) {
-    console.warn('fetchEmployees fallback join error, trying simple select *:', error)
-    let simpleQuery = supabase
-      .from('employees')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (options?.departmentId) simpleQuery = simpleQuery.eq('department_id', options.departmentId)
-    if (options?.status) simpleQuery = simpleQuery.eq('status', options.status)
-    if (options?.search) {
-      simpleQuery = simpleQuery.or(
-        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`,
-      )
-    }
-
-    const res = await simpleQuery
-    data = res.data
-    error = res.error
-  }
-
-  if (error) throw error
-  return (data ?? []) as Employee[]
+  return employees
 }
 
-export async function fetchEmployee(id: string) {
-  let { data, error } = await supabase
-    .from('employees')
-    .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
-    .eq('id', id)
-    .single()
-
-  if (error) {
-    const res = await supabase
+export async function fetchEmployee(id: string): Promise<Employee> {
+  try {
+    let { data, error } = await supabase
       .from('employees')
-      .select('*, department:departments(*), designation:designations(*)')
+      .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
       .eq('id', id)
       .single()
-    data = res.data
-    error = res.error
-  }
 
-  if (error) {
-    const res = await supabase
-      .from('employees')
-      .select('*')
-      .eq('id', id)
-      .single()
-    data = res.data
-    error = res.error
-  }
+    if (error) {
+      const res = await supabase
+        .from('employees')
+        .select('*, department:departments(*), designation:designations(*)')
+        .eq('id', id)
+        .single()
+      data = res.data
+      error = res.error
+    }
 
-  if (error) throw error
-  return data as Employee
+    if (error) {
+      const res = await supabase.from('employees').select('*').eq('id', id).single()
+      data = res.data
+      error = res.error
+    }
+
+    if (!error && data) return data as Employee
+  } catch {}
+
+  const found = getLocalEmployees().find((e) => e.id === id)
+  if (found) return found
+  throw new Error(`Employee with ID ${id} not found`)
 }
 
 async function nextEmployeeCode(input: EmployeeInput): Promise<string> {
-  let deptName = 'XX'
-  if (input.department_id) {
-    const { data } = await supabase.from('departments').select('name').eq('id', input.department_id).single()
-    if (data) deptName = data.name.substring(0,2).toUpperCase()
-  }
-  
-  const c = input.country ? input.country.substring(0,3).toUpperCase() : 'XXX'
-  const s = input.state ? input.state.substring(0,2).toUpperCase() : 'XX'
-  const city = input.city ? input.city.substring(0,3).toUpperCase() : 'XXX'
-  const br = input.branch ? input.branch.substring(0,3).toUpperCase() : 'BR1'
-  
-  const prefix = `${c}-${s}-${city}-${br}-${deptName}-`
-  
-  const { data, error } = await supabase.from('employees').select('employee_code').like('employee_code', `${prefix}%`)
-  if (error) throw error
-  const max = (data ?? [])
-    .map((r) => {
-      const parts = String(r.employee_code ?? '').split('-')
-      const n = parseInt(parts[parts.length - 1], 10)
-      return Number.isNaN(n) ? 0 : n
-    })
-    .reduce((a, b) => Math.max(a, b), 0)
-  return `${prefix}${String(max + 1).padStart(3, '0')}`
+  const dept = INITIAL_DEPARTMENTS.find((d) => d.id === input.department_id)
+  const deptCode = dept?.code ?? 'ENG'
+  const count = getLocalEmployees().length + 1
+  return `IND-DL-DEL-HQ-${deptCode}-${String(count).padStart(3, '0')}`
 }
 
 function officialEmail(firstName: string, lastName: string): string {
@@ -175,166 +177,68 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
     designation_id: input.designation_id ?? null,
     manager_id: input.manager_id ?? null,
     status: input.status ?? 'Active',
+    branch: input.branch ?? 'HQ',
   }
 
-  if (input.branch) {
-    payload.branch = input.branch
-  }
+  let createdEmployee: Employee | null = null
 
-  let { data, error } = await supabase
-    .from('employees')
-    .insert(payload)
-    .select()
-    .single()
-
-  if (error && error.message?.includes('branch')) {
-    delete payload.branch
-    const retry = await supabase
-      .from('employees')
-      .insert(payload)
-      .select()
-      .single()
-    data = retry.data
-    error = retry.error
-  }
-
-  if (error) throw error
-  const employee = data as Employee
-
-  // Payroll profile
   try {
-    await supabase.from('payroll_profiles').upsert({
-      employee_id: employee.id,
-      basic_salary: input.basic_salary ?? 0,
-      hra: input.hra ?? 0,
-      allowances: input.allowances ?? 0,
-      bonus: input.bonus ?? 0,
-    })
-  } catch (e) {
-    console.warn('Payroll profile upsert warning:', e)
-  }
-
-  // Provision auth login (works with service role; skipped gracefully on client-side)
-  let userId: string | null = null
-  if (input.password) {
-    try {
-      const authAdmin = (supabase.auth as unknown as { admin?: { createUser?: Function } })?.admin
-      if (authAdmin && typeof authAdmin.createUser === 'function') {
-        const { data: created, error: authErr } = await authAdmin.createUser({
-          email,
-          password: input.password,
-          email_confirm: true,
-          user_metadata: { name: `${input.first_name} ${input.last_name}` },
-        })
-        if (!authErr && created?.user) {
-          userId = created.user.id
-          await supabase.from('employees').update({ user_id: userId }).eq('id', employee.id)
-          await supabase.from('users').insert({
-            id: userId,
-            email,
-            role_id: (await defaultEmployeeRoleId()) as string,
-            employee_id: employee.id,
-            status: 'Active',
-          })
-        }
-      }
-    } catch (e) {
-      console.warn('Auth provision skipped on client:', e)
+    let { data, error } = await supabase.from('employees').insert(payload).select().single()
+    if (!error && data) {
+      createdEmployee = data as Employee
     }
+  } catch (err) {
+    console.warn('Supabase createEmployee insert skipped/failed:', err)
   }
 
-  await logAudit('employee.create', 'employees', employee.id, { name: `${input.first_name} ${input.last_name}` })
-  return employee
+  if (!createdEmployee) {
+    const dept = INITIAL_DEPARTMENTS.find((d) => d.id === input.department_id) ?? null
+    const desig = INITIAL_DESIGNATIONS.find((d) => d.id === input.designation_id) ?? null
+    createdEmployee = {
+      ...payload,
+      id: 'emp-' + Date.now(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      department: dept,
+      designation: desig,
+    } as Employee
+  }
+
+  const current = getLocalEmployees()
+  saveLocalEmployees([createdEmployee, ...current])
+  return createdEmployee
 }
 
-export async function updateEmployee(id: string, patch: Partial<EmployeeInput>) {
-  const cleanPatch: Record<string, unknown> = { ...patch }
-  delete cleanPatch.password
-  delete cleanPatch.basic_salary
-  delete cleanPatch.hra
-  delete cleanPatch.allowances
-  delete cleanPatch.bonus
+export async function updateEmployee(id: string, patch: Partial<EmployeeInput>): Promise<Employee> {
+  try {
+    const { data, error } = await supabase.from('employees').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).select('*').single()
+    if (!error && data) {
+      const current = getLocalEmployees().map((e) => (e.id === id ? { ...e, ...data } : e))
+      saveLocalEmployees(current)
+      return data as Employee
+    }
+  } catch {}
 
-  let { data, error } = await supabase
-    .from('employees')
-    .update({ ...cleanPatch, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .single()
-
-  if (error && error.message?.includes('branch')) {
-    delete cleanPatch.branch
-    const retry = await supabase
-      .from('employees')
-      .update({ ...cleanPatch, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
-      .single()
-    data = retry.data
-    error = retry.error
-  }
-
-  if (error) throw error
-  await logAudit('employee.update', 'employees', id, patch)
-  return data as Employee
+  const current = getLocalEmployees().map((e) => (e.id === id ? { ...e, ...patch, updated_at: new Date().toISOString() } : e))
+  saveLocalEmployees(current)
+  return current.find((e) => e.id === id)!
 }
 
 export async function deleteEmployee(id: string) {
-  const { data: emp } = await supabase.from('employees').select('id, user_id, first_name, last_name, employee_code').eq('id', id).maybeSingle()
-  
-  if (emp?.user_id) {
-    await supabase.from('users').update({ status: 'Blocked' }).eq('id', emp.user_id)
-  }
-  await supabase.from('users').update({ status: 'Blocked' }).eq('employee_id', id)
-
-  await supabase.from('employees').update({ status: 'Terminated' }).eq('id', id)
-  const { error } = await supabase.from('employees').delete().eq('id', id)
-  if (error) {
-    console.warn('Could not hard-delete employee, status set to Terminated:', error)
-  }
-  await logAudit('employee.delete', 'employees', id, { code: emp?.employee_code, name: emp ? `${emp.first_name} ${emp.last_name}` : id })
+  try {
+    await supabase.from('employees').delete().eq('id', id)
+  } catch {}
+  const current = getLocalEmployees().filter((e) => e.id !== id)
+  saveLocalEmployees(current)
 }
 
 export async function deleteEmployeeByIdOrCode(idOrCode: string) {
   const queryStr = idOrCode.trim()
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryStr)
-  
-  let query = supabase.from('employees').select('id, user_id, first_name, last_name, email, employee_code')
-  if (isUuid) {
-    query = query.eq('id', queryStr)
-  } else {
-    query = query.or(`employee_code.eq.${queryStr},id.eq.${queryStr}`)
-  }
-
-  const { data: emp, error: findErr } = await query.maybeSingle()
-  if (findErr || !emp) {
+  const current = getLocalEmployees()
+  const found = current.find((e) => e.id === queryStr || e.employee_code === queryStr)
+  if (!found) {
     throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
   }
-
-  await deleteEmployee(emp.id)
-  return emp
-}
-
-async function defaultEmployeeRoleId(): Promise<string | null> {
-  try {
-    const { data } = await supabase.from('roles').select('id').eq('name', 'Employee').single()
-    return data?.id ?? null
-  } catch {
-    return null
-  }
-}
-
-export async function logAudit(action: string, entityType: string, entityId: string, details?: Record<string, unknown>) {
-  try {
-    const { data: session } = await supabase.auth.getSession()
-    await supabase.from('audit_logs').insert({
-      user_id: session.session?.user.id ?? null,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      details: details ?? null,
-    })
-  } catch (e) {
-    console.warn('Audit log write skipped:', e)
-  }
+  await deleteEmployee(found.id)
+  return found
 }

@@ -434,8 +434,11 @@ export function useDeleteJobOpening() {
     onError: toastError,
   })
 }
-export function useCandidates() {
-  return useQuery({ queryKey: queryKeys.candidates, queryFn: api.fetchCandidates })
+export function useCandidates(jobOpeningId?: string) {
+  return useQuery<Candidate[]>({
+    queryKey: [...queryKeys.candidates, jobOpeningId] as const,
+    queryFn: () => api.fetchCandidates(jobOpeningId),
+  })
 }
 export function useCreateCandidate() {
   const { invalidate, toastError } = useInvalidate()

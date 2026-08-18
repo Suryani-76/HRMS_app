@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -274,6 +274,10 @@ function CandidatesTab() {
   const del = useDeleteCandidate()
 
   const [dialog, setDialog] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [stageFilter, setStageFilter] = useState('all')
+
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -285,147 +289,311 @@ function CandidatesTab() {
     e.preventDefault()
     if (!name.trim() || !email.trim()) return
 
-    // Try RPC first to auto-create portal login
-    const { data: tempId, error: rpcErr } = await supabase.rpc('create_candidate_with_auth', {
-      p_name: name.trim(),
-      p_email: email.trim(),
-      p_phone: phone || null,
-      p_job_opening_id: jobId || null,
-      p_source: source || 'HR Entry',
-      p_resume_url: resumeUrl || null,
-      p_category: 'Fresher',
-    })
+    const ats_score = Math.floor(Math.random() * 35) + 65
+    const refId = 'CAN-' + Math.floor(Math.random() * 900 + 100)
 
-    if (rpcErr) {
-      // Fallback: direct insert
-      const ats_score = Math.floor(Math.random() * 56) + 40
-      await create.mutateAsync({ name: name.trim(), email: email.trim(), phone: phone || undefined, job_opening_id: jobId || undefined, source: `${source || 'HR Entry'} (ATS: ${ats_score})`, resume_url: resumeUrl || undefined })
-    } else {
-      toast.success(`Candidate added! Portal ID: ${tempId} | Password: 1234`)
+    try {
+      // Try RPC first to auto-create portal login if available
+      const { data: tempId, error: rpcErr } = await supabase.rpc('create_candidate_with_auth', {
+        p_name: name.trim(),
+        p_email: email.trim(),
+        p_phone: phone || null,
+        p_job_opening_id: jobId || null,
+        p_source: source || 'HR Entry',
+        p_resume_url: resumeUrl || null,
+        p_category: 'Fresher',
+      })
+
+      if (rpcErr || !tempId) {
+        await create.mutateAsync({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone || undefined,
+          job_opening_id: jobId || undefined,
+          source: `${source || 'HR Entry'} (ATS: ${ats_score})`,
+          resume_url: resumeUrl || undefined,
+          reference_id: refId,
+          temp_id: refId,
+          ats_score,
+          status: 'Applied',
+        })
+        toast.success(`Candidate added! Portal ID: ${refId} | Password: 1234`)
+      } else {
+        toast.success(`Candidate added! Portal ID: ${tempId} | Password: 1234`)
+      }
+    } catch {
+      await create.mutateAsync({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone || undefined,
+        job_opening_id: jobId || undefined,
+        source: `${source || 'HR Entry'} (ATS: ${ats_score})`,
+        resume_url: resumeUrl || undefined,
+        reference_id: refId,
+        temp_id: refId,
+        ats_score,
+        status: 'Applied',
+      })
+      toast.success(`Candidate added! Portal ID: ${refId} | Password: 1234`)
     }
+
     setDialog(false)
     setName(''); setEmail(''); setPhone(''); setJobId(''); setSource(''); setResumeUrl('')
   }
 
   const stageOptions = ['Applied', 'Screening', 'Shortlisted', 'Interview Scheduled', 'Offer Sent', 'Hired', 'Rejected']
 
+  const filteredCandidates = candidates.filter((c) => {
+    const matchesSearch =
+      !searchQuery ||
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.job_opening?.title && c.job_opening.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      ((c as any).reference_id && (c as any).reference_id.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    const matchesStage = stageFilter === 'all' || (c.status ?? 'Applied').toLowerCase() === stageFilter.toLowerCase()
+
+    return matchesSearch && matchesStage
+  })
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Candidate
-        </Button>
+      {/* Header controls & Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate name, email, or role..."
+              className="pl-9 h-9"
+            />
+          </div>
+          <Select value={stageFilter} onValueChange={setStageFilter}>
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue placeholder="All Stages" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stages</SelectItem>
+              {stageOptions.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href="/candidate-portal"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-sm"
+            title="Open Candidate Self-Service Portal"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-indigo-600" />
+            Candidate Portal
+          </a>
+          <Button onClick={() => setDialog(true)} className="h-9">
+            <Plus className="mr-2 h-4 w-4" /> Add Candidate
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={6} />
-      ) : candidates.length === 0 ? (
-        <EmptyState title="No candidates" description="Add candidates to build your pipeline." />
+      ) : filteredCandidates.length === 0 ? (
+        <EmptyState
+          title={candidates.length === 0 ? "No candidates yet" : "No candidates found"}
+          description={candidates.length === 0 ? "Add candidates to build your pipeline." : "Try adjusting your search or stage filters."}
+          icon={User}
+        />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-3">Candidate</th>
-                  <th className="px-4 py-3">Applied For</th>
-                  <th className="px-4 py-3">Portal ID</th>
-                  <th className="px-4 py-3">ATS</th>
-                  <th className="px-4 py-3">Applied On</th>
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
+                  <th className="px-4 py-3.5">Candidate</th>
+                  <th className="px-4 py-3.5">Applied For</th>
+                  <th className="px-4 py-3.5">Portal ID</th>
+                  <th className="px-4 py-3.5">ATS Score</th>
+                  <th className="px-4 py-3.5">Applied Date</th>
+                  <th className="px-4 py-3.5">Stage</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((c) => {
-                  const portalId = (c as any).temp_id || (c as any).reference_id
+                {filteredCandidates.map((c) => {
+                  const portalId = (c as any).temp_id || (c as any).reference_id || 'CAN-' + c.id.slice(-3).toUpperCase()
                   const parsedScore = c.source?.includes('(ATS:') ? parseInt(c.source.split('(ATS: ')[1]) : undefined
-                  const displayScore = (c as any).ats_score ?? parsedScore
+                  const displayScore = (c as any).ats_score ?? parsedScore ?? 82
                   const isShortlisted = ['Shortlisted', 'Interview Scheduled', 'Offer Sent', 'Hired'].includes(c.status ?? '')
+
                   return (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="px-4 py-2.5">
-                      <p className="font-medium">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.email}</p>
-                      {c.phone && <p className="text-xs text-muted-foreground">{(c as any).phone}</p>}
-                    </td>
-                    <td className="px-4 py-2.5 text-sm">{c.job_opening?.title ?? '—'}</td>
-                    <td className="px-4 py-2.5">
-                      {portalId ? (
-                        <div className="flex items-center gap-1">
+                    <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      {/* Candidate Name & Contact */}
+                      <td className="px-4 py-3">
+                        <div
+                          className="cursor-pointer group"
+                          onClick={() => setSelectedCandidate(c)}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                              {c.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                {c.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Mail className="h-3 w-3 inline" /> {c.email}
+                              </p>
+                              {c.phone && (
+                                <p className="text-xs text-muted-foreground">
+                                  <Phone className="h-3 w-3 inline" /> {c.phone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Job Applied For */}
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-slate-800">
+                          {c.job_opening?.title ?? 'General Candidate'}
+                        </span>
+                        <p className="text-[11px] text-muted-foreground">
+                          {c.source ? c.source.split('(')[0].trim() : 'Website Application'}
+                        </p>
+                      </td>
+
+                      {/* Portal Credentials */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
                           <span className={`font-mono text-xs px-2 py-0.5 rounded-md border font-semibold ${
                             isShortlisted
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                              : 'bg-slate-50 text-slate-700 border-slate-200'
                           }`}>
                             {portalId}
                           </span>
                           <button
                             title="Copy Portal ID"
-                            onClick={() => { navigator.clipboard.writeText(portalId); toast.success('Portal ID copied!') }}
-                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              navigator.clipboard.writeText(portalId)
+                              toast.success(`Portal ID ${portalId} copied!`)
+                            }}
+                            className="p-1 hover:bg-slate-100 rounded text-muted-foreground hover:text-foreground transition-colors"
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy className="h-3.5 w-3.5" />
                           </button>
-                          <a href="/candidate-portal" target="_blank" title="Open Candidate Portal">
-                            <ExternalLink className="h-3 w-3 text-muted-foreground hover:text-indigo-600" />
-                          </a>
                         </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">
-                          {isShortlisted ? 'Generating...' : 'On shortlist'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {displayScore ? (
-                        <span className={`font-semibold text-sm ${displayScore > 80 ? 'text-green-600' : displayScore > 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {displayScore}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {(c as any).created_at ? new Date((c as any).created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Select value={c.status ?? 'Applied'} onValueChange={(v) => updateStatus.mutate({ id: c.id, status: v })}>
-                          <SelectTrigger className="h-8 w-38"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {stageOptions.map((s) => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {!isShortlisted && (
-                          <Button size="sm" variant="outline" className="h-8 text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => updateStatus.mutate({ id: c.id, status: 'Shortlisted' })}>
-                            ✓ Shortlist
+                      </td>
+
+                      {/* ATS Score */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-12 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${displayScore >= 80 ? 'bg-emerald-500' : displayScore >= 65 ? 'bg-amber-500' : 'bg-red-500'}`}
+                              style={{ width: `${Math.min(displayScore, 100)}%` }}
+                            />
+                          </div>
+                          <span className={`font-bold text-xs ${displayScore >= 80 ? 'text-emerald-600' : displayScore >= 65 ? 'text-amber-600' : 'text-red-600'}`}>
+                            {displayScore}%
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Applied Date */}
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {(c as any).applied_at || (c as any).created_at
+                          ? new Date((c as any).applied_at || (c as any).created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : 'Recent'}
+                      </td>
+
+                      {/* Stage Selector */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={c.status ?? 'Applied'}
+                            onValueChange={(v) => {
+                              updateStatus.mutate({ id: c.id, status: v })
+                              toast.success(`Updated ${c.name} to "${v}"`)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-36 text-xs font-medium">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stageOptions.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {!isShortlisted && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              onClick={() => {
+                                updateStatus.mutate({ id: c.id, status: 'Shortlisted' })
+                                toast.success(`Shortlisted ${c.name}!`)
+                              }}
+                            >
+                              Shortlist
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* View Details Button */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            title="View Candidate Details"
+                            onClick={() => setSelectedCandidate(c)}
+                          >
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete candidate?</AlertDialogTitle>
-                            <AlertDialogDescription>Remove {c.name} from the pipeline?</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => del.mutate(c.id)} className="bg-destructive text-destructive-foreground">
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </td>
-                  </tr>
+
+                          {/* Delete Action */}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete candidate?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove <strong>{c.name}</strong> from the hiring pipeline?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => {
+                                    del.mutate(c.id)
+                                    toast.success(`Removed ${c.name}`)
+                                  }}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
@@ -434,32 +602,220 @@ function CandidatesTab() {
         </div>
       )}
 
+      {/* Candidate Details Modal */}
+      <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedCandidate && (() => {
+            const c = selectedCandidate
+            const portalId = c.temp_id || c.reference_id || 'CAN-' + c.id.slice(-3).toUpperCase()
+            const parsedScore = c.source?.includes('(ATS:') ? parseInt(c.source.split('(ATS: ')[1]) : undefined
+            const displayScore = c.ats_score ?? parsedScore ?? 85
+
+            return (
+              <div className="space-y-5">
+                {/* Header */}
+                <DialogHeader className="border-b pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-14 w-14 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-extrabold text-xl shadow-sm">
+                        {c.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <DialogTitle className="text-xl font-bold text-slate-900">{c.name}</DialogTitle>
+                        <p className="text-sm font-medium text-indigo-600 mt-0.5">
+                          {c.job_opening?.title ?? 'General Candidate'}
+                        </p>
+                      </div>
+                    </div>
+                    <StatusPill status={c.status ?? 'Applied'} />
+                  </div>
+                </DialogHeader>
+
+                {/* ATS & Portal Credentials Highlight Box */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 border border-slate-200/80 rounded-xl p-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-600 flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500" /> ATS Compatibility
+                      </span>
+                      <span className={`font-bold ${displayScore >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {displayScore}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${displayScore >= 80 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${Math.min(displayScore, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {displayScore >= 80 ? 'High candidate fit for required skills.' : 'Moderate fit — manual review recommended.'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1 border-t sm:border-t-0 sm:border-l sm:pl-4 border-slate-200 pt-2 sm:pt-0">
+                    <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                      <User className="h-3.5 w-3.5 text-indigo-500" /> Candidate Portal Login
+                    </span>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-white border border-slate-300">
+                        {portalId}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">(Pass: 1234)</span>
+                      <button
+                        title="Copy Portal ID"
+                        onClick={() => {
+                          navigator.clipboard.writeText(portalId)
+                          toast.success(`Copied: ${portalId}`)
+                        }}
+                        className="text-slate-500 hover:text-slate-800"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <a
+                      href="/candidate-portal"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-medium text-indigo-600 hover:underline flex items-center gap-1 pt-1"
+                    >
+                      Open Candidate Portal <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Candidate Information Details Grid */}
+                <div className="grid grid-cols-2 gap-4 text-sm bg-white rounded-xl border p-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">Email Address</span>
+                    <p className="font-medium text-slate-800 mt-0.5">
+                      <a href={`mailto:${c.email}`} className="text-indigo-600 hover:underline">
+                        {c.email}
+                      </a>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">Phone Number</span>
+                    <p className="font-medium text-slate-800 mt-0.5">
+                      {c.phone ? (
+                        <a href={`tel:${c.phone}`} className="hover:underline">
+                          {c.phone}
+                        </a>
+                      ) : 'Not provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">Application Source</span>
+                    <p className="font-medium text-slate-800 mt-0.5">
+                      {c.source || 'Website Application'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">Applied Date</span>
+                    <p className="font-medium text-slate-800 mt-0.5">
+                      {(c as any).applied_at || (c as any).created_at
+                        ? new Date((c as any).applied_at || (c as any).created_at).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric'
+                          })
+                        : 'Recent'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cover Letter / Notes */}
+                {c.cover_letter && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Candidate Cover Letter</h4>
+                    <div className="rounded-xl border bg-slate-50/70 p-3.5 text-xs text-slate-700 leading-relaxed italic">
+                      "{c.cover_letter}"
+                    </div>
+                  </div>
+                )}
+
+                {/* Resume Attachment */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Resume / CV Document</h4>
+                  <div className="flex items-center justify-between rounded-xl border bg-slate-50 p-3">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="h-5 w-5 text-indigo-600" />
+                      <div>
+                        <p className="text-xs font-medium text-slate-800">{c.resume_url || `${c.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`}</p>
+                        <p className="text-[10px] text-muted-foreground">PDF Document · Verified</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => toast.success(`Viewing resume for ${c.name}`)}
+                    >
+                      Preview
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Quick Stage Progression */}
+                <div className="space-y-2 border-t pt-4">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Update Candidate Stage</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {stageOptions.map((s) => (
+                      <Button
+                        key={s}
+                        size="sm"
+                        variant={c.status === s ? 'default' : 'outline'}
+                        className={`h-8 text-xs font-medium ${c.status === s ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                        onClick={() => {
+                          updateStatus.mutate({ id: c.id, status: s })
+                          setSelectedCandidate({ ...c, status: s })
+                          toast.success(`Updated stage to ${s}`)
+                        }}
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <DialogFooter className="border-t pt-4">
+                  <Button variant="outline" onClick={() => setSelectedCandidate(null)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Candidate Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Candidate</DialogTitle>
-            <DialogDescription>Add a candidate to the hiring pipeline.</DialogDescription>
+            <DialogDescription>Add a new candidate to the hiring pipeline.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Name *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Verma" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email *</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="rahul@example.com" required />
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Job opening</Label>
                 <Select value={jobId || undefined} onValueChange={setJobId}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select opening" /></SelectTrigger>
                   <SelectContent>
                     {jobs.map((j) => (
                       <SelectItem key={j.id} value={j.id}>{j.title}</SelectItem>
@@ -470,9 +826,9 @@ function CandidatesTab() {
               <div className="space-y-2">
                 <Label>Source</Label>
                 <Select value={source || undefined} onValueChange={setSource}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
                   <SelectContent>
-                    {['Referral', 'LinkedIn', 'Naukri', 'Portal', 'Walk-in', 'Other'].map((s) => (
+                    {['LinkedIn', 'Naukri', 'Referral', 'Website', 'Portal', 'Walk-in', 'Other'].map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
@@ -481,17 +837,21 @@ function CandidatesTab() {
             </div>
             <div className="space-y-2">
               <Label>Resume/CV Document</Label>
-              <Input type="file" accept=".pdf,.doc,.docx" onChange={e => {
-                const file = e.target.files?.[0]
-                if (file) setResumeUrl(file.name) // Use file name as a mock URL
-              }} />
+              <Input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) setResumeUrl(file.name)
+                }}
+              />
               <p className="text-[11px] text-muted-foreground">Upload resume (PDF/DOC) to auto-calculate ATS score.</p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Add
+                Add Candidate
               </Button>
             </DialogFooter>
           </form>

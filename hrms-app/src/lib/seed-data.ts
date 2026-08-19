@@ -1,4 +1,4 @@
-import type { Department, Designation, Employee, MeetingHallBooking, JobOpening, Candidate, Interview, Offer } from './database.types'
+import type { Department, Designation, Employee, MeetingHallBooking, JobOpening, Candidate, Interview, Offer, LeaveType, LeaveRequest, LeaveBalance } from './database.types'
 
 export const INITIAL_DEPARTMENTS: Department[] = [
   { id: 'dept-1', name: 'Engineering', code: 'ENG', description: 'Software and technology development', created_at: '2024-01-01T00:00:00Z' },
@@ -521,4 +521,67 @@ export const INITIAL_OFFERS: Offer[] = [
     job_opening: INITIAL_JOB_OPENINGS[4],
   },
 ]
+
+export const INITIAL_LEAVE_TYPES: LeaveType[] = [
+  { id: '00000000-0000-4000-8000-0000000000l1', name: 'Casual Leave', days_per_year: 12, is_paid: true, created_at: '2024-01-01T00:00:00Z' },
+  { id: '00000000-0000-4000-8000-0000000000l2', name: 'Sick Leave', days_per_year: 12, is_paid: true, created_at: '2024-01-01T00:00:00Z' },
+  { id: '00000000-0000-4000-8000-0000000000l3', name: 'Earned Leave', days_per_year: 15, is_paid: true, created_at: '2024-01-01T00:00:00Z' },
+  { id: '00000000-0000-4000-8000-0000000000l4', name: 'Unpaid Leave', days_per_year: 0, is_paid: false, created_at: '2024-01-01T00:00:00Z' },
+]
+
+export const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
+  {
+    id: 'leave-1',
+    employee_id: '00000000-0000-0000-0000-000000000010', // Aarav Patel / HR Executive / Manager
+    leave_type_id: '00000000-0000-4000-8000-0000000000l1',
+    start_date: '2026-08-25',
+    end_date: '2026-08-27',
+    days: 3,
+    reason: 'Attending family wedding ceremony in hometown. Urgent tasks delegated to assistant.',
+    status: 'pending',
+    applied_at: '2026-08-18T10:30:00Z',
+    updated_at: '2026-08-18T10:30:00Z',
+    employee: INITIAL_EMPLOYEES[2], // HR
+    leave_type: INITIAL_LEAVE_TYPES[0],
+  },
+  {
+    id: 'leave-2',
+    employee_id: '00000000-0000-0000-0000-000000000020', // Meera Sharma / Engineering
+    leave_type_id: '00000000-0000-4000-8000-0000000000l2',
+    start_date: '2026-08-10',
+    end_date: '2026-08-11',
+    days: 2,
+    reason: 'Viral fever and doctor consultation',
+    status: 'approved',
+    admin_comment: 'Approved. Take rest.',
+    reviewed_by: '00000000-0000-0000-0000-000000000001',
+    reviewed_at: '2026-08-09T14:00:00Z',
+    applied_at: '2026-08-09T11:00:00Z',
+    updated_at: '2026-08-09T14:00:00Z',
+    employee: INITIAL_EMPLOYEES[1],
+    leave_type: INITIAL_LEAVE_TYPES[1],
+  },
+  {
+    id: 'leave-3',
+    employee_id: 'emp-5', // Sneha Reddy / Marketing
+    leave_type_id: '00000000-0000-4000-8000-0000000000l3',
+    start_date: '2026-09-02',
+    end_date: '2026-09-05',
+    days: 4,
+    reason: 'Planned vacation travel',
+    status: 'pending',
+    applied_at: '2026-08-15T09:15:00Z',
+    updated_at: '2026-08-15T09:15:00Z',
+    employee: INITIAL_EMPLOYEES[4],
+    leave_type: INITIAL_LEAVE_TYPES[2],
+  },
+]
+
+export const INITIAL_LEAVE_BALANCES: LeaveBalance[] = [
+  { id: 'bal-1', employee_id: '00000000-0000-0000-0000-000000000010', leave_type_id: '00000000-0000-4000-8000-0000000000l1', year: 2026, allocated: 12, used: 2, created_at: '2026-01-01T00:00:00Z', leave_type: INITIAL_LEAVE_TYPES[0] },
+  { id: 'bal-2', employee_id: '00000000-0000-0000-0000-000000000010', leave_type_id: '00000000-0000-4000-8000-0000000000l2', year: 2026, allocated: 12, used: 1, created_at: '2026-01-01T00:00:00Z', leave_type: INITIAL_LEAVE_TYPES[1] },
+  { id: 'bal-3', employee_id: '00000000-0000-0000-0000-000000000010', leave_type_id: '00000000-0000-4000-8000-0000000000l3', year: 2026, allocated: 15, used: 0, created_at: '2026-01-01T00:00:00Z', leave_type: INITIAL_LEAVE_TYPES[2] },
+  { id: 'bal-4', employee_id: '00000000-0000-0000-0000-000000000010', leave_type_id: '00000000-0000-4000-8000-0000000000l4', year: 2026, allocated: 0, used: 0, created_at: '2026-01-01T00:00:00Z', leave_type: INITIAL_LEAVE_TYPES[3] },
+]
+
 

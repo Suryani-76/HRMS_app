@@ -379,16 +379,26 @@ export interface InsuranceEnrollment {
   employer_info?: string | null
   policy_info?: string | null
   residential_address?: string | null
+  current_address?: string | null
+  permanent_address?: string | null
   nominee_name?: string | null
   nominee_relation?: string | null
   nominee_dob?: string | null
   nominee_share?: number | null
+  // Secondary Nominee (Nominee 2)
+  nominee2_name?: string | null
+  nominee2_relation?: string | null
+  nominee2_dob?: string | null
+  nominee2_share?: number | null
   existing_insurance_details?: string | null
   emergency_contact_name?: string | null
   emergency_contact_phone?: string | null
+  emergency_contact_relation?: string | null
   bank_name?: string | null
   bank_account?: string | null
+  bank_ifsc?: string | null
   ifsc_code?: string | null
+  declaration_signature?: string | null
   declaration_signed: boolean
   declaration_date?: string | null
   created_at: string

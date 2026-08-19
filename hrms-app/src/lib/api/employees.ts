@@ -14,6 +14,26 @@ export interface EmployeeInput {
   state?: string
   country?: string
   postal_code?: string
+  // Emergency / Guardian Contact
+  emergency_contact?: string
+  emergency_contact_name?: string
+  emergency_contact_relation?: string
+  emergency_contact_phone?: string
+  guardian_name?: string
+  guardian_relation?: string
+  guardian_phone?: string
+  // Current Address
+  current_address?: string
+  current_city?: string
+  current_state?: string
+  current_country?: string
+  current_postal_code?: string
+  // Permanent Address
+  permanent_address?: string
+  permanent_city?: string
+  permanent_state?: string
+  permanent_country?: string
+  permanent_postal_code?: string
   marital_status?: string
   blood_group?: string
   joining_date: string
@@ -164,11 +184,31 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
     phone: input.phone ?? null,
     gender: input.gender ?? null,
     date_of_birth: input.date_of_birth ?? null,
-    address: input.address ?? null,
-    city: input.city ?? null,
-    state: input.state ?? null,
-    country: input.country ?? null,
-    postal_code: input.postal_code ?? null,
+    address: input.address || input.current_address || null,
+    city: input.city || input.current_city || null,
+    state: input.state || input.current_state || null,
+    country: input.country || input.current_country || null,
+    postal_code: input.postal_code || input.current_postal_code || null,
+    // Emergency / Guardian contact
+    emergency_contact: input.emergency_contact_phone || input.emergency_contact || input.guardian_phone || null,
+    emergency_contact_name: input.emergency_contact_name || input.guardian_name || null,
+    emergency_contact_relation: input.emergency_contact_relation || input.guardian_relation || null,
+    emergency_contact_phone: input.emergency_contact_phone || input.emergency_contact || input.guardian_phone || null,
+    guardian_name: input.guardian_name || input.emergency_contact_name || null,
+    guardian_phone: input.guardian_phone || input.emergency_contact_phone || null,
+    guardian_relation: input.guardian_relation || input.emergency_contact_relation || null,
+    // Current address
+    current_address: input.current_address || input.address || null,
+    current_city: input.current_city || input.city || null,
+    current_state: input.current_state || input.state || null,
+    current_country: input.current_country || input.country || null,
+    current_postal_code: input.current_postal_code || input.postal_code || null,
+    // Permanent address
+    permanent_address: input.permanent_address || input.current_address || input.address || null,
+    permanent_city: input.permanent_city || input.current_city || input.city || null,
+    permanent_state: input.permanent_state || input.current_state || input.state || null,
+    permanent_country: input.permanent_country || input.current_country || input.country || null,
+    permanent_postal_code: input.permanent_postal_code || input.current_postal_code || input.postal_code || null,
     marital_status: input.marital_status ?? null,
     blood_group: input.blood_group ?? null,
     joining_date: input.joining_date,

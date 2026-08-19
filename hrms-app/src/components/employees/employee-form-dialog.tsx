@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, User, PhoneCall, Home, MapPin, Briefcase, DollarSign, CheckSquare, Square } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internship', 'P
 const GENDERS = ['Male', 'Female', 'Other']
 const MARITAL_STATUS = ['Single', 'Married', 'Divorced', 'Widowed']
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+const RELATIONSHIPS = ['Father', 'Mother', 'Spouse', 'Guardian', 'Brother', 'Sister', 'Son', 'Daughter', 'Friend', 'Other']
 
 export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFormDialogProps) {
   const { isAdmin } = useAuth()
@@ -44,6 +45,8 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
   const createEmployee = useCreateEmployee()
   const updateEmployee = useUpdateEmployee(employee?.id ?? '')
 
+  const [sameAsCurrent, setSameAsCurrent] = useState(false)
+
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -51,13 +54,24 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
     phone: '',
     gender: '',
     date_of_birth: '',
-    address: '',
-    city: '',
-    state: '',
-    country: '',
-    postal_code: '',
     marital_status: '',
     blood_group: '',
+    // Guardian / Emergency Contact
+    emergency_contact_name: '',
+    emergency_contact_relation: '',
+    emergency_contact_phone: '',
+    // Current Address
+    current_address: '',
+    current_city: '',
+    current_state: '',
+    current_country: 'India',
+    current_postal_code: '',
+    // Permanent Address
+    permanent_address: '',
+    permanent_city: '',
+    permanent_state: '',
+    permanent_country: 'India',
+    permanent_postal_code: '',
     branch: '',
     joining_date: '',
     employment_type: 'Full-time',
@@ -76,67 +90,135 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
   useEffect(() => {
     if (open) {
       setError(null)
-      setForm(
-        employee
-          ? {
-              first_name: employee.first_name ?? '',
-              last_name: employee.last_name ?? '',
-              email: employee.email ?? '',
-              phone: employee.phone ?? '',
-              gender: employee.gender ?? '',
-              date_of_birth: toDateInput(employee.date_of_birth),
-              address: employee.address ?? '',
-              city: employee.city ?? '',
-              state: employee.state ?? '',
-              country: employee.country ?? '',
-              postal_code: employee.postal_code ?? '',
-              branch: employee.branch ?? '',
-              marital_status: employee.marital_status ?? '',
-              blood_group: employee.blood_group ?? '',
-              joining_date: toDateInput(employee.joining_date),
-              employment_type: employee.employment_type ?? 'Full-time',
-              department_id: employee.department_id ?? '',
-              designation_id: employee.designation_id ?? '',
-              manager_id: employee.manager_id ?? '',
-              status: employee.status ?? 'Active',
-              basic_salary: '',
-              hra: '',
-              allowances: '',
-              bonus: '',
-              password: '',
-            }
-          : {
-              first_name: '',
-              last_name: '',
-              email: '',
-              phone: '',
-              gender: '',
-              date_of_birth: '',
-              address: '',
-              city: '',
-              state: '',
-              country: '',
-              postal_code: '',
-              branch: '',
-              marital_status: '',
-              blood_group: '',
-              joining_date: new Date().toISOString().slice(0, 10),
-              employment_type: 'Full-time',
-              department_id: '',
-              designation_id: '',
-              manager_id: '',
-              status: 'Active',
-              basic_salary: '',
-              hra: '',
-              allowances: '',
-              bonus: '',
-              password: '',
-            },
-      )
+      if (employee) {
+        const curAddr = employee.current_address || employee.address || ''
+        const curCity = employee.current_city || employee.city || ''
+        const curState = employee.current_state || employee.state || ''
+        const curCountry = employee.current_country || employee.country || 'India'
+        const curZip = employee.current_postal_code || employee.postal_code || ''
+
+        const permAddr = employee.permanent_address || curAddr
+        const permCity = employee.permanent_city || curCity
+        const permState = employee.permanent_state || curState
+        const permCountry = employee.permanent_country || curCountry
+        const permZip = employee.permanent_postal_code || curZip
+
+        const isSame =
+          curAddr !== '' &&
+          curAddr === permAddr &&
+          curCity === permCity &&
+          curState === permState &&
+          curZip === permZip
+
+        setSameAsCurrent(isSame)
+
+        setForm({
+          first_name: employee.first_name ?? '',
+          last_name: employee.last_name ?? '',
+          email: employee.email ?? '',
+          phone: employee.phone ?? '',
+          gender: employee.gender ?? '',
+          date_of_birth: toDateInput(employee.date_of_birth),
+          marital_status: employee.marital_status ?? '',
+          blood_group: employee.blood_group ?? '',
+          // Emergency contact
+          emergency_contact_name: employee.emergency_contact_name || employee.guardian_name || '',
+          emergency_contact_relation: employee.emergency_contact_relation || employee.guardian_relation || '',
+          emergency_contact_phone: employee.emergency_contact_phone || employee.emergency_contact || employee.guardian_phone || '',
+          // Current address
+          current_address: curAddr,
+          current_city: curCity,
+          current_state: curState,
+          current_country: curCountry,
+          current_postal_code: curZip,
+          // Permanent address
+          permanent_address: permAddr,
+          permanent_city: permCity,
+          permanent_state: permState,
+          permanent_country: permCountry,
+          permanent_postal_code: permZip,
+          branch: employee.branch ?? '',
+          joining_date: toDateInput(employee.joining_date),
+          employment_type: employee.employment_type ?? 'Full-time',
+          department_id: employee.department_id ?? '',
+          designation_id: employee.designation_id ?? '',
+          manager_id: employee.manager_id ?? '',
+          status: employee.status ?? 'Active',
+          basic_salary: '',
+          hra: '',
+          allowances: '',
+          bonus: '',
+          password: '',
+        })
+      } else {
+        setSameAsCurrent(false)
+        setForm({
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+          gender: '',
+          date_of_birth: '',
+          marital_status: '',
+          blood_group: '',
+          emergency_contact_name: '',
+          emergency_contact_relation: '',
+          emergency_contact_phone: '',
+          current_address: '',
+          current_city: '',
+          current_state: '',
+          current_country: 'India',
+          current_postal_code: '',
+          permanent_address: '',
+          permanent_city: '',
+          permanent_state: '',
+          permanent_country: 'India',
+          permanent_postal_code: '',
+          branch: '',
+          joining_date: new Date().toISOString().slice(0, 10),
+          employment_type: 'Full-time',
+          department_id: '',
+          designation_id: '',
+          manager_id: '',
+          status: 'Active',
+          basic_salary: '',
+          hra: '',
+          allowances: '',
+          bonus: '',
+          password: '',
+        })
+      }
     }
   }, [open, employee])
 
-  const set = <K extends keyof typeof form>(key: K, value: string) => setForm((f) => ({ ...f, [key]: value }))
+  const set = <K extends keyof typeof form>(key: K, value: string) => {
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      if (sameAsCurrent) {
+        if (key === 'current_address') next.permanent_address = value
+        if (key === 'current_city') next.permanent_city = value
+        if (key === 'current_state') next.permanent_state = value
+        if (key === 'current_country') next.permanent_country = value
+        if (key === 'current_postal_code') next.permanent_postal_code = value
+      }
+      return next
+    })
+  }
+
+  const handleToggleSameAddress = (checked: boolean) => {
+    setSameAsCurrent(checked)
+    if (checked) {
+      setForm((f) => ({
+        ...f,
+        permanent_address: f.current_address,
+        permanent_city: f.current_city,
+        permanent_state: f.current_state,
+        permanent_country: f.current_country,
+        permanent_postal_code: f.current_postal_code,
+      }))
+    }
+  }
+
   const num = (v: string) => (v ? Number(v) : undefined)
 
   const submitting = createEmployee.isPending || updateEmployee.isPending
@@ -155,14 +237,35 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
       phone: form.phone || undefined,
       gender: form.gender || undefined,
       date_of_birth: form.date_of_birth || undefined,
-      address: form.address || undefined,
-      city: form.city || undefined,
-      state: form.state || undefined,
-      country: form.country || undefined,
-      postal_code: form.postal_code || undefined,
-      branch: form.branch || undefined,
       marital_status: form.marital_status || undefined,
       blood_group: form.blood_group || undefined,
+      // Guardian / Emergency contact
+      emergency_contact_name: form.emergency_contact_name || undefined,
+      emergency_contact_relation: form.emergency_contact_relation || undefined,
+      emergency_contact_phone: form.emergency_contact_phone || undefined,
+      emergency_contact: form.emergency_contact_phone || undefined,
+      guardian_name: form.emergency_contact_name || undefined,
+      guardian_relation: form.emergency_contact_relation || undefined,
+      guardian_phone: form.emergency_contact_phone || undefined,
+      // Current address
+      current_address: form.current_address || undefined,
+      current_city: form.current_city || undefined,
+      current_state: form.current_state || undefined,
+      current_country: form.current_country || undefined,
+      current_postal_code: form.current_postal_code || undefined,
+      // Fallback address fields for backward compatibility
+      address: form.current_address || undefined,
+      city: form.current_city || undefined,
+      state: form.current_state || undefined,
+      country: form.current_country || undefined,
+      postal_code: form.current_postal_code || undefined,
+      // Permanent address
+      permanent_address: (sameAsCurrent ? form.current_address : form.permanent_address) || undefined,
+      permanent_city: (sameAsCurrent ? form.current_city : form.permanent_city) || undefined,
+      permanent_state: (sameAsCurrent ? form.current_state : form.permanent_state) || undefined,
+      permanent_country: (sameAsCurrent ? form.current_country : form.permanent_country) || undefined,
+      permanent_postal_code: (sameAsCurrent ? form.current_postal_code : form.permanent_postal_code) || undefined,
+      branch: form.branch || undefined,
       joining_date: form.joining_date,
       employment_type: form.employment_type || undefined,
       department_id: form.department_id || undefined,
@@ -194,7 +297,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         <DialogHeader>
           <DialogTitle>{employee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
           <DialogDescription>
-            {employee ? 'Update the employee record.' : 'Create a new employee record and optionally provision a login.'}
+            {employee ? 'Update the employee record, emergency contact, and address details.' : 'Create a new employee record and optionally provision a login.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -205,29 +308,32 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
             </Alert>
           )}
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground">Personal Details</h3>
+          {/* 1. Personal Details */}
+          <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+              <User className="h-4 w-4 text-indigo-600" /> Personal Details
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>First name *</Label>
-                <Input value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" />
+                <Input value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" required />
               </div>
               <div className="space-y-2">
                 <Label>Last name *</Label>
-                <Input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} placeholder="Doe" />
+                <Input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} placeholder="Doe" required />
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane.doe@oklut.com" />
               </div>
               <div className="space-y-2">
-                <Label>Phone</Label>
+                <Label>Personal Phone</Label>
                 <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+91 98765 43210" />
               </div>
               <div className="space-y-2">
                 <Label>Gender</Label>
                 <Select value={form.gender || undefined} onValueChange={(v) => set('gender', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
                   <SelectContent>
                     {GENDERS.map((g) => (
                       <SelectItem key={g} value={g}>{g}</SelectItem>
@@ -242,7 +348,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
               <div className="space-y-2">
                 <Label>Marital status</Label>
                 <Select value={form.marital_status || undefined} onValueChange={(v) => set('marital_status', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
                     {MARITAL_STATUS.map((m) => (
                       <SelectItem key={m} value={m}>{m}</SelectItem>
@@ -253,7 +359,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
               <div className="space-y-2">
                 <Label>Blood group</Label>
                 <Select value={form.blood_group || undefined} onValueChange={(v) => set('blood_group', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select blood group" /></SelectTrigger>
                   <SelectContent>
                     {BLOOD_GROUPS.map((b) => (
                       <SelectItem key={b} value={b}>{b}</SelectItem>
@@ -264,38 +370,159 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground">Address</h3>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Textarea value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street address" rows={2} />
+          {/* 2. Guardian & Emergency Contact */}
+          <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50/30 p-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-amber-900">
+                <PhoneCall className="h-4 w-4 text-amber-600" /> Guardian / Emergency Contact Details
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Primary contact person in case of medical or workplace emergencies.
+              </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>City</Label>
-                <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+                <Label htmlFor="ec_name">Guardian / Contact Name</Label>
+                <Input
+                  id="ec_name"
+                  value={form.emergency_contact_name}
+                  onChange={(e) => set('emergency_contact_name', e.target.value)}
+                  placeholder="e.g. Ramesh Sharma"
+                />
               </div>
               <div className="space-y-2">
-                <Label>State</Label>
-                <Input value={form.state} onChange={(e) => set('state', e.target.value)} />
+                <Label htmlFor="ec_relation">Relationship</Label>
+                <Select
+                  value={form.emergency_contact_relation || undefined}
+                  onValueChange={(v) => set('emergency_contact_relation', v)}
+                >
+                  <SelectTrigger id="ec_relation">
+                    <SelectValue placeholder="Select relationship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RELATIONSHIPS.map((rel) => (
+                      <SelectItem key={rel} value={rel}>{rel}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>Country</Label>
-                <Input value={form.country} onChange={(e) => set('country', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Postal code</Label>
-                <Input value={form.postal_code} onChange={(e) => set('postal_code', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Branch</Label>
-                <Input value={form.branch} onChange={(e) => set('branch', e.target.value)} placeholder="Main Branch" />
+                <Label htmlFor="ec_phone">Emergency Contact Number *</Label>
+                <Input
+                  id="ec_phone"
+                  value={form.emergency_contact_phone}
+                  onChange={(e) => set('emergency_contact_phone', e.target.value)}
+                  placeholder="+91 98765 00000"
+                />
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground">Employment</h3>
+          {/* 3. Current Address */}
+          <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+              <Home className="h-4 w-4 text-blue-600" /> Current Address
+            </h3>
+            <div className="space-y-2">
+              <Label>Street Address</Label>
+              <Textarea
+                value={form.current_address}
+                onChange={(e) => set('current_address', e.target.value)}
+                placeholder="House/Flat No., Building, Street, Area"
+                rows={2}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input value={form.current_city} onChange={(e) => set('current_city', e.target.value)} placeholder="e.g. Noida" />
+              </div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Input value={form.current_state} onChange={(e) => set('current_state', e.target.value)} placeholder="e.g. Uttar Pradesh" />
+              </div>
+              <div className="space-y-2">
+                <Label>Country</Label>
+                <Input value={form.current_country} onChange={(e) => set('current_country', e.target.value)} placeholder="India" />
+              </div>
+              <div className="space-y-2">
+                <Label>Postal code</Label>
+                <Input value={form.current_postal_code} onChange={(e) => set('current_postal_code', e.target.value)} placeholder="201301" />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Permanent Address */}
+          <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+                <MapPin className="h-4 w-4 text-emerald-600" /> Permanent Address
+              </h3>
+              <button
+                type="button"
+                onClick={() => handleToggleSameAddress(!sameAsCurrent)}
+                className="flex items-center gap-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+              >
+                {sameAsCurrent ? <CheckSquare className="h-4 w-4 text-indigo-600" /> : <Square className="h-4 w-4 text-slate-400" />}
+                Same as Current Address
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Street Address</Label>
+              <Textarea
+                value={form.permanent_address}
+                onChange={(e) => set('permanent_address', e.target.value)}
+                placeholder="House/Flat No., Building, Street, Area"
+                rows={2}
+                disabled={sameAsCurrent}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input
+                  value={form.permanent_city}
+                  onChange={(e) => set('permanent_city', e.target.value)}
+                  placeholder="e.g. Jaipur"
+                  disabled={sameAsCurrent}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Input
+                  value={form.permanent_state}
+                  onChange={(e) => set('permanent_state', e.target.value)}
+                  placeholder="e.g. Rajasthan"
+                  disabled={sameAsCurrent}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Country</Label>
+                <Input
+                  value={form.permanent_country}
+                  onChange={(e) => set('permanent_country', e.target.value)}
+                  placeholder="India"
+                  disabled={sameAsCurrent}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Postal code</Label>
+                <Input
+                  value={form.permanent_postal_code}
+                  onChange={(e) => set('permanent_postal_code', e.target.value)}
+                  placeholder="302006"
+                  disabled={sameAsCurrent}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Employment & Branch */}
+          <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+              <Briefcase className="h-4 w-4 text-indigo-600" /> Employment & Organization
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Joining date *</Label>
@@ -363,12 +590,19 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Branch / Office Location</Label>
+                <Input value={form.branch} onChange={(e) => set('branch', e.target.value)} placeholder="Main Branch (HQ)" />
+              </div>
             </div>
           </div>
 
+          {/* 6. Compensation & Access (Admin only) */}
           {isAdmin && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground">Compensation & Access</h3>
+            <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+                <DollarSign className="h-4 w-4 text-emerald-600" /> Compensation & Access
+              </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Basic salary</Label>
@@ -413,3 +647,4 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
     </Dialog>
   )
 }
+

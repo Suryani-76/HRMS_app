@@ -70,15 +70,35 @@ export default function EmployeeDetailPage() {
     navigate('/employees')
   }
 
+  const curAddressStr = [
+    employee.current_address || employee.address,
+    employee.current_city || employee.city,
+    employee.current_state || employee.state,
+    employee.current_postal_code || employee.postal_code,
+    employee.current_country || employee.country,
+  ].filter(Boolean).join(', ')
+
+  const permAddressStr = [
+    employee.permanent_address || employee.current_address || employee.address,
+    employee.permanent_city || employee.current_city || employee.city,
+    employee.permanent_state || employee.current_state || employee.state,
+    employee.permanent_postal_code || employee.current_postal_code || employee.postal_code,
+    employee.permanent_country || employee.current_country || employee.country,
+  ].filter(Boolean).join(', ')
+
+  const emergencyName = employee.emergency_contact_name || employee.guardian_name || '—'
+  const emergencyRel = employee.emergency_contact_relation || employee.guardian_relation || ''
+  const emergencyPhone = employee.emergency_contact_phone || employee.emergency_contact || employee.guardian_phone || '—'
+
   const infoItems = [
     { icon: Mail, label: 'Email', value: employee.email },
-    { icon: Phone, label: 'Phone', value: employee.phone || '—' },
+    { icon: Phone, label: 'Personal Phone', value: employee.phone || '—' },
     { icon: Building2, label: 'Department', value: employee.department?.name || '—' },
     { icon: Briefcase, label: 'Designation', value: employee.designation?.name || '—' },
     { icon: Cake, label: 'Date of birth', value: formatDate(employee.date_of_birth) },
     { icon: CalendarDays, label: 'Joined', value: formatDate(employee.joining_date) },
     { icon: BadgeCheck, label: 'Employment type', value: employee.employment_type || '—' },
-    { icon: MapPin, label: 'Location', value: [employee.city, employee.state, employee.country].filter(Boolean).join(', ') || '—' },
+    { icon: MapPin, label: 'Office Branch', value: employee.branch || 'Main Branch (HQ)' },
   ]
 
   return (
@@ -122,6 +142,7 @@ export default function EmployeeDetailPage() {
         }
       />
 
+      {/* Profile Overview and Organization Info */}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardContent className="flex flex-col items-center p-6 text-center">
@@ -137,6 +158,11 @@ export default function EmployeeDetailPage() {
             <div className="mt-3 flex items-center gap-2">
               <StatusPill status={employee.status ?? 'Active'} />
               <Badge variant="secondary">{employee.employment_type ?? 'Full-time'}</Badge>
+              {employee.blood_group && (
+                <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                  {employee.blood_group}
+                </Badge>
+              )}
             </div>
             {employee.manager && (
               <p className="mt-4 text-xs text-muted-foreground">
@@ -160,6 +186,64 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Guardian / Emergency Contact & Addresses Grid */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Emergency / Guardian Contact */}
+        <Card className="border-amber-200 bg-amber-50/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-900">
+              <Phone className="h-4 w-4 text-amber-600" /> Guardian / Emergency Contact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Contact Person</p>
+              <p className="font-medium text-slate-900">
+                {emergencyName} {emergencyRel && <span className="text-xs text-amber-700 font-normal">({emergencyRel})</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Emergency Phone</p>
+              {emergencyPhone !== '—' ? (
+                <a href={`tel:${emergencyPhone}`} className="font-semibold text-indigo-600 hover:underline">
+                  {emergencyPhone}
+                </a>
+              ) : (
+                <p className="text-muted-foreground text-sm">—</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Current Address */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-900">
+              <MapPin className="h-4 w-4 text-blue-600" /> Current Address
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-medium text-slate-800 leading-relaxed">
+              {curAddressStr || 'No current address provided.'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Permanent Address */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-emerald-900">
+              <MapPin className="h-4 w-4 text-emerald-600" /> Permanent Address
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-medium text-slate-800 leading-relaxed">
+              {permAddressStr || 'No permanent address provided.'}
+            </p>
           </CardContent>
         </Card>
       </div>

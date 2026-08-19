@@ -48,6 +48,26 @@ export interface Employee {
   state?: string | null
   country?: string | null
   postal_code?: string | null
+  // Guardian / Emergency Contact
+  emergency_contact?: string | null
+  emergency_contact_name?: string | null
+  emergency_contact_relation?: string | null
+  emergency_contact_phone?: string | null
+  guardian_name?: string | null
+  guardian_phone?: string | null
+  guardian_relation?: string | null
+  // Current Address
+  current_address?: string | null
+  current_city?: string | null
+  current_state?: string | null
+  current_country?: string | null
+  current_postal_code?: string | null
+  // Permanent Address
+  permanent_address?: string | null
+  permanent_city?: string | null
+  permanent_state?: string | null
+  permanent_country?: string | null
+  permanent_postal_code?: string | null
   marital_status?: string | null
   blood_group?: string | null
   joining_date: string

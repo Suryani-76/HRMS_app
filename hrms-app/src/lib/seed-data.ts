@@ -278,6 +278,18 @@ export const INITIAL_MEETINGS: MeetingHallBooking[] = [
     updated_at: new Date().toISOString(),
     requester: INITIAL_EMPLOYEES[0],
   },
+  {
+    id: 'meet-3',
+    title: 'Quarterly HR Policy & Benefits Briefing',
+    description: 'Main Conference Hall - Presentation of newly revised health insurance and leave perks.',
+    start_time: new Date(Date.now() + 26 * 3600 * 1000).toISOString(),
+    end_time: new Date(Date.now() + 28 * 3600 * 1000).toISOString(),
+    requested_by: 'emp-3',
+    status: 'Pending',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    requester: INITIAL_EMPLOYEES[2],
+  },
 ]
 
 export const INITIAL_JOB_OPENINGS: JobOpening[] = [

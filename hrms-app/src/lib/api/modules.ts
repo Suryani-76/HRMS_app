@@ -1,12 +1,13 @@
 import { supabase } from '@/lib/supabase'
-import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog, MeetingHallBooking } from '@/lib/database.types'
-import { INITIAL_MEETINGS, INITIAL_JOB_OPENINGS, INITIAL_CANDIDATES, INITIAL_INTERVIEWS, INITIAL_OFFERS } from '@/lib/seed-data'
+import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog, MeetingHallBooking, Employee } from '@/lib/database.types'
+import { INITIAL_MEETINGS, INITIAL_JOB_OPENINGS, INITIAL_CANDIDATES, INITIAL_INTERVIEWS, INITIAL_OFFERS, INITIAL_EMPLOYEES } from '@/lib/seed-data'
 
 // ---------- Local Storage Keys ----------
 const JOBS_KEY = 'hrms_local_job_openings'
 const CANDIDATES_KEY = 'hrms_local_candidates'
 const INTERVIEWS_KEY = 'hrms_local_interviews'
 const OFFERS_KEY = 'hrms_local_offers'
+const MEETINGS_KEY = 'hrms_local_meeting_bookings'
 
 function getLocal<T>(key: string, defaultVal: T[]): T[] {
   try {
@@ -428,13 +429,138 @@ export async function fetchMeetingHallBookings(): Promise<MeetingHallBooking[]> 
       .from('meeting_hall_bookings')
       .select(`
         *,
-        requester:employees(id, first_name, last_name, email)
+        requester:employees(id, first_name, last_name, email, employee_code, department:departments(name))
       `)
       .order('start_time', { ascending: true })
 
-    if (!error && data && data.length > 0) return data as MeetingHallBooking[]
+    if (!error && data && data.length > 0) {
+      setLocal(MEETINGS_KEY, data)
+      return data as MeetingHallBooking[]
+    }
   } catch (err) {
     console.warn('fetchMeetingHallBookings fallback to seed data:', err)
   }
-  return INITIAL_MEETINGS
+  return getLocal<MeetingHallBooking>(MEETINGS_KEY, INITIAL_MEETINGS)
 }
+
+export async function createMeetingHallBooking(input: {
+  title: string
+  description?: string
+  start_time: string
+  end_time: string
+  requested_by: string
+  status?: string
+}): Promise<MeetingHallBooking> {
+  let created: MeetingHallBooking | null = null
+  try {
+    const { data, error } = await supabase
+      .from('meeting_hall_bookings')
+      .insert(input)
+      .select(`*, requester:employees(id, first_name, last_name, email, employee_code)`)
+      .single()
+    if (!error && data) created = data as MeetingHallBooking
+  } catch (err) {
+    console.warn('createMeetingHallBooking insert error:', err)
+  }
+
+  const employees = getLocal<Employee>('hrms_local_employees', INITIAL_EMPLOYEES)
+  const requester = employees.find((e) => e.id === input.requested_by)
+
+  if (!created) {
+    created = {
+      ...input,
+      id: 'meet-' + Date.now(),
+      status: input.status || 'Pending',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      requester: requester ?? null,
+    } as unknown as MeetingHallBooking
+  }
+
+  const current = getLocal<MeetingHallBooking>(MEETINGS_KEY, INITIAL_MEETINGS)
+  setLocal(MEETINGS_KEY, [created, ...current])
+
+  // If status is Pending, create notification for Admin / CEO
+  if (created.status === 'Pending') {
+    try {
+      const dateStr = new Date(input.start_time).toLocaleDateString()
+      const timeStr = `${new Date(input.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(input.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      await supabase.from('notifications').insert({
+        user_id: '00000000-0000-0000-0000-000000000001',
+        type: 'info',
+        title: `Meeting Hall Booking Request: ${input.title}`,
+        message: `${requester?.first_name || 'An employee'} requested the Meeting Hall for "${input.title}" on ${dateStr} (${timeStr}). Please review and approve.`,
+        link: '/meeting-hall',
+        is_read: false,
+      })
+    } catch {}
+  }
+
+  return created
+}
+
+export async function updateMeetingHallBookingStatus(
+  id: string,
+  status: 'Approved' | 'Rejected',
+  adminComment?: string
+): Promise<MeetingHallBooking> {
+  let updated: MeetingHallBooking | null = null
+  try {
+    const { data, error } = await supabase
+      .from('meeting_hall_bookings')
+      .update({
+        status,
+        admin_comment: adminComment ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select(`*, requester:employees(id, first_name, last_name, email, employee_code)`)
+      .single()
+    if (!error && data) updated = data as MeetingHallBooking
+  } catch (err) {
+    console.warn('updateMeetingHallBookingStatus update error:', err)
+  }
+
+  const current = getLocal<MeetingHallBooking>(MEETINGS_KEY, INITIAL_MEETINGS)
+  const item = current.find((b) => b.id === id)
+  if (!updated && item) {
+    updated = {
+      ...item,
+      status,
+      admin_comment: adminComment ?? null,
+      updated_at: new Date().toISOString(),
+    }
+  }
+
+  if (updated) {
+    const nextList = current.map((b) => (b.id === id ? updated! : b))
+    setLocal(MEETINGS_KEY, nextList)
+
+    // Notify the requester
+    try {
+      if (updated.requested_by) {
+        await supabase.from('notifications').insert({
+          employee_id: updated.requested_by,
+          type: status === 'Approved' ? 'success' : 'warning',
+          title: `Meeting Hall Booking ${status === 'Approved' ? 'Approved ✓' : 'Rejected ✕'}`,
+          message: `Your booking request for "${updated.title}" has been ${status.toLowerCase()} by the Admin.`,
+          link: '/meeting-hall',
+          is_read: false,
+        })
+      }
+    } catch {}
+
+    return updated
+  }
+
+  return { id, status } as unknown as MeetingHallBooking
+}
+
+export async function deleteMeetingHallBooking(id: string): Promise<void> {
+  try {
+    await supabase.from('meeting_hall_bookings').delete().eq('id', id)
+  } catch {}
+  const current = getLocal<MeetingHallBooking>(MEETINGS_KEY, INITIAL_MEETINGS).filter((b) => b.id !== id)
+  setLocal(MEETINGS_KEY, current)
+}
+

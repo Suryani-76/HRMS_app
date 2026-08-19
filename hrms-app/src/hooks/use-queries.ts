@@ -532,6 +532,44 @@ export function useDashboardStats() {
 export function useMeetingHallBookings() {
   return useQuery({ queryKey: queryKeys.meetingHallBookings, queryFn: api.fetchMeetingHallBookings })
 }
+export function useCreateMeetingHallBooking() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: api.createMeetingHallBooking,
+    onSuccess: (booking) => {
+      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats])
+      if (booking.status === 'Approved') {
+        toast.success('Meeting Hall booking confirmed!')
+      } else {
+        toast.success('Meeting Hall request submitted to Admin / Management for approval!')
+      }
+    },
+    onError: toastError,
+  })
+}
+export function useUpdateMeetingHallBookingStatus() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: ({ id, status, comment }: { id: string; status: 'Approved' | 'Rejected'; comment?: string }) =>
+      api.updateMeetingHallBookingStatus(id, status, comment),
+    onSuccess: (booking) => {
+      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats])
+      toast.success(`Meeting Hall request ${booking.status === 'Approved' ? 'Approved ✓' : 'Rejected ✕'}`)
+    },
+    onError: toastError,
+  })
+}
+export function useDeleteMeetingHallBooking() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: api.deleteMeetingHallBooking,
+    onSuccess: () => {
+      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats])
+      toast.success('Meeting booking removed')
+    },
+    onError: toastError,
+  })
+}
 
 // ---- Audit Logs ----
 export function useAuditLogs() {

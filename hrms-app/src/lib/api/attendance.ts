@@ -1,24 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Attendance, LeaveType, LeaveRequest, LeaveBalance, Holiday, Employee } from '@/lib/database.types'
-import { INITIAL_LEAVE_TYPES, INITIAL_LEAVE_REQUESTS, INITIAL_LEAVE_BALANCES, INITIAL_EMPLOYEES } from '@/lib/seed-data'
-
-const LEAVE_TYPES_KEY = 'hrms_local_leave_types'
-const LEAVE_REQUESTS_KEY = 'hrms_local_leave_requests'
-const LEAVE_BALANCES_KEY = 'hrms_local_leave_balances'
-
-function getLocal<T>(key: string, defaultVal: T[]): T[] {
-  try {
-    const saved = localStorage.getItem(key)
-    if (saved) return JSON.parse(saved)
-  } catch {}
-  return defaultVal
-}
-
-function setLocal<T>(key: string, val: T[]) {
-  try {
-    localStorage.setItem(key, JSON.stringify(val))
-  } catch {}
-}
+import type { Attendance, LeaveType, LeaveRequest, LeaveBalance, Holiday } from '@/lib/database.types'
 
 // ---------- Attendance ----------
 export async function fetchTodayAttendance(employeeId?: string) {

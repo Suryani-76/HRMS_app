@@ -264,7 +264,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim(),
-      phone: form.phone || undefined,
+      phone: form.phone ?? '',
       gender: form.gender || undefined,
       date_of_birth: form.date_of_birth || undefined,
       marital_status: form.marital_status || undefined,

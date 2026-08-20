@@ -14,28 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ShieldCheck, Users, PhoneCall, Home, MapPin, Building, CreditCard, CheckSquare, Square, Plus, Trash2 } from 'lucide-react'
 
 const RELATIONSHIPS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Guardian', 'Other']
-const INSURANCE_LOCAL_KEY = 'hrms_local_insurance_enrollments'
-
-function getLocalEnrollments(): InsuranceEnrollment[] {
-  try {
-    const saved = localStorage.getItem(INSURANCE_LOCAL_KEY)
-    if (saved) return JSON.parse(saved)
-  } catch {}
-  return []
-}
-
-function saveLocalEnrollment(enr: InsuranceEnrollment) {
-  try {
-    const current = getLocalEnrollments()
-    const index = current.findIndex((item) => item.employee_id === enr.employee_id)
-    if (index >= 0) {
-      current[index] = enr
-    } else {
-      current.push(enr)
-    }
-    localStorage.setItem(INSURANCE_LOCAL_KEY, JSON.stringify(current))
-  } catch {}
-}
 
 export default function InsuranceEnrollmentPage() {
   const { employee, isManager } = useAuth()

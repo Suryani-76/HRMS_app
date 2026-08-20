@@ -248,10 +248,9 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
   if (!res1.error && res1.data) createdEmp = res1.data as Employee
   else if (!res2.error && res2.data) createdEmp = res2.data as Employee
   else if (!res3.error && res3.data) createdEmp = res3.data as Employee
-  else if (!res4.error && res4.data) createdEmp = res4.data as Employee
 
   if (!createdEmp) {
-    const err = res4.error || res3.error || res2.error || res1.error
+    const err = res3.error || res2.error || res1.error
     console.error('createEmployee failed:', err)
     throw new Error(err?.message || err?.details || 'Failed to create employee. Please ensure email and phone are unique.')
   }

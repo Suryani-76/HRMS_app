@@ -15,41 +15,6 @@ import { StatusPill } from '@/components/shared/status-pill'
 import { formatDate } from '@/lib/format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-const ASSETS_KEY = 'hrms_local_assets'
-const INCIDENTS_KEY = 'hrms_local_incidents'
-
-const INITIAL_ASSETS: (Asset & { employee?: Employee })[] = [
-  {
-    id: 'asset-1',
-    type: 'Laptop',
-    serial_number: 'MBP-M3-2026-001',
-    assigned_to: 'emp-1',
-    status: 'Active',
-    assigned_at: '2026-01-15T00:00:00Z',
-    created_at: '2026-01-15T00:00:00Z',
-    employee: {
-      id: 'emp-1',
-      first_name: 'Rahul',
-      last_name: 'Sharma',
-      employee_code: 'IND-DL-DEL-HQ-ENG-001',
-    } as any,
-  },
-  {
-    id: 'asset-2',
-    type: 'ID Card',
-    serial_number: 'OKL-ID-002',
-    assigned_to: 'emp-2',
-    status: 'Active',
-    assigned_at: '2026-02-01T00:00:00Z',
-    created_at: '2026-02-01T00:00:00Z',
-    employee: {
-      id: 'emp-2',
-      first_name: 'Meera',
-      last_name: 'Sharma',
-      employee_code: 'EMP-0002',
-    } as any,
-  }
-]
 
 export default function AssetsPage() {
   const { isManager, employee } = useAuth()

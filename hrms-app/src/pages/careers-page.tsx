@@ -29,6 +29,14 @@ export default function CareersPage() {
   const [coverLetter, setCoverLetter] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const [submittedSuccess, setSubmittedSuccess] = useState<{
+    name: string
+    email: string
+    jobTitle: string
+    refId: string
+    dob: string
+  } | null>(null)
+
   useEffect(() => {
     async function loadJobs() {
       const { data, error } = await supabase
@@ -143,7 +151,15 @@ export default function CareersPage() {
           candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
         })
 
-        toast.success(`Application submitted! 🎉\nConfirmation email sent to ${email}.\nReference ID: ${refId}\nPassword: Your DOB (${dob})\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`, { duration: 10000 })
+        setSubmittedSuccess({
+          name: name.trim(),
+          email: email.trim(),
+          jobTitle: selectedJob.title,
+          refId,
+          dob,
+        })
+
+        toast.success(`Application submitted! 🎉 Confirmation email sent to ${email}.`, { duration: 8000 })
         setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setDob(''); setResumeUrl(''); setCoverLetter('')
       }
     } else {
@@ -157,9 +173,17 @@ export default function CareersPage() {
         candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
       })
 
+      setSubmittedSuccess({
+        name: name.trim(),
+        email: email.trim(),
+        jobTitle: selectedJob.title,
+        refId: activeRef,
+        dob,
+      })
+
       toast.success(
-        `Application submitted! 🎉\nConfirmation email sent to ${email}.\nReference ID: ${activeRef}\nPassword: Your DOB (${dob})\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`,
-        { duration: 10000 }
+        `Application submitted! 🎉 Confirmation email sent to ${email}.`,
+        { duration: 8000 }
       )
       setSelectedJob(null)
       setName('')
@@ -413,6 +437,65 @@ export default function CareersPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Application Success Confirmation Dialog */}
+      <Dialog open={!!submittedSuccess} onOpenChange={(o) => !o && setSubmittedSuccess(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden border-0 shadow-2xl rounded-3xl">
+          <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 text-white text-center relative overflow-hidden">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-white/20 backdrop-blur mb-4 shadow-lg">
+              <CheckCircle2 className="h-9 w-9 text-white" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-white mb-1">Application Submitted!</DialogTitle>
+            <p className="text-indigo-100 text-sm">
+              Thank you, {submittedSuccess?.name}. We have received your application for <strong>{submittedSuccess?.jobTitle}</strong>.
+            </p>
+          </div>
+          
+          <div className="p-6 space-y-4 bg-white">
+            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-3 text-sm">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Applied Role:</span>
+                <span className="font-semibold text-slate-800">{submittedSuccess?.jobTitle}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Reference ID:</span>
+                <span className="font-mono font-bold text-indigo-600 text-base">{submittedSuccess?.refId}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Portal Password:</span>
+                <span className="font-semibold text-slate-800">Your DOB ({submittedSuccess?.dob})</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Email Sent To:</span>
+                <span className="font-medium text-slate-700">{submittedSuccess?.email}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              A formal confirmation email has been dispatched to <strong>{submittedSuccess?.email}</strong>. Check your inbox and spam folder.
+            </p>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <a
+                href={DEFAULT_CANDIDATE_PORTAL_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center shadow-lg shadow-indigo-100 transition-all text-sm"
+              >
+                Go to Candidate Portal →
+              </a>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setSubmittedSuccess(null)}
+                className="w-full h-10 rounded-xl text-slate-600 hover:bg-slate-100 text-sm"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

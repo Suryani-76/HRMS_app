@@ -135,10 +135,10 @@ export async function sendCandidateApplicationEmail(payload: CandidateApplicatio
     const htmlContent = generateCandidateApplicationHtml(payload)
     const subject = `Thank you for applying for ${payload.jobTitle} — Ref #${payload.referenceId}`
 
-    // 1. Record email event in notifications / audit logs table in Supabase
+    // 1. Record pending email event in audit logs with HTML payload for background SMTP delivery
     try {
       await supabase.from('audit_logs').insert({
-        action: 'EMAIL_SENT',
+        action: 'EMAIL_PENDING',
         entity_type: 'candidate_application',
         details: {
           to: payload.candidateEmail,
@@ -146,6 +146,7 @@ export async function sendCandidateApplicationEmail(payload: CandidateApplicatio
           job: payload.jobTitle,
           refId: payload.referenceId,
           subject,
+          html: htmlContent,
           from: DEFAULT_SENDER_EMAIL,
           sent_at: new Date().toISOString(),
         },

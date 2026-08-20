@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles } from 'lucide-react'
+import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -317,9 +318,27 @@ function CandidatesTab() {
           ats_score,
           status: 'Applied',
         })
-        toast.success(`Candidate added! Portal ID: ${refId} | Password: 1234`)
+        const job = jobs.find((j) => j.id === jobId)
+        sendCandidateApplicationEmail({
+          candidateName: name.trim(),
+          candidateEmail: email.trim(),
+          jobTitle: job?.title || 'Open Position',
+          referenceId: refId,
+          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+          passwordPin: '1234',
+        })
+        toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | PIN: 1234)`)
       } else {
-        toast.success(`Candidate added! Portal ID: ${tempId} | Password: 1234`)
+        const job = jobs.find((j) => j.id === jobId)
+        sendCandidateApplicationEmail({
+          candidateName: name.trim(),
+          candidateEmail: email.trim(),
+          jobTitle: job?.title || 'Open Position',
+          referenceId: tempId,
+          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+          passwordPin: '1234',
+        })
+        toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${tempId} | PIN: 1234)`)
       }
     } catch {
       await create.mutateAsync({
@@ -334,7 +353,16 @@ function CandidatesTab() {
         ats_score,
         status: 'Applied',
       })
-      toast.success(`Candidate added! Portal ID: ${refId} | Password: 1234`)
+      const job = jobs.find((j) => j.id === jobId)
+      sendCandidateApplicationEmail({
+        candidateName: name.trim(),
+        candidateEmail: email.trim(),
+        jobTitle: job?.title || 'Open Position',
+        referenceId: refId,
+        candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+        passwordPin: '1234',
+      })
+      toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | PIN: 1234)`)
     }
 
     setDialog(false)

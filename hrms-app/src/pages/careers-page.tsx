@@ -13,6 +13,7 @@ import type { JobOpening } from '@/lib/database.types'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Logo } from '@/components/ui/logo'
+import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 
 export default function CareersPage() {
   const [jobs, setJobs] = useState<JobOpening[]>([])
@@ -121,12 +122,32 @@ export default function CareersPage() {
           localStorage.setItem('hrms_local_candidates', JSON.stringify([newCandidateItem, ...curr.filter((c: any) => c.email !== email)]))
         } catch {}
 
-        toast.success(`Application submitted! 🎉\nPortal ID: ${refId} | Password: 1234\nUse these at /candidate-portal to track your status.`, { duration: 10000 })
+        // Dispatch confirmation email to candidate
+        sendCandidateApplicationEmail({
+          candidateName: name.trim(),
+          candidateEmail: email.trim(),
+          jobTitle: selectedJob.title,
+          referenceId: refId,
+          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+          passwordPin: '1234',
+        })
+
+        toast.success(`Application submitted! 🎉\nConfirmation email sent to ${email}.\nPortal Ref ID: ${refId} | Password: 1234\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`, { duration: 10000 })
         setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setResumeUrl(''); setCoverLetter('')
       }
     } else {
+      const activeRef = (tempId as string) || 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+      sendCandidateApplicationEmail({
+        candidateName: name.trim(),
+        candidateEmail: email.trim(),
+        jobTitle: selectedJob.title,
+        referenceId: activeRef,
+        candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+        passwordPin: '1234',
+      })
+
       toast.success(
-        `Application submitted! 🎉\nPortal ID: ${tempId}\nPassword: 1234\nUse these at /candidate-portal to track your status.`,
+        `Application submitted! 🎉\nConfirmation email sent to ${email}.\nPortal Ref ID: ${activeRef} | Password: 1234\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`,
         { duration: 10000 }
       )
       setSelectedJob(null)

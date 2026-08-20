@@ -719,6 +719,21 @@ create index if not exists idx_payroll_emp_period    on public.payroll(employee_
 create index if not exists idx_users_auth_id         on public.users(auth_id);
 create index if not exists idx_users_employee_id     on public.users(employee_id);
 
+-- Extended indexes for Filter Employees feature (branch, status, designation, type)
+create index if not exists idx_employees_branch          on public.employees(branch);
+create index if not exists idx_employees_status          on public.employees(status);
+create index if not exists idx_employees_designation     on public.employees(designation_id);
+create index if not exists idx_employees_employment_type on public.employees(employment_type);
+create index if not exists idx_employees_joining_date    on public.employees(joining_date);
+-- Performance & payroll fast-fetch indexes
+create index if not exists idx_perf_goals_employee       on public.performance_goals(employee_id);
+create index if not exists idx_perf_reviews_employee     on public.performance_reviews(employee_id, status);
+create index if not exists idx_leave_balances_emp_year   on public.leave_balances(employee_id, year);
+create index if not exists idx_payroll_profiles_emp      on public.payroll_profiles(employee_id);
+create index if not exists idx_documents_employee        on public.documents(employee_id);
+create index if not exists idx_insurance_enrollments_emp on public.insurance_enrollments(employee_id);
+
+
 -- =============================================================================
 -- UPDATED_AT TRIGGERS — auto-maintained timestamps on all mutable tables
 -- =============================================================================

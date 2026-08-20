@@ -19,6 +19,7 @@ import {
   HeartPulse,
   Laptop,
   MonitorPlay,
+  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -44,6 +45,7 @@ export const adminNav: NavSection[] = [
     title: 'Organization',
     items: [
       { title: 'Employees', to: '/employees', icon: Users },
+      { title: 'Filter Employees', to: '/employees/filter', icon: SlidersHorizontal },
       { title: 'Departments', to: '/departments', icon: Building2 },
       { title: 'Recruitment', to: '/recruitment', icon: Briefcase },
       { title: 'Careers (Public)', to: '/careers', icon: UserPlus },

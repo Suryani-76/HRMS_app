@@ -7,6 +7,7 @@ import { ResetPasswordPage } from '@/features/auth/reset-password-page'
 
 import DashboardPage from '@/pages/dashboard-page'
 import EmployeesPage from '@/pages/employees-page'
+import EmployeeFilterPage from '@/pages/employee-filter-page'
 import EmployeeDetailPage from '@/pages/employee-detail-page'
 import DepartmentsPage from '@/pages/departments-page'
 import AttendancePage from '@/pages/attendance-page'
@@ -45,6 +46,7 @@ export const router = createBrowserRouter(
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="employees" element={<EmployeesPage />} />
+          <Route path="employees/filter" element={<EmployeeFilterPage />} />
           <Route path="employees/:id" element={<EmployeeDetailPage />} />
           <Route path="departments" element={<DepartmentsPage />} />
           <Route path="attendance" element={<AttendancePage />} />

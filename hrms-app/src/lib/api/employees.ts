@@ -62,6 +62,10 @@ export async function fetchEmployees(options?: {
   search?: string
   departmentId?: string
   status?: string
+  branch?: string
+  roleId?: string
+  designationId?: string
+  employmentType?: string
 }): Promise<Employee[]> {
   try {
     let query = supabase
@@ -71,9 +75,12 @@ export async function fetchEmployees(options?: {
 
     if (options?.departmentId && options.departmentId !== 'all') query = query.eq('department_id', options.departmentId)
     if (options?.status && options.status !== 'all') query = query.eq('status', options.status)
+    if (options?.branch && options.branch !== 'all') query = query.ilike('branch', options.branch)
+    if (options?.designationId && options.designationId !== 'all') query = query.eq('designation_id', options.designationId)
+    if (options?.employmentType && options.employmentType !== 'all') query = query.eq('employment_type', options.employmentType)
     if (options?.search) {
       query = query.or(
-        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%`
+        `first_name.ilike.%${options.search}%,last_name.ilike.%${options.search}%,email.ilike.%${options.search}%,employee_code.ilike.%${options.search}%,branch.ilike.%${options.search}%`
       )
     }
 

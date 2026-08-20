@@ -484,9 +484,13 @@ create table if not exists public.candidates (
   updated_at            timestamptz not null default now()
 );
 
-alter table public.candidates add column if not exists stage  text default 'Applied';
-alter table public.candidates add column if not exists rating numeric(3,1);
-alter table public.candidates add column if not exists notes  text;
+alter table public.candidates add column if not exists stage         text default 'Applied';
+alter table public.candidates add column if not exists rating        numeric(3,1);
+alter table public.candidates add column if not exists notes         text;
+alter table public.candidates add column if not exists date_of_birth text;
+alter table public.candidates add column if not exists dob           text;
+alter table public.candidates add column if not exists reference_id  text;
+alter table public.candidates add column if not exists temp_id       text;
 
 create table if not exists public.interviews (
   id             uuid primary key default gen_random_uuid(),
@@ -732,6 +736,9 @@ create index if not exists idx_leave_balances_emp_year   on public.leave_balance
 create index if not exists idx_payroll_profiles_emp      on public.payroll_profiles(employee_id);
 create index if not exists idx_documents_employee        on public.documents(employee_id);
 create index if not exists idx_insurance_enrollments_emp on public.insurance_enrollments(employee_id);
+create index if not exists idx_candidates_reference_id   on public.candidates(reference_id);
+create index if not exists idx_candidates_temp_id        on public.candidates(temp_id);
+create index if not exists idx_candidates_dob            on public.candidates(date_of_birth);
 
 
 -- =============================================================================

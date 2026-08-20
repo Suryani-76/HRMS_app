@@ -24,6 +24,7 @@ export default function CareersPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [dob, setDob] = useState('')
   const [resumeUrl, setResumeUrl] = useState('')
   const [coverLetter, setCoverLetter] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -48,6 +49,10 @@ export default function CareersPage() {
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedJob || !name || !email) return
+    if (!dob) {
+      toast.error('Date of Birth is mandatory to apply.')
+      return
+    }
     setIsSubmitting(true)
 
     // Call RPC — creates candidate row + auth.users portal login in one step
@@ -74,6 +79,8 @@ export default function CareersPage() {
         name,
         email,
         phone: phone || null,
+        date_of_birth: dob,
+        dob: dob,
         resume_url: resumeUrl || null,
         cover_letter: coverLetter || null,
         reference_id: refId,
@@ -88,6 +95,8 @@ export default function CareersPage() {
         name,
         email,
         phone: phone || null,
+        date_of_birth: dob,
+        dob: dob,
         resume_url: resumeUrl || null,
         cover_letter: coverLetter || null,
         status: 'applied',
@@ -111,6 +120,8 @@ export default function CareersPage() {
           ...baseCandidate,
           reference_id: refId,
           temp_id: refId,
+          date_of_birth: dob,
+          dob: dob,
           ats_score: atsScore,
           applied_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -122,18 +133,18 @@ export default function CareersPage() {
           localStorage.setItem('hrms_local_candidates', JSON.stringify([newCandidateItem, ...curr.filter((c: any) => c.email !== email)]))
         } catch {}
 
-        // Dispatch confirmation email to candidate
+        // Dispatch confirmation email to candidate with Reference ID and Date of Birth password
         sendCandidateApplicationEmail({
           candidateName: name.trim(),
           candidateEmail: email.trim(),
           jobTitle: selectedJob.title,
           referenceId: refId,
+          dateOfBirth: dob,
           candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-          passwordPin: '1234',
         })
 
-        toast.success(`Application submitted! 🎉\nConfirmation email sent to ${email}.\nPortal Ref ID: ${refId} | Password: 1234\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`, { duration: 10000 })
-        setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setResumeUrl(''); setCoverLetter('')
+        toast.success(`Application submitted! 🎉\nConfirmation email sent to ${email}.\nReference ID: ${refId}\nPassword: Your DOB (${dob})\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`, { duration: 10000 })
+        setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setDob(''); setResumeUrl(''); setCoverLetter('')
       }
     } else {
       const activeRef = (tempId as string) || 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -142,18 +153,19 @@ export default function CareersPage() {
         candidateEmail: email.trim(),
         jobTitle: selectedJob.title,
         referenceId: activeRef,
+        dateOfBirth: dob,
         candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-        passwordPin: '1234',
       })
 
       toast.success(
-        `Application submitted! 🎉\nConfirmation email sent to ${email}.\nPortal Ref ID: ${activeRef} | Password: 1234\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`,
+        `Application submitted! 🎉\nConfirmation email sent to ${email}.\nReference ID: ${activeRef}\nPassword: Your DOB (${dob})\nTrack status at: ${DEFAULT_CANDIDATE_PORTAL_URL}`,
         { duration: 10000 }
       )
       setSelectedJob(null)
       setName('')
       setEmail('')
       setPhone('')
+      setDob('')
       setResumeUrl('')
       setCoverLetter('')
     }
@@ -358,9 +370,17 @@ export default function CareersPage() {
               </div>
             </div>
             
-            <div className="space-y-3">
-              <Label className="text-slate-700 font-medium">Phone Number</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" placeholder="+1 (555) 000-0000" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label className="text-slate-700 font-medium">Phone Number</Label>
+                <Input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" placeholder="+1 (555) 000-0000" />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-slate-700 font-medium">
+                  Date of Birth <span className="text-rose-500">*</span> <span className="text-xs text-muted-foreground font-normal">(Portal Password)</span>
+                </Label>
+                <Input type="date" required value={dob} onChange={e => setDob(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" />
+              </div>
             </div>
             
             <div className="space-y-3">

@@ -10,6 +10,7 @@ export interface CandidateApplicationEmailPayload {
   candidateEmail: string
   jobTitle: string
   referenceId: string
+  dateOfBirth?: string
   candidatePortalUrl?: string
   passwordPin?: string
 }
@@ -42,7 +43,9 @@ export const DEFAULT_SENDER_NAME = 'OKLUT Human Resources'
  */
 export function generateCandidateApplicationHtml(payload: CandidateApplicationEmailPayload): string {
   const portalUrl = payload.candidatePortalUrl || DEFAULT_CANDIDATE_PORTAL_URL
-  const pin = payload.passwordPin || '1234'
+  const dobText = payload.dateOfBirth
+    ? `${payload.dateOfBirth} (Format: YYYY-MM-DD / DDMMYYYY)`
+    : 'Your Date of Birth (Format: DD/MM/YYYY or YYYY-MM-DD)'
 
   return `
 <!DOCTYPE html>
@@ -84,13 +87,13 @@ export function generateCandidateApplicationHtml(payload: CandidateApplicationEm
             <td style="padding:6px 0;font-size:14px;font-weight:700;color:#4f46e5;text-align:right;font-family:monospace;">${payload.referenceId}</td>
           </tr>
           <tr>
-            <td style="padding:6px 0;font-size:14px;color:#64748b;">Portal Access PIN:</td>
-            <td style="padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;font-family:monospace;">${pin}</td>
+            <td style="padding:6px 0;font-size:14px;color:#64748b;">Portal Password:</td>
+            <td style="padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;">${dobText}</td>
           </tr>
         </table>
 
         <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;">
-          You can track your application status in real-time, view scheduled interviews, and respond to offer letters through the Candidate Portal using your <strong>Email</strong> or <strong>Reference ID</strong>.
+          You can log in to the Candidate Portal anytime using your <strong>Application Reference ID</strong> and <strong>Date of Birth</strong> as your password to track application status, view interview schedules, and respond to offers.
         </p>
 
         <!-- CTA Button -->

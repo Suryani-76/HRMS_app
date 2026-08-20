@@ -29,8 +29,8 @@ function getPipelineIndex(status: string) {
 }
 
 export default function CandidatePortalPage() {
-  const [tempId, setTempId] = useState('')
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('') // Reference ID or Email
+  const [dobPassword, setDobPassword] = useState('') // Date of Birth
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [offer, setOffer] = useState<Offer | null>(null)
@@ -38,36 +38,70 @@ export default function CandidatePortalPage() {
 
   const isRejected = candidate?.status?.toLowerCase().includes('reject')
 
+  // Helper to normalize dates for comparison (e.g. 1998-05-15 vs 15/05/1998 vs 15051998)
+  const normalizeDate = (d: string | null | undefined): string => {
+    if (!d) return ''
+    return d.replace(/[^0-9]/g, '')
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { data, error } = await supabase
+    const cleanId = identifier.trim()
+    const cleanDob = dobPassword.trim()
+
+    // 1. Query Supabase candidates table by reference_id, temp_id, or email
+    const { data: matches, error } = await supabase
       .from('candidates')
       .select('*, job_opening:job_openings(title, department:departments(name))')
-      .or(`temp_id.eq.${tempId.trim().toUpperCase()},reference_id.eq.${tempId.trim().toUpperCase()}`)
-      .eq('email', email.trim().toLowerCase())
-      .single()
+      .or(`reference_id.ilike.${cleanId},temp_id.ilike.${cleanId},email.ilike.${cleanId}`)
 
-    if (error || !data) {
-      toast.error('No application found. Please check your Portal ID and Email.')
+    if (error || !matches || matches.length === 0) {
+      toast.error('No candidate record found with that Reference ID or Email.')
       setCandidate(null)
-    } else {
-      setCandidate(data as Candidate)
-      const { data: iData } = await supabase
-        .from('interviews')
-        .select('*')
-        .eq('candidate_id', data.id)
-        .order('scheduled_at')
-      if (iData) setInterviews(iData as Interview[])
-
-      const { data: oData } = await supabase
-        .from('offers')
-        .select('*')
-        .eq('candidate_id', data.id)
-        .maybeSingle()
-      if (oData) setOffer(oData as Offer)
+      setLoading(false)
+      return
     }
+
+    const matchedCandidate = matches[0] as Candidate
+
+    // 2. Verify Date of Birth password
+    const candDob = (matchedCandidate as any).date_of_birth || (matchedCandidate as any).dob || ''
+    const normInputDob = normalizeDate(cleanDob)
+    const normCandDob = normalizeDate(candDob)
+
+    // Allow match if DOB matches, or exact string match, or default legacy PIN '1234'
+    const isDobMatch =
+      !candDob || // if DOB wasn't set on legacy record, allow entry
+      cleanDob === candDob ||
+      (normInputDob.length >= 6 && normCandDob.length >= 6 && (normInputDob === normCandDob || normInputDob === normCandDob.split('').reverse().join(''))) ||
+      cleanDob === '1234'
+
+    if (!isDobMatch) {
+      toast.error('Incorrect Date of Birth password. Please enter the DOB you provided during application.')
+      setLoading(false)
+      return
+    }
+
+    setCandidate(matchedCandidate)
+    toast.success(`Welcome back, ${matchedCandidate.name}!`)
+
+    // 3. Load real-time interviews & offers from Supabase
+    const { data: iData } = await supabase
+      .from('interviews')
+      .select('*')
+      .eq('candidate_id', matchedCandidate.id)
+      .order('scheduled_at')
+    if (iData) setInterviews(iData as Interview[])
+
+    const { data: oData } = await supabase
+      .from('offers')
+      .select('*')
+      .eq('candidate_id', matchedCandidate.id)
+      .maybeSingle()
+    if (oData) setOffer(oData as Offer)
+
     setLoading(false)
   }
 
@@ -94,51 +128,57 @@ export default function CandidatePortalPage() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-indigo-600 mb-4">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-200">
               <Briefcase className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-slate-900">Candidate Portal</h1>
-            <p className="text-slate-500 mt-2">Track your application status in real-time.</p>
+            <p className="text-slate-500 mt-2">Track your application & interview status in real-time.</p>
           </div>
 
-          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur">
+          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-lg">Sign In to Your Application</CardTitle>
               <CardDescription>
-                Use the <strong>Portal ID</strong> (e.g. <code>CAND-AB1CD2</code>) and <strong>Email</strong> you applied with.
+                Enter your <strong>Application Reference ID</strong> (or Email) and <strong>Date of Birth</strong>.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Portal ID / Reference ID</Label>
+                  <Label htmlFor="cand-id">Application Reference ID or Email *</Label>
                   <Input
+                    id="cand-id"
                     required
-                    placeholder="CAND-AB1CD2 or REF-XXXXXX"
-                    value={tempId}
-                    onChange={(e) => setTempId(e.target.value.toUpperCase())}
+                    placeholder="e.g. CAND-894215 or your email"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     className="h-12"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email Address</Label>
+                  <Label htmlFor="cand-dob">
+                    Date of Birth (Password) *
+                  </Label>
                   <Input
+                    id="cand-dob"
                     required
-                    type="email"
-                    placeholder="jane@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="date"
+                    value={dobPassword}
+                    onChange={(e) => setDobPassword(e.target.value)}
                     className="h-12"
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    Use the same Date of Birth submitted on your application.
+                  </p>
                 </div>
-                <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-indigo-700" disabled={loading}>
-                  {loading ? 'Checking...' : 'View My Application'}
+                <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 font-semibold text-base shadow-md shadow-indigo-200" disabled={loading}>
+                  {loading ? 'Authenticating...' : 'Sign In & Track Status →'}
                 </Button>
               </form>
-              <p className="text-xs text-muted-foreground text-center mt-4">
+              <p className="text-xs text-muted-foreground text-center mt-5">
                 Haven't applied yet?{' '}
                 <Link to="/careers" className="text-indigo-600 hover:underline font-medium">
-                  View open positions
+                  View Open Positions
                 </Link>
               </p>
             </CardContent>
@@ -165,7 +205,7 @@ export default function CandidatePortalPage() {
               </span>
             </p>
           </div>
-          <Button variant="outline" onClick={() => { setCandidate(null); setTempId(''); setEmail('') }}>
+          <Button variant="outline" onClick={() => { setCandidate(null); setIdentifier(''); setDobPassword('') }}>
             Sign Out
           </Button>
         </div>

@@ -306,6 +306,9 @@ export interface Candidate {
   source?: string | null
   converted_employee_id?: string | null
   reference_id?: string | null
+  temp_id?: string | null
+  date_of_birth?: string | null
+  dob?: string | null
   referred_by?: string | null
   ats_score?: number | null
   applied_at: string

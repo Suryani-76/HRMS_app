@@ -164,7 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanPassword = password.trim()
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword })
       if (error) {
         const msg = error.message || ''
         if (!msg || msg === '{}') {

@@ -250,6 +250,16 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
       setError('Please enter a valid phone number (e.g. +91 98765 43210).')
       return
     }
+
+    // Password validation (MANDATORY for new employees)
+    if (!employee && !form.password.trim()) {
+      setError('Login password is required to generate the employee portal credentials.')
+      return
+    }
+    if (form.password.trim() && form.password.trim().length < 6) {
+      setError('Login password must be at least 6 characters long.')
+      return
+    }
     const payload = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -632,11 +642,11 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
             </div>
           </div>
 
-          {/* 6. Compensation & Access (Admin only) */}
+          {/* 6. Compensation (Admin only) */}
           {isAdmin && (
             <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
               <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
-                <DollarSign className="h-4 w-4 text-emerald-600" /> Compensation & Access
+                <DollarSign className="h-4 w-4 text-emerald-600" /> Compensation Details
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -655,18 +665,34 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   <Label>Bonus</Label>
                   <Input type="number" value={form.bonus} onChange={(e) => set('bonus', e.target.value)} placeholder="0" />
                 </div>
-                {!employee && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Login password (optional)</Label>
-                    <Input type="password" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="Set a password to create login access" />
-                    <p className="text-xs text-muted-foreground">
-                      If left blank, the employee can be given access later. Requires admin privileges.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}
+
+          {/* 7. Portal Login Credentials (Mandatory for new employee) */}
+          <div className="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/30 p-4">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-indigo-950">
+              <User className="h-4 w-4 text-indigo-600" /> Portal Login Credentials
+            </h3>
+            <div className="space-y-2">
+              <Label htmlFor="emp_password">
+                {employee ? 'Reset Portal Password (optional)' : 'Portal Login Password'} <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="emp_password"
+                type="password"
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+                placeholder={employee ? 'Leave blank to keep existing password' : 'Enter portal login password (min. 6 characters, e.g. Krishna8*)'}
+                required={!employee}
+              />
+              <p className="text-xs text-muted-foreground">
+                {employee
+                  ? 'Enter a new password if you wish to reset this employee’s portal login credentials.'
+                  : 'Mandatory: The employee will use their email address and this password to log into the HRMS portal.'}
+              </p>
+            </div>
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

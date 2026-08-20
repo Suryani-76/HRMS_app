@@ -253,18 +253,20 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
   if (input.password && input.password.trim()) {
     const pwd = input.password.trim()
     try {
-      // 1. Try atomic PostgreSQL RPC provision_employee_login
-      const { error: rpcErr } = await supabase.rpc('provision_employee_login', {
+      // 1. Primary: Atomic PostgreSQL RPC provision_employee_login
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('provision_employee_login', {
         p_employee_id: createdEmp.id,
         p_email: createdEmp.email,
         p_password: pwd,
         p_role_name: 'Employee',
       })
 
-      if (rpcErr) {
-        console.warn('provision_employee_login RPC fallback notice:', rpcErr.message)
-        // 2. Fallback: direct Supabase Auth signUp
-        const { data: signUpData } = await supabase.auth.signUp({
+      if (!rpcErr && rpcData?.success) {
+        console.log('Employee portal login successfully provisioned for:', createdEmp.email)
+      } else {
+        if (rpcErr) console.warn('provision_employee_login RPC notice:', rpcErr.message)
+        // 2. Secondary Fallback: Supabase Auth signUp
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
           email: createdEmp.email,
           password: pwd,
           options: {
@@ -274,6 +276,10 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
             },
           },
         })
+
+        if (signUpErr) {
+          console.warn('Supabase Auth signUp fallback notice:', signUpErr.message)
+        }
 
         const authUserId = signUpData?.user?.id
         if (authUserId) {
@@ -292,7 +298,7 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
         }
       }
     } catch (authErr) {
-      console.error('Failed to provision auth user for employee:', authErr)
+      console.error('Failed to provision portal auth user for employee:', authErr)
     }
   }
 
@@ -317,12 +323,15 @@ export async function updateEmployee(id: string, patch: Partial<EmployeeInput>):
 
   if (password && password.trim()) {
     try {
-      await supabase.rpc('provision_employee_login', {
+      const { error: rpcErr } = await supabase.rpc('provision_employee_login', {
         p_employee_id: updatedEmp.id,
         p_email: updatedEmp.email,
         p_password: password.trim(),
         p_role_name: 'Employee',
       })
+      if (rpcErr) {
+        console.warn('Failed to update employee password via RPC:', rpcErr.message)
+      }
     } catch (e) {
       console.error('Failed to update employee password:', e)
     }
@@ -338,16 +347,22 @@ export async function deleteEmployee(id: string) {
   // Block the linked user account if one exists
   const { data: emp } = await supabase
     .from('employees')
-    .select('id, user_id, employee_code')
+    .select('id, user_id, employee_code, email')
     .eq('id', id)
     .maybeSingle()
 
   if (emp?.user_id) {
     await supabase.from('users').update({ status: 'Blocked' }).eq('id', emp.user_id)
   }
+  if (emp?.email) {
+    await supabase.from('users').update({ status: 'Blocked' }).ilike('email', emp.email)
+  }
 
   const { error } = await supabase.from('employees').delete().eq('id', id)
-  if (error) console.warn('Supabase employee delete warning:', error)
+  if (error) {
+    console.error('Supabase employee delete error:', error)
+    throw new Error(error.message || 'Failed to delete employee')
+  }
 }
 
 // =============================================================================
@@ -355,17 +370,58 @@ export async function deleteEmployee(id: string) {
 // =============================================================================
 export async function deleteEmployeeByIdOrCode(idOrCode: string) {
   const queryStr = idOrCode.trim()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryStr)
 
-  const { data } = await supabase
-    .from('employees')
-    .select('id, user_id, first_name, last_name, employee_code, email')
-    .or(`employee_code.eq.${queryStr},id.eq.${queryStr}`)
-    .maybeSingle()
+  let employeeToDelete: {
+    id: string
+    user_id?: string | null
+    first_name: string
+    last_name: string
+    employee_code?: string | null
+    email: string
+  } | null = null
 
-  if (!data) throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
+  if (isUuid) {
+    const { data } = await supabase
+      .from('employees')
+      .select('id, user_id, first_name, last_name, employee_code, email')
+      .eq('id', queryStr)
+      .maybeSingle()
+    employeeToDelete = data
+  } else {
+    // Search by employee_code or email (safe string lookup, avoiding invalid UUID syntax error)
+    const { data } = await supabase
+      .from('employees')
+      .select('id, user_id, first_name, last_name, employee_code, email')
+      .or(`employee_code.ilike.${queryStr},email.ilike.${queryStr}`)
+      .maybeSingle()
+    employeeToDelete = data
+  }
 
-  await deleteEmployee(data.id)
-  return data
+  if (!employeeToDelete) {
+    // Resilient fallback: lookup in list to handle any edge case format
+    const { data: all } = await supabase
+      .from('employees')
+      .select('id, user_id, first_name, last_name, employee_code, email')
+
+    if (all) {
+      employeeToDelete =
+        all.find(
+          (e) =>
+            e.id.toLowerCase() === queryStr.toLowerCase() ||
+            (e.employee_code && e.employee_code.trim().toLowerCase() === queryStr.toLowerCase()) ||
+            (e.email && e.email.trim().toLowerCase() === queryStr.toLowerCase())
+        ) || null
+    }
+  }
+
+  if (!employeeToDelete) {
+    throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
+  }
+
+  await deleteEmployee(employeeToDelete.id)
+  return employeeToDelete
 }
+
 
 

@@ -41,9 +41,11 @@ export function LoginPage() {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
-    if (remember) localStorage.setItem('hrms_remember_email', email)
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanPassword = password.trim()
+    if (remember) localStorage.setItem('hrms_remember_email', cleanEmail)
     else localStorage.removeItem('hrms_remember_email')
-    const { error } = await login(email, password)
+    const { error } = await login(cleanEmail, cleanPassword)
     setSubmitting(false)
     if (error) {
       setError(error)

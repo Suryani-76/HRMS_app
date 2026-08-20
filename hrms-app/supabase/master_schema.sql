@@ -868,9 +868,9 @@ end $$;
 -- and links user_id on the employee row.
 -- =============================================================================
 create or replace function public.provision_employee_login(
-  p_employee_id uuid,
-  p_email text,
-  p_password text,
+  p_employee_id uuid default null,
+  p_email text default null,
+  p_password text default null,
   p_role_name text default 'Employee'
 )
 returns jsonb
@@ -881,18 +881,32 @@ as $$
 declare
   v_user_id uuid;
   v_role_id uuid;
-  v_emp record;
+  v_emp_id uuid;
+  v_emp_name text;
   v_clean_email text;
+  v_hash text;
 begin
   v_clean_email := lower(trim(p_email));
   
-  -- 1. Find employee
-  select id, first_name, last_name into v_emp
-  from public.employees
-  where id = p_employee_id;
+  if v_clean_email is null or v_clean_email = '' then
+    raise exception 'Email is required for employee login provisioning';
+  end if;
 
-  if v_emp.id is null then
-    raise exception 'Employee not found with id %', p_employee_id;
+  if p_password is null or trim(p_password) = '' then
+    raise exception 'Password is required for employee login provisioning';
+  end if;
+
+  -- 1. Find employee by id OR by email
+  select id, coalesce(first_name || ' ' || last_name, 'Employee User')
+    into v_emp_id, v_emp_name
+    from public.employees
+   where (p_employee_id is not null and id = p_employee_id)
+      or lower(email) = v_clean_email
+   limit 1;
+
+  -- If not in employees table, check if employee exists in public.users
+  if v_emp_id is null then
+    select employee_id, 'Employee User' into v_emp_id, v_emp_name from public.users where lower(email) = v_clean_email limit 1;
   end if;
 
   -- 2. Find role id (defaults to 'Employee' if role not found)
@@ -905,19 +919,28 @@ begin
     select id into v_role_id from public.roles where lower(name) = 'employee' limit 1;
   end if;
 
+  -- Generate bcrypt password hash
+  begin
+    v_hash := extensions.crypt(trim(p_password), extensions.gen_salt('bf'));
+  exception when others then
+    v_hash := crypt(trim(p_password), gen_salt('bf'));
+  end;
+
   -- 3. Check if auth.users already has this email
   select id into v_user_id from auth.users where lower(email) = v_clean_email limit 1;
 
   if v_user_id is not null then
     -- Update password and confirmation for existing auth user
     update auth.users
-    set encrypted_password = crypt(p_password, gen_salt('bf')),
+    set encrypted_password = v_hash,
         email_confirmed_at = coalesce(email_confirmed_at, now()),
         updated_at = now(),
-        raw_user_meta_data = jsonb_build_object('name', v_emp.first_name || ' ' || v_emp.last_name)
+        raw_app_meta_data = '{"provider":"email","providers":["email"]}'::jsonb,
+        raw_user_meta_data = jsonb_build_object('name', coalesce(v_emp_name, 'Employee User')),
+        banned_until = null
     where id = v_user_id;
 
-    -- Ensure identity exists
+    -- Ensure identity exists in auth.identities
     insert into auth.identities (id, provider_id, user_id, identity_data, provider, created_at, updated_at)
     values (
       gen_random_uuid(),
@@ -925,7 +948,9 @@ begin
       v_user_id,
       jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email, 'email_verified', true),
       'email', now(), now()
-    ) on conflict (provider_id, provider) do nothing;
+    ) on conflict (provider_id, provider) do update set
+      identity_data = jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email, 'email_verified', true),
+      updated_at = now();
   else
     -- Generate new user id
     v_user_id := gen_random_uuid();
@@ -942,10 +967,10 @@ begin
       '00000000-0000-0000-0000-000000000000',
       'authenticated', 'authenticated',
       v_clean_email,
-      crypt(p_password, gen_salt('bf')),
+      v_hash,
       now(), now(), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('name', v_emp.first_name || ' ' || v_emp.last_name),
+      jsonb_build_object('name', coalesce(v_emp_name, 'Employee User')),
       '', '', '', '', false
     );
 
@@ -964,23 +989,26 @@ begin
   insert into public.users (
     id, auth_id, email, role_id, employee_id, status, created_at
   ) values (
-    v_user_id, v_user_id, v_clean_email, v_role_id, v_emp.id, 'active', now()
+    v_user_id, v_user_id, v_clean_email, v_role_id, v_emp_id, 'active', now()
   )
   on conflict (email) do update set
     auth_id = v_user_id,
     role_id = coalesce(v_role_id, public.users.role_id),
-    employee_id = v_emp.id,
+    employee_id = coalesce(v_emp_id, public.users.employee_id),
     status = 'active';
 
-  -- 5. Link user_id in employees table
-  update public.employees
-  set user_id = v_user_id
-  where id = v_emp.id;
+  -- 5. Link user_id in employees table if employee exists
+  if v_emp_id is not null then
+    update public.employees
+    set user_id = v_user_id
+    where id = v_emp_id;
+  end if;
 
   return jsonb_build_object(
     'success', true,
     'user_id', v_user_id,
-    'email', v_clean_email
+    'email', v_clean_email,
+    'message', 'Portal login provisioned successfully'
   );
 end;
 $$;

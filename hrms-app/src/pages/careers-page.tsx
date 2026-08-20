@@ -63,27 +63,65 @@ export default function CareersPage() {
     })
 
     setIsSubmitting(false)
-    if (error) {
+    if (error || !tempId) {
       // Fallback: direct insert if RPC not yet deployed
       const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
       const atsScore = Math.floor(Math.random() * 41) + 60
-      const { error: insertErr } = await supabase.from('candidates').insert({
+
+      const fullCandidate = {
         job_opening_id: selectedJob.id,
         name,
         email,
-        phone,
-        resume_url: resumeUrl,
-        cover_letter: coverLetter,
+        phone: phone || null,
+        resume_url: resumeUrl || null,
+        cover_letter: coverLetter || null,
         reference_id: refId,
         temp_id: refId,
         ats_score: atsScore,
-        status: 'Applied',
-        source: `Careers Page (ATS: ${atsScore})`,
-      })
+        status: 'applied',
+        source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
+      }
+
+      const baseCandidate = {
+        job_opening_id: selectedJob.id,
+        name,
+        email,
+        phone: phone || null,
+        resume_url: resumeUrl || null,
+        cover_letter: coverLetter || null,
+        status: 'applied',
+        source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
+      }
+
+      let { data: insertedData, error: insertErr } = await supabase.from('candidates').insert(fullCandidate).select().maybeSingle()
+      if (insertErr) {
+        // Fallback to baseCandidate if ats_score / temp_id column is not in database
+        const fallbackRes = await supabase.from('candidates').insert(baseCandidate).select().maybeSingle()
+        insertErr = fallbackRes.error
+        insertedData = fallbackRes.data
+      }
+
       if (insertErr) {
         toast.error('Failed to submit application: ' + insertErr.message)
       } else {
-        toast.success(`Application submitted! Your Portal ID: ${refId} | Password: 1234`, { duration: 8000 })
+        // Update local candidates cache as well
+        const newCandidateItem = {
+          id: (insertedData as any)?.id || 'can-' + Date.now(),
+          ...baseCandidate,
+          reference_id: refId,
+          temp_id: refId,
+          ats_score: atsScore,
+          applied_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          job_opening: { title: selectedJob.title },
+        }
+        try {
+          const raw = localStorage.getItem('hrms_local_candidates')
+          const curr = raw ? JSON.parse(raw) : []
+          localStorage.setItem('hrms_local_candidates', JSON.stringify([newCandidateItem, ...curr.filter((c: any) => c.email !== email)]))
+        } catch {}
+
+        toast.success(`Application submitted! 🎉\nPortal ID: ${refId} | Password: 1234\nUse these at /candidate-portal to track your status.`, { duration: 10000 })
         setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setResumeUrl(''); setCoverLetter('')
       }
     } else {

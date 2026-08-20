@@ -64,11 +64,13 @@ function ApplyLeaveDialog({
   onOpenChange,
   employeeId,
   isHrOrManager,
+  isAdmin,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   employeeId?: string
   isHrOrManager?: boolean
+  isAdmin?: boolean
 }) {
   const { data: types = [] } = useLeaveTypes()
   const apply = useApplyLeave()
@@ -91,9 +93,13 @@ function ApplyLeaveDialog({
       end_date: end,
       days,
       reason,
+      status: isAdmin ? 'approved' : 'pending',
+      isAdmin,
     })
 
-    if (isHrOrManager) {
+    if (isAdmin) {
+      toast.success('Leave recorded and automatically approved ✓')
+    } else if (isHrOrManager) {
       toast.success('Leave request submitted! Routed to Admin / CEO (ceo@oklut.com) for approval.')
     } else {
       toast.success('Leave request submitted to HR / Manager for approval.')
@@ -111,12 +117,24 @@ function ApplyLeaveDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CalendarPlus className="h-5 w-5 text-indigo-600" /> Apply for Leave
+            <CalendarPlus className="h-5 w-5 text-indigo-600" />
+            {isAdmin ? 'Record Leave (Directly Approved)' : 'Apply for Leave'}
           </DialogTitle>
-          <DialogDescription>Select leave category and date range.</DialogDescription>
+          <DialogDescription>
+            {isAdmin
+              ? 'Directly log approved leave dates into company attendance records.'
+              : 'Select leave category and date range.'}
+          </DialogDescription>
         </DialogHeader>
 
-        {isHrOrManager && (
+        {isAdmin ? (
+          <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 text-xs text-emerald-900">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Admin Direct Approval:</span> As System Admin / CEO, your leave does not need to be sent for approval — it is automatically approved and recorded in the company system.
+            </div>
+          </div>
+        ) : isHrOrManager && (
           <div className="flex items-start gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3.5 text-xs text-indigo-900">
             <ShieldCheck className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
@@ -159,12 +177,12 @@ function ApplyLeaveDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Reason / Handover Notes *</Label>
+            <Label>{isAdmin ? 'Purpose / Notes *' : 'Reason / Handover Notes *'}</Label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="e.g. Attending family wedding / Doctor appointment / Urgent personal work"
+              placeholder={isAdmin ? "e.g. Executive off-site / Annual vacation / Personal leave" : "e.g. Attending family wedding / Doctor appointment / Urgent personal work"}
               required
             />
           </div>
@@ -173,7 +191,7 @@ function ApplyLeaveDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={apply.isPending}>
               {apply.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit Request
+              {isAdmin ? 'Record Approved Leave' : 'Submit Request'}
             </Button>
           </DialogFooter>
         </form>
@@ -386,7 +404,15 @@ function ManagerLeave() {
   )
 }
 
-function EmployeeLeaveTab({ employeeId, isHrOrManager }: { employeeId: string; isHrOrManager?: boolean }) {
+function EmployeeLeaveTab({
+  employeeId,
+  isHrOrManager,
+  isAdmin,
+}: {
+  employeeId: string
+  isHrOrManager?: boolean
+  isAdmin?: boolean
+}) {
   const { data: requests = [], isLoading } = useLeaveRequests({ employeeId })
   const cancel = useCancelLeave()
   const [dialog, setDialog] = useState(false)
@@ -398,20 +424,24 @@ function EmployeeLeaveTab({ employeeId, isHrOrManager }: { employeeId: string; i
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
               <div>
-                <CardTitle className="text-base">My Leave Requests</CardTitle>
+                <CardTitle className="text-base">{isAdmin ? 'My Recorded Leaves' : 'My Leave Requests'}</CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {isHrOrManager ? 'Your submitted leave requests routed to Admin / CEO.' : 'Track your applications and approvals.'}
+                  {isAdmin
+                    ? 'Your logged company leaves (automatically approved as Admin / CEO).'
+                    : isHrOrManager
+                    ? 'Your submitted leave requests routed to Admin / CEO.'
+                    : 'Track your applications and approvals.'}
                 </p>
               </div>
               <Button onClick={() => setDialog(true)} size="sm">
-                <CalendarPlus className="mr-2 h-4 w-4" /> Apply Leave
+                <CalendarPlus className="mr-2 h-4 w-4" /> {isAdmin ? 'Record Leave' : 'Apply Leave'}
               </Button>
             </CardHeader>
             <CardContent className="p-0">
               {isLoading ? (
                 <TableSkeleton rows={4} />
               ) : requests.length === 0 ? (
-                <EmptyState title="No leave requests" description="You haven't submitted any leave requests yet." icon={CalendarClock} />
+                <EmptyState title="No leave records" description={isAdmin ? "You haven't recorded any leaves yet." : "You haven't submitted any leave requests yet."} icon={CalendarClock} />
               ) : (
                 <div className="divide-y">
                   {requests.map((r) => (
@@ -421,12 +451,12 @@ function EmployeeLeaveTab({ employeeId, isHrOrManager }: { employeeId: string; i
                           {r.leave_type?.name} · <span className="text-indigo-600">{r.days} day{r.days > 1 ? 's' : ''}</span>
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatDate(r.start_date)} → {formatDate(r.end_date)} · Applied on {formatDate(r.applied_at)}
+                          {formatDate(r.start_date)} → {formatDate(r.end_date)} · {r.status === 'approved' && isAdmin ? 'Recorded on' : 'Applied on'} {formatDate(r.applied_at)}
                         </p>
                         {r.reason && <p className="mt-1 text-xs text-slate-600 italic">"{r.reason}"</p>}
                         {r.admin_comment && (
                           <p className="mt-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded inline-block font-medium">
-                            Admin Note: {r.admin_comment}
+                            {r.admin_comment}
                           </p>
                         )}
                       </div>
@@ -457,6 +487,7 @@ function EmployeeLeaveTab({ employeeId, isHrOrManager }: { employeeId: string; i
         onOpenChange={setDialog}
         employeeId={employeeId}
         isHrOrManager={isHrOrManager}
+        isAdmin={isAdmin}
       />
     </div>
   )
@@ -479,18 +510,23 @@ export default function LeavePage() {
           title="Leave Management"
           description={
             isAdmin
-              ? 'Review and approve all company leave requests (including HR) or apply for leave.'
+              ? 'Review and manage employee and HR leave requests across all departments.'
               : isHrOrManager
               ? 'Review employee leaves, submit your own leave request to Admin/CEO, and track balances.'
               : 'Apply for leave and track your balances.'
           }
         />
-        <Button onClick={() => setApplyOpen(true)} className="sm:self-start">
-          <CalendarPlus className="mr-2 h-4 w-4" /> Apply for Leave
-        </Button>
+        {!isAdmin && (
+          <Button onClick={() => setApplyOpen(true)} className="sm:self-start">
+            <CalendarPlus className="mr-2 h-4 w-4" /> Apply for Leave
+          </Button>
+        )}
       </div>
 
-      {isHrOrManager ? (
+      {isAdmin ? (
+        // Admin solely reviews and manages all company leave requests
+        <ManagerLeave />
+      ) : isHrOrManager ? (
         <Tabs defaultValue="requests" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="requests" className="flex items-center gap-2">
@@ -514,6 +550,7 @@ export default function LeavePage() {
             <EmployeeLeaveTab
               employeeId={effectiveEmployeeId}
               isHrOrManager={isHrOrManager}
+              isAdmin={false}
             />
           </TabsContent>
         </Tabs>
@@ -521,16 +558,20 @@ export default function LeavePage() {
         <EmployeeLeaveTab
           employeeId={effectiveEmployeeId}
           isHrOrManager={false}
+          isAdmin={false}
         />
       )}
 
-      {/* Global Apply Leave Dialog */}
-      <ApplyLeaveDialog
-        open={applyOpen}
-        onOpenChange={setApplyOpen}
-        employeeId={effectiveEmployeeId}
-        isHrOrManager={isHrOrManager}
-      />
+      {/* Global Apply Leave Dialog for non-admins */}
+      {!isAdmin && (
+        <ApplyLeaveDialog
+          open={applyOpen}
+          onOpenChange={setApplyOpen}
+          employeeId={effectiveEmployeeId}
+          isHrOrManager={isHrOrManager}
+          isAdmin={false}
+        />
+      )}
     </div>
   )
 }

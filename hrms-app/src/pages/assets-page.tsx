@@ -15,6 +15,42 @@ import { StatusPill } from '@/components/shared/status-pill'
 import { formatDate } from '@/lib/format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+const ASSETS_KEY = 'hrms_local_assets'
+const INCIDENTS_KEY = 'hrms_local_incidents'
+
+const INITIAL_ASSETS: (Asset & { employee?: Employee })[] = [
+  {
+    id: 'asset-1',
+    type: 'Laptop',
+    serial_number: 'MBP-M3-2026-001',
+    assigned_to: 'emp-1',
+    status: 'Active',
+    assigned_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    employee: {
+      id: 'emp-1',
+      first_name: 'Rahul',
+      last_name: 'Sharma',
+      employee_code: 'IND-DL-DEL-HQ-ENG-001',
+    } as any,
+  },
+  {
+    id: 'asset-2',
+    type: 'ID Card',
+    serial_number: 'OKL-ID-002',
+    assigned_to: 'emp-2',
+    status: 'Active',
+    assigned_at: '2026-02-01T00:00:00Z',
+    created_at: '2026-02-01T00:00:00Z',
+    employee: {
+      id: 'emp-2',
+      first_name: 'Meera',
+      last_name: 'Sharma',
+      employee_code: 'EMP-0002',
+    } as any,
+  }
+]
+
 export default function AssetsPage() {
   const { isManager, employee } = useAuth()
   
@@ -40,22 +76,42 @@ export default function AssetsPage() {
   const loadData = async () => {
     setLoading(true)
     
-    // Load Assets
-    let assetQuery = supabase.from('assets').select('*, employee:employees(*)')
-    if (!isManager && employee) assetQuery = assetQuery.eq('assigned_to', employee.id)
-    const { data: aData } = await assetQuery.order('created_at', { ascending: false })
-    if (aData) setAssets(aData as any[])
+    // Load Assets directly from Supabase Cloud
+    try {
+      let assetQuery = supabase.from('assets').select('*, employee:employees(*)')
+      if (!isManager && employee) assetQuery = assetQuery.eq('assigned_to', employee.id)
+      const { data: aData, error: aErr } = await assetQuery.order('created_at', { ascending: false })
+      if (!aErr && aData) {
+        setAssets(aData as any[])
+      } else {
+        const { data: fallbackAssets } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
+        if (fallbackAssets) setAssets(fallbackAssets as any[])
+      }
+    } catch (err) {
+      console.error('loadAssets error:', err)
+    }
 
-    // Load Incidents
-    let incidentQuery = supabase.from('asset_incidents').select('*, asset:assets(*), employee:employees(*)')
-    if (!isManager && employee) incidentQuery = incidentQuery.eq('employee_id', employee.id)
-    const { data: iData } = await incidentQuery.order('created_at', { ascending: false })
-    if (iData) setIncidents(iData as any[])
+    // Load Incidents directly from Supabase Cloud
+    try {
+      let incidentQuery = supabase.from('asset_incidents').select('*, asset:assets(*), employee:employees(*)')
+      if (!isManager && employee) incidentQuery = incidentQuery.eq('employee_id', employee.id)
+      const { data: iData, error: iErr } = await incidentQuery.order('created_at', { ascending: false })
+      if (!iErr && iData) {
+        setIncidents(iData as any[])
+      } else {
+        const { data: fallbackIncidents } = await supabase.from('asset_incidents').select('*').order('created_at', { ascending: false })
+        if (fallbackIncidents) setIncidents(fallbackIncidents as any[])
+      }
+    } catch (err) {
+      console.error('loadIncidents error:', err)
+    }
 
-    // Load Employees for assignment
-    if (isManager) {
-      const { data: eData } = await supabase.from('employees').select('*')
+    // Load Employees for assignment dropdown
+    try {
+      const { data: eData } = await supabase.from('employees').select('*').order('first_name')
       if (eData) setEmployees(eData as Employee[])
+    } catch (err) {
+      console.error('loadEmployees error:', err)
     }
     
     setLoading(false)
@@ -67,19 +123,30 @@ export default function AssetsPage() {
 
   const handleCreateAsset = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { error } = await supabase.from('assets').insert({
-      type,
-      serial_number: serial || null,
-      assigned_to: assignedTo || null,
-      status: 'Active',
-      assigned_at: assignedTo ? new Date().toISOString() : null
-    })
-    
-    if (error) toast.error('Failed to create asset')
-    else {
-      toast.success('Asset created')
+    if (!type) return
+
+    try {
+      const { error } = await supabase.from('assets').insert({
+        type,
+        serial_number: serial || null,
+        assigned_to: assignedTo || null,
+        status: 'Active',
+        assigned_at: assignedTo ? new Date().toISOString() : null
+      })
+
+      if (error) {
+        toast.error(`Database error: ${error.message}`)
+        return
+      }
+
+      toast.success('Asset created successfully in Supabase!')
       setAssetDialog(false)
+      setType('Laptop')
+      setSerial('')
+      setAssignedTo('')
       loadData()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create asset')
     }
   }
 
@@ -99,22 +166,30 @@ export default function AssetsPage() {
       penalty = 25000
     }
 
-    const { error } = await supabase.from('asset_incidents').insert({
-      asset_id: incidentAssetId,
-      employee_id: asset.assigned_to,
-      incident_type: incidentType,
-      report: incidentReport,
-      penalty_charge: penalty,
-      status: 'Pending'
-    })
+    try {
+      const { error } = await supabase.from('asset_incidents').insert({
+        asset_id: incidentAssetId,
+        employee_id: asset.assigned_to,
+        incident_type: incidentType,
+        report: incidentReport,
+        penalty_charge: penalty,
+        status: 'Pending'
+      })
 
-    if (error) toast.error('Failed to report incident')
-    else {
-      toast.success('Incident reported. A penalty may be applicable.')
-      // Also update asset status
+      if (error) {
+        toast.error(`Database error: ${error.message}`)
+        return
+      }
+
       await supabase.from('assets').update({ status: incidentType }).eq('id', incidentAssetId)
+
+      toast.success('Incident reported. A penalty may be applicable.')
       setIncidentDialog(false)
+      setIncidentAssetId('')
+      setIncidentReport('')
       loadData()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to report incident')
     }
   }
 

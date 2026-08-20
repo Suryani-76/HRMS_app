@@ -86,13 +86,11 @@ export default function InsuranceEnrollmentPage() {
             .from('insurance_enrollments')
             .select('*, employee:employees(*)')
             .order('created_at', { ascending: false })
-          if (data && data.length > 0) {
+          if (data) {
             setAllEnrollments(data as any[])
-          } else {
-            setAllEnrollments(getLocalEnrollments() as any[])
           }
-        } catch {
-          setAllEnrollments(getLocalEnrollments() as any[])
+        } catch (err) {
+          console.error('loadAdminEnrollments error:', err)
         }
       }
 
@@ -105,11 +103,8 @@ export default function InsuranceEnrollmentPage() {
             .eq('employee_id', employee.id)
             .maybeSingle()
           if (data) foundEnr = data as InsuranceEnrollment
-        } catch {}
-
-        if (!foundEnr) {
-          const localList = getLocalEnrollments()
-          foundEnr = localList.find((e) => e.employee_id === employee.id) || null
+        } catch (err) {
+          console.error('loadEmployeeEnrollment error:', err)
         }
 
         if (foundEnr) {
@@ -270,26 +265,24 @@ export default function InsuranceEnrollmentPage() {
           .select()
           .single()
         if (res.data) savedData = res.data as InsuranceEnrollment
+        if (res.error) throw res.error
       } else {
         const res = await supabase.from('insurance_enrollments').insert(payload).select().single()
         if (res.data) savedData = res.data as InsuranceEnrollment
+        if (res.error) throw res.error
       }
-    } catch (err) {
-      console.warn('Supabase insurance enrollment error:', err)
+    } catch (err: any) {
+      console.error('Supabase insurance enrollment error:', err)
+      toast.error(`Database error: ${err.message || 'Failed to save to Supabase'}`)
+      setIsSubmitting(false)
+      return
     }
 
-    if (!savedData) {
-      savedData = {
-        id: enrollment?.id || 'ins-' + Date.now(),
-        ...payload,
-        created_at: enrollment?.created_at || new Date().toISOString(),
-      } as InsuranceEnrollment
+    if (savedData) {
+      setEnrollment(savedData)
+      toast.success('Insurance nomination submitted successfully to Supabase!')
     }
-
-    saveLocalEnrollment(savedData)
-    setEnrollment(savedData)
     setIsSubmitting(false)
-    toast.success('Insurance & Nominee details submitted successfully!')
   }
 
   return (

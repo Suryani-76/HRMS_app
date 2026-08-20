@@ -226,8 +226,28 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    // Mandatory field validation
     if (!form.first_name.trim() || !form.last_name.trim() || !form.joining_date) {
       setError('First name, last name and joining date are required.')
+      return
+    }
+    if (!form.email.trim()) {
+      setError('Email address is required. It is used as a unique login key for this employee.')
+      return
+    }
+    if (!form.phone.trim()) {
+      setError('Phone number is required. It serves as a secondary unique identifier to distinguish employees with the same name.')
+      return
+    }
+    // Basic email format check
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    // Basic phone format check (at least 7 digits)
+    if (!/^[+\d][\d\s\-().]{6,}$/.test(form.phone.trim())) {
+      setError('Please enter a valid phone number (e.g. +91 98765 43210).')
       return
     }
     const payload = {
@@ -297,7 +317,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         <DialogHeader>
           <DialogTitle>{employee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
           <DialogDescription>
-            {employee ? 'Update the employee record, emergency contact, and address details.' : 'Create a new employee record and optionally provision a login.'}
+            {employee
+              ? 'Update the employee record, emergency contact, and address details.'
+              : 'Fill in the details below. An Employee ID (e.g. OKL-ENG-2026-001) will be auto-generated based on the department selected. Email and Phone are mandatory unique identifiers — they distinguish employees with the same name.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -323,12 +345,25 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                 <Input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} placeholder="Doe" required />
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane.doe@oklut.com" />
+                <Label>Email address <span className="text-destructive">*</span></Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set('email', e.target.value)}
+                  placeholder="jane.doe@oklut.com"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Must be unique — used as the login key.</p>
               </div>
               <div className="space-y-2">
-                <Label>Personal Phone</Label>
-                <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+91 98765 43210" />
+                <Label>Personal Phone <span className="text-destructive">*</span></Label>
+                <Input
+                  value={form.phone}
+                  onChange={(e) => set('phone', e.target.value)}
+                  placeholder="+91 98765 43210"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Must be unique — distinguishes employees with identical names.</p>
               </div>
               <div className="space-y-2">
                 <Label>Gender</Label>

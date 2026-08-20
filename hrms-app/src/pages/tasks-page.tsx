@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ListChecks, Plus, Loader2, CalendarDays, Trash2, LayoutGrid, Table as TableIcon } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ListChecks, Plus, Loader2, CalendarDays, Trash2, LayoutGrid, Table as TableIcon, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,11 +11,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
-import { useTasks, useCreateTask, useUpdateTaskStatus, useEmployees, useDeleteTask } from '@/hooks/use-queries'
+import { useTasks, useCreateTask, useUpdateTaskStatus, useEmployees, useDepartments, useDeleteTask } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Task } from '@/lib/database.types'
+import type { Task, Employee } from '@/lib/database.types'
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, normal: 3 }
 
@@ -26,17 +26,29 @@ function priorityVariant(p?: string | null): 'destructive' | 'warning' | 'second
   return 'secondary'
 }
 
+function getTaskDepartment(task: Task, employees: Employee[]): string {
+  if (task.assignee?.department?.name) return task.assignee.department.name
+  if ((task.assignee as any)?.department_name) return (task.assignee as any).department_name
+  if (task.assignee_id) {
+    const emp = employees.find((e) => e.id === task.assignee_id)
+    if (emp?.department?.name) return emp.department.name
+  }
+  return 'General'
+}
+
 function TaskCard({
   task,
+  deptName,
   onStatusChange,
 }: {
   task: Task
+  deptName: string
   onStatusChange: (id: string, status: string) => void
 }) {
   const overdue = task.due_date && task.due_date < new Date().toISOString().slice(0, 10) && task.status !== 'completed'
 
   return (
-    <Card className={cn('h-fit', task.status === 'completed' && 'opacity-60')}>
+    <Card className={cn('h-fit shadow-xs hover:shadow-md transition-shadow', task.status === 'completed' && 'opacity-60')}>
       <CardContent className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -47,18 +59,25 @@ function TaskCard({
               {overdue && <Badge variant="destructive" className="ml-1">Overdue</Badge>}
             </p>
           </div>
-          <Badge variant={priorityVariant(task.priority)}>{task.priority ?? 'normal'}</Badge>
+          <Badge variant={priorityVariant(task.priority)} className="capitalize">{task.priority ?? 'normal'}</Badge>
         </div>
         {task.description && <p className="line-clamp-2 text-xs text-muted-foreground">{task.description}</p>}
+        
         <div className="flex flex-col gap-1 border-t pt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1 flex-wrap">
-            Assigned to: <strong className="text-foreground">{task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : 'Unassigned'}</strong>
-            {task.assignee?.employee_code && (
-              <span className="font-mono text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded">
-                {task.assignee.employee_code}
-              </span>
-            )}
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1 flex-wrap">
+              <strong className="text-foreground">{task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : 'Unassigned'}</strong>
+              {task.assignee?.employee_code && (
+                <span className="font-mono text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded">
+                  {task.assignee.employee_code}
+                </span>
+              )}
+            </span>
+            <Badge variant="outline" className="text-[10px] h-5 bg-slate-50 border-slate-200 text-slate-700 font-normal">
+              <Building2 className="h-2.5 w-2.5 mr-1 text-slate-400" />
+              {deptName}
+            </Badge>
+          </div>
           {(task as any).assigner && (
             <span>Created by: {(task as any).assigner.first_name} {(task as any).assigner.last_name}</span>
           )}
@@ -90,30 +109,51 @@ export default function TasksPage() {
   const { isManager, employee } = useAuth()
   const { data: tasks = [], isLoading } = useTasks()
   const { data: employees = [] } = useEmployees()
+  const { data: departments = [] } = useDepartments()
   const create = useCreateTask()
   const updateStatus = useUpdateTaskStatus()
   const del = useDeleteTask()
 
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
   const [filterType, setFilterType] = useState<'all' | 'assigned' | 'created'>('all')
+  const [selectedDept, setSelectedDept] = useState<string>('all')
 
   const [dialog, setDialog] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [taskDeptId, setTaskDeptId] = useState('all')
   const [assigneeId, setAssigneeId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState('medium')
 
-  // Filter tasks based on selected tab
-  const filteredTasks = tasks.filter((t) => {
-    if (filterType === 'assigned') {
-      return employee?.id && t.assignee_id === employee.id
-    }
-    if (filterType === 'created') {
-      return employee?.id && t.assigner_id === employee.id
-    }
-    return true
-  })
+  // Filter tasks based on assignment tab & department sector
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      // 1. Assignment tab filter
+      if (filterType === 'assigned') {
+        if (!employee?.id || t.assignee_id !== employee.id) return false
+      } else if (filterType === 'created') {
+        if (!employee?.id || t.assigner_id !== employee.id) return false
+      }
+
+      // 2. Department sector filter
+      if (selectedDept !== 'all') {
+        const deptName = getTaskDepartment(t, employees).toLowerCase()
+        const selectedDeptObj = departments.find((d) => d.id === selectedDept)
+        if (selectedDeptObj && deptName !== selectedDeptObj.name.toLowerCase()) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [tasks, filterType, selectedDept, employee?.id, employees, departments])
+
+  // Filtered employees for New Task dialog based on selected department
+  const availableEmployees = useMemo(() => {
+    if (taskDeptId === 'all') return employees
+    return employees.filter((e) => e.department_id === taskDeptId || e.department?.id === taskDeptId)
+  }, [employees, taskDeptId])
 
   const columns: { key: string; label: string; color: string }[] = [
     { key: 'todo', label: 'To Do', color: 'bg-muted' },
@@ -132,14 +172,14 @@ export default function TasksPage() {
       priority,
     })
     setDialog(false)
-    setTitle(''); setDescription(''); setAssigneeId(''); setDueDate(''); setPriority('medium')
+    setTitle(''); setDescription(''); setAssigneeId(''); setDueDate(''); setPriority('medium'); setTaskDeptId('all')
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tasks Management"
-        description="View and track all assigned and created tasks in tabular format."
+        description="View, assign, and track department-wise tasks in tabular or board views."
         actions={
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border bg-muted p-1">
@@ -167,35 +207,97 @@ export default function TasksPage() {
         }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between border-b pb-3">
-        <div className="flex items-center gap-2">
-          <Button
-            variant={filterType === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilterType('all')}
-          >
-            All Tasks ({tasks.length})
-          </Button>
-          {employee?.id && (
-            <>
-              <Button
-                variant={filterType === 'assigned' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilterType('assigned')}
-              >
-                Assigned to Me ({tasks.filter((t) => t.assignee_id === employee.id).length})
-              </Button>
-              <Button
-                variant={filterType === 'created' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilterType('created')}
-              >
-                Created by Me ({tasks.filter((t) => t.assigner_id === employee.id).length})
-              </Button>
-            </>
-          )}
+      {/* Filter Tabs & Department Sector Selector */}
+      <div className="space-y-3 border-b pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant={filterType === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterType('all')}
+            >
+              All Tasks ({tasks.length})
+            </Button>
+            {employee?.id && (
+              <>
+                <Button
+                  variant={filterType === 'assigned' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterType('assigned')}
+                >
+                  Assigned to Me ({tasks.filter((t) => t.assignee_id === employee.id).length})
+                </Button>
+                <Button
+                  variant={filterType === 'created' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterType('created')}
+                >
+                  Created by Me ({tasks.filter((t) => t.assigner_id === employee.id).length})
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Department Sector Dropdown */}
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sector:</span>
+            <Select value={selectedDept} onValueChange={setSelectedDept}>
+              <SelectTrigger className="h-8 w-48 text-xs bg-background">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments ({tasks.length})</SelectItem>
+                {departments.map((d) => {
+                  const deptCount = tasks.filter((t) => getTaskDepartment(t, employees).toLowerCase() === d.name.toLowerCase()).length
+                  return (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name} ({deptCount})
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {/* Quick Department Sector Chips */}
+        {departments.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <button
+              onClick={() => setSelectedDept('all')}
+              className={cn(
+                'px-3 py-1 rounded-full font-medium transition-all border text-xs shrink-0 cursor-pointer',
+                selectedDept === 'all'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                  : 'bg-background hover:bg-muted text-muted-foreground border-border'
+              )}
+            >
+              All Sectors ({tasks.length})
+            </button>
+            {departments.map((d) => {
+              const isSelected = selectedDept === d.id
+              const count = tasks.filter((t) => getTaskDepartment(t, employees).toLowerCase() === d.name.toLowerCase()).length
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => setSelectedDept(isSelected ? 'all' : d.id)}
+                  className={cn(
+                    'px-3 py-1 rounded-full font-medium transition-all border text-xs shrink-0 flex items-center gap-1.5 cursor-pointer',
+                    isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                  )}
+                >
+                  <span>{d.name}</span>
+                  <span className={cn('text-[10px] px-1.5 py-0.2 rounded-full font-bold', isSelected ? 'bg-indigo-800 text-white' : 'bg-muted text-foreground')}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -204,7 +306,9 @@ export default function TasksPage() {
         <EmptyState
           title="No tasks found"
           description={
-            filterType === 'assigned'
+            selectedDept !== 'all'
+              ? `No tasks found for the selected department sector.`
+              : filterType === 'assigned'
               ? 'No tasks assigned to you.'
               : filterType === 'created'
               ? 'You have not created any tasks.'
@@ -214,13 +318,14 @@ export default function TasksPage() {
         />
       ) : viewMode === 'table' ? (
         /* Tabular View */
-        <div className="rounded-xl border bg-card shadow-sm">
+        <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
                   <th className="px-4 py-3">Task Details</th>
                   <th className="px-4 py-3">Assigned To</th>
+                  <th className="px-4 py-3">Department (Sector)</th>
                   <th className="px-4 py-3">Created By</th>
                   <th className="px-4 py-3">Priority</th>
                   <th className="px-4 py-3">Due Date</th>
@@ -237,6 +342,7 @@ export default function TasksPage() {
                   const assigneeName = t.assignee
                     ? `${t.assignee.first_name} ${t.assignee.last_name}`
                     : 'Unassigned'
+                  const deptName = getTaskDepartment(t, employees)
 
                   return (
                     <tr key={t.id} className="hover:bg-muted/20 transition-colors">
@@ -258,6 +364,12 @@ export default function TasksPage() {
                         ) : (
                           <span className="text-xs text-muted-foreground font-normal">No Code</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="font-medium bg-slate-50 border-slate-200 text-slate-700 text-xs py-1">
+                          <Building2 className="h-3 w-3 mr-1 text-indigo-600" />
+                          {deptName}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{assignerName}</td>
                       <td className="px-4 py-3">
@@ -324,7 +436,7 @@ export default function TasksPage() {
               })
               .sort((a, b) => (PRIORITY_ORDER[a.priority ?? 'normal'] ?? 3) - (PRIORITY_ORDER[b.priority ?? 'normal'] ?? 3))
             return (
-              <div key={col.key} className="rounded-xl border bg-card p-3">
+              <div key={col.key} className="rounded-xl border bg-card p-3 shadow-xs">
                 <div className="mb-3 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span className={cn('h-2.5 w-2.5 rounded-full', col.color)} />
@@ -335,7 +447,11 @@ export default function TasksPage() {
                 <div className="space-y-2">
                   {colTasks.map((t) => (
                     <div key={t.id} className="relative">
-                      <TaskCard task={t} onStatusChange={(id, s) => updateStatus.mutate({ id, status: s })} />
+                      <TaskCard
+                        task={t}
+                        deptName={getTaskDepartment(t, employees)}
+                        onStatusChange={(id, s) => updateStatus.mutate({ id, status: s })}
+                      />
                       {(isManager || (employee?.id && t.assigner_id === employee.id)) && (
                         <Button
                           variant="ghost"
@@ -357,10 +473,10 @@ export default function TasksPage() {
 
       {/* New Task Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>New Task</DialogTitle>
-            <DialogDescription>Create a task and assign it to a team member.</DialogDescription>
+            <DialogDescription>Create a task and assign it to a department sector team member.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
@@ -369,15 +485,29 @@ export default function TasksPage() {
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Task goals and deliverables..." />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Assignee</Label>
+                <Label>Department / Sector</Label>
+                <Select value={taskDeptId} onValueChange={(val) => { setTaskDeptId(val); setAssigneeId(''); }}>
+                  <SelectTrigger><SelectValue placeholder="All Departments" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Assignee (Employee ID)</Label>
                 <Select value={assigneeId || undefined} onValueChange={setAssigneeId}>
                   <SelectTrigger><SelectValue placeholder="Assign to" /></SelectTrigger>
                   <SelectContent>
-                    {employees.map((e) => (
+                    {availableEmployees.map((e) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.employee_code ? `${e.employee_code} — ${e.first_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}
                       </SelectItem>
@@ -385,6 +515,9 @@ export default function TasksPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Due date</Label>
                 <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
@@ -406,7 +539,7 @@ export default function TasksPage() {
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create
+                Create Task
               </Button>
             </DialogFooter>
           </form>

@@ -5,7 +5,7 @@ import type { Payroll, PayrollProfile, Document, Task, Announcement, Notificatio
 export async function fetchPayrollProfiles() {
   const { data, error } = await supabase
     .from('payroll_profiles')
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments(name))')
+    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
   if (error) throw error
   return (data ?? []) as PayrollProfile[]
 }
@@ -13,7 +13,7 @@ export async function fetchPayrollProfiles() {
 export async function fetchPayroll(period?: string) {
   let query = supabase
     .from('payroll')
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments(name))')
+    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
     .order('created_at', { ascending: false })
   if (period) query = query.eq('pay_period', period)
   const { data, error } = await query
@@ -82,7 +82,7 @@ export async function generatePayroll(period: string) {
   const { data, error } = await supabase
     .from('payroll')
     .upsert(rows, { onConflict: 'employee_id,pay_period' })
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments(name))')
+    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
   if (error) throw error
   return (data ?? []) as Payroll[]
 }
@@ -130,7 +130,7 @@ export async function fetchTasks(options?: { status?: string; assigneeId?: strin
     .from('tasks')
     .select(`
       *,
-      assignee:employees!assignee_id(id, first_name, last_name, employee_code, department:departments(name)),
+      assignee:employees!assignee_id(id, first_name, last_name, employee_code, department:departments!department_id(name)),
       assigner:employees!assigner_id(id, first_name, last_name, employee_code)
     `)
     .order('created_at', { ascending: false })

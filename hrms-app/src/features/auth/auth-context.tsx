@@ -26,13 +26,73 @@ const AuthContext = createContext<AuthState>({
 })
 
 async function fetchProfile(userId: string): Promise<{ user: UserProfile | null; employee: Employee | null }> {
-  const { data: user } = await supabase
+  // 1. Look up user by primary key id or auth_id
+  let { data: user } = await supabase
     .from('users')
     .select('*, role:roles(*), employee:employees(*)')
-    .eq('id', userId)
-    .single()
+    .or(`id.eq.${userId},auth_id.eq.${userId}`)
+    .maybeSingle()
 
-  if (!user) return { user: null, employee: null }
+  // 2. If not found, look up by session email
+  if (!user) {
+    const { data: sessionData } = await supabase.auth.getUser()
+    const email = sessionData.user?.email
+    if (email) {
+      const res = await supabase
+        .from('users')
+        .select('*, role:roles(*), employee:employees(*)')
+        .eq('email', email.toLowerCase())
+        .maybeSingle()
+      user = res.data
+    }
+  }
+
+  if (!user) {
+    // If user has an employee record with this user_id or auth session id
+    const { data: empDirect } = await supabase
+      .from('employees')
+      .select('*')
+      .or(`user_id.eq.${userId},id.eq.${userId}`)
+      .maybeSingle()
+
+    if (empDirect) {
+      const emailLower = (empDirect.email || '').toLowerCase()
+      const roleName = emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
+        ? 'Admin'
+        : emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
+        ? 'HR'
+        : 'Employee'
+
+      return {
+        user: {
+          id: userId,
+          auth_id: userId,
+          email: empDirect.email,
+          role_id: '',
+          employee_id: empDirect.id,
+          status: empDirect.status || 'Active',
+          role: { id: '', name: roleName, description: roleName },
+          created_at: empDirect.created_at,
+        } as any,
+        employee: empDirect,
+      }
+    }
+    return { user: null, employee: null }
+  }
+
+  // If user found but role relation wasn't loaded, infer from email or assign
+  if (!user.role || !user.role.name) {
+    const emailLower = (user.email || '').toLowerCase()
+    const roleName = emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
+      ? 'Admin'
+      : emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
+      ? 'HR'
+      : 'Employee'
+    user = {
+      ...user,
+      role: { id: user.role_id || '', name: roleName, description: roleName },
+    }
+  }
   
   let employee = user.employee ?? null
   
@@ -40,7 +100,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     const { data: empFallback } = await supabase
       .from('employees')
       .select('*')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},id.eq.${user.employee_id || userId}`)
       .maybeSingle()
       
     if (empFallback) {
@@ -144,7 +204,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmployee(null)
   }
 
+  const emailLower = (state?.email || employee?.email || '').toLowerCase().trim()
   const role = state?.role?.name ?? null
+  const isAdmin = isAdminRole(role) || emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
+  const isManager = isManagerRole(role) || isAdmin || emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
 
   return (
     <AuthContext.Provider
@@ -152,8 +215,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: state,
         employee,
         loading,
-        isAdmin: isAdminRole(role),
-        isManager: isManagerRole(role),
+        isAdmin,
+        isManager,
         login,
         logout,
         refresh,

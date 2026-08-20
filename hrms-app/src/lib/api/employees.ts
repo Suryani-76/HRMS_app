@@ -1,12 +1,17 @@
 import { supabase } from '@/lib/supabase'
 import type { Employee } from '@/lib/database.types'
-import { INITIAL_EMPLOYEES, INITIAL_DEPARTMENTS, INITIAL_DESIGNATIONS } from '@/lib/seed-data'
 
+// =============================================================================
+// Employee Input Type
+// email + phone are MANDATORY — they are unique identifiers.
+// employee_code is intentionally OMITTED — the DB trigger auto-generates it
+// as OKL-[DEPT]-[YYYY]-[NNN] (e.g. OKL-ENG-2026-042).
+// =============================================================================
 export interface EmployeeInput {
   first_name: string
   last_name: string
-  email: string
-  phone?: string
+  email: string        // REQUIRED — UNIQUE login key
+  phone: string        // REQUIRED — UNIQUE secondary identifier
   gender?: string
   date_of_birth?: string
   address?: string
@@ -50,29 +55,18 @@ export interface EmployeeInput {
   branch?: string
 }
 
-const EMP_KEY = 'hrms_local_employees'
-
-function getLocalEmployees(): Employee[] {
-  try {
-    const saved = localStorage.getItem(EMP_KEY)
-    if (saved) return JSON.parse(saved)
-  } catch {}
-  return INITIAL_EMPLOYEES
-}
-
-function saveLocalEmployees(emps: Employee[]) {
-  try {
-    localStorage.setItem(EMP_KEY, JSON.stringify(emps))
-  } catch {}
-}
-
-export async function fetchEmployees(options?: { search?: string; departmentId?: string; status?: string }): Promise<Employee[]> {
-  let employees: Employee[] = []
-
+// =============================================================================
+// FETCH EMPLOYEES
+// =============================================================================
+export async function fetchEmployees(options?: {
+  search?: string
+  departmentId?: string
+  status?: string
+}): Promise<Employee[]> {
   try {
     let query = supabase
       .from('employees')
-      .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
+      .select('*, department:departments!department_id(*), designation:designations(*), manager:employees!manager_id(*)')
       .order('created_at', { ascending: false })
 
     if (options?.departmentId && options.departmentId !== 'all') query = query.eq('department_id', options.departmentId)
@@ -86,199 +80,292 @@ export async function fetchEmployees(options?: { search?: string; departmentId?:
     let { data, error } = await query
 
     if (error) {
-      const res = await supabase.from('employees').select('*, department:departments(*), designation:designations(*)').order('created_at', { ascending: false })
+      // Fallback: drop the manager join if it fails
+      const res = await supabase
+        .from('employees')
+        .select('*, department:departments!department_id(*), designation:designations(*)')
+        .order('created_at', { ascending: false })
       data = res.data
       error = res.error
     }
 
     if (error) {
+      // Final fallback: plain select
       const res = await supabase.from('employees').select('*').order('created_at', { ascending: false })
       data = res.data
       error = res.error
     }
 
-    if (!error && data && data.length > 0) {
-      employees = data as Employee[]
-      saveLocalEmployees(employees)
-      return employees
-    }
+    if (!error && data) return data as Employee[]
   } catch (err) {
-    console.warn('fetchEmployees fallback to local/seed:', err)
+    console.error('fetchEmployees error:', err)
   }
 
-  // Fallback to local/seed
-  employees = getLocalEmployees()
-
-  if (options?.departmentId && options.departmentId !== 'all') {
-    employees = employees.filter((e) => e.department_id === options.departmentId)
-  }
-  if (options?.status && options.status !== 'all') {
-    employees = employees.filter((e) => (e.status ?? 'Active').toLowerCase() === options.status?.toLowerCase())
-  }
-  if (options?.search) {
-    const s = options.search.toLowerCase()
-    employees = employees.filter(
-      (e) =>
-        e.first_name.toLowerCase().includes(s) ||
-        e.last_name.toLowerCase().includes(s) ||
-        e.email.toLowerCase().includes(s) ||
-        (e.employee_code && e.employee_code.toLowerCase().includes(s))
-    )
-  }
-
-  return employees
+  return []
 }
 
+// =============================================================================
+// FETCH SINGLE EMPLOYEE
+// =============================================================================
 export async function fetchEmployee(id: string): Promise<Employee> {
-  try {
-    let { data, error } = await supabase
-      .from('employees')
-      .select('*, department:departments(*), designation:designations(*), manager:employees(*)')
-      .eq('id', id)
-      .single()
+  let { data, error } = await supabase
+    .from('employees')
+    .select('*, department:departments!department_id(*), designation:designations(*), manager:employees!manager_id(*)')
+    .eq('id', id)
+    .single()
 
-    if (error) {
-      const res = await supabase
-        .from('employees')
-        .select('*, department:departments(*), designation:designations(*)')
-        .eq('id', id)
-        .single()
-      data = res.data
-      error = res.error
-    }
+  if (error) {
+    const res = await supabase.from('employees').select('*').eq('id', id).single()
+    data = res.data
+    error = res.error
+  }
 
-    if (error) {
-      const res = await supabase.from('employees').select('*').eq('id', id).single()
-      data = res.data
-      error = res.error
-    }
-
-    if (!error && data) return data as Employee
-  } catch {}
-
-  const found = getLocalEmployees().find((e) => e.id === id)
-  if (found) return found
-  throw new Error(`Employee with ID ${id} not found`)
+  if (!error && data) return data as Employee
+  throw new Error(`Employee with ID ${id} not found in database`)
 }
 
-async function nextEmployeeCode(input: EmployeeInput): Promise<string> {
-  const dept = INITIAL_DEPARTMENTS.find((d) => d.id === input.department_id)
-  const deptCode = dept?.code ?? 'ENG'
-  const count = getLocalEmployees().length + 1
-  return `IND-DL-DEL-HQ-${deptCode}-${String(count).padStart(3, '0')}`
-}
-
-function officialEmail(firstName: string, lastName: string): string {
-  return `${firstName.toLowerCase().replace(/[^a-z0-9]/g, '')}.${lastName.toLowerCase().replace(/[^a-z0-9]/g, '')}@oklut.com`
-}
-
+// =============================================================================
+// CREATE EMPLOYEE
+// employee_code is NOT sent in the payload — the PostgreSQL trigger
+// `trg_employees_auto_code` auto-generates it as OKL-[DEPT]-[YYYY]-[NNN].
+// Sending a code from the client caused duplicates (count-based generation
+// would collide when employees were deleted and re-added at same count).
+// =============================================================================
 export async function createEmployee(input: EmployeeInput): Promise<Employee> {
-  const code = await nextEmployeeCode(input)
-  const email = input.email || officialEmail(input.first_name, input.last_name)
-
+  // Build payload — intentionally NO employee_code field.
+  // The DB trigger handles it atomically with a sequence (never duplicates).
   const payload: Record<string, unknown> = {
-    employee_code: code,
-    first_name: input.first_name,
-    last_name: input.last_name,
-    email,
-    phone: input.phone ?? null,
-    gender: input.gender ?? null,
-    date_of_birth: input.date_of_birth ?? null,
-    address: input.address || input.current_address || null,
-    city: input.city || input.current_city || null,
-    state: input.state || input.current_state || null,
-    country: input.country || input.current_country || null,
-    postal_code: input.postal_code || input.current_postal_code || null,
+    // Core identity
+    first_name:       input.first_name.trim(),
+    last_name:        input.last_name.trim(),
+    email:            input.email.trim().toLowerCase(),
+    phone:            input.phone.trim(),
+
+    // Personal
+    gender:           input.gender            || null,
+    date_of_birth:    input.date_of_birth     || null,
+    marital_status:   input.marital_status    || null,
+    blood_group:      input.blood_group       || null,
+
+    // Employment
+    joining_date:     input.joining_date || new Date().toISOString().slice(0, 10),
+    employment_type:  input.employment_type   || 'Full-time',
+    department_id:    input.department_id     || null,
+    designation_id:   input.designation_id    || null,
+    manager_id:       input.manager_id        || null,
+    status:           input.status            || 'Active',
+    branch:           input.branch            || 'HQ',
+
+    // Salary
+    basic_salary:     input.basic_salary      ?? null,
+    hra:              input.hra               ?? null,
+    allowances:       input.allowances        ?? null,
+    bonus:            input.bonus             ?? null,
+
+    // Addresses
+    address:              input.address              || input.current_address       || null,
+    city:                 input.city                 || input.current_city          || null,
+    state:                input.state                || input.current_state         || null,
+    country:              input.country              || input.current_country       || null,
+    postal_code:          input.postal_code          || input.current_postal_code   || null,
+    current_address:      input.current_address      || input.address               || null,
+    current_city:         input.current_city         || input.city                  || null,
+    current_state:        input.current_state        || input.state                 || null,
+    current_country:      input.current_country      || input.country               || null,
+    current_postal_code:  input.current_postal_code  || input.postal_code           || null,
+    permanent_address:    input.permanent_address    || input.current_address       || null,
+    permanent_city:       input.permanent_city       || input.current_city          || null,
+    permanent_state:      input.permanent_state      || input.current_state         || null,
+    permanent_country:    input.permanent_country    || input.current_country       || null,
+    permanent_postal_code:input.permanent_postal_code|| input.current_postal_code   || null,
+
     // Emergency / Guardian contact
-    emergency_contact: input.emergency_contact_phone || input.emergency_contact || input.guardian_phone || null,
-    emergency_contact_name: input.emergency_contact_name || input.guardian_name || null,
-    emergency_contact_relation: input.emergency_contact_relation || input.guardian_relation || null,
-    emergency_contact_phone: input.emergency_contact_phone || input.emergency_contact || input.guardian_phone || null,
-    guardian_name: input.guardian_name || input.emergency_contact_name || null,
-    guardian_phone: input.guardian_phone || input.emergency_contact_phone || null,
-    guardian_relation: input.guardian_relation || input.emergency_contact_relation || null,
-    // Current address
-    current_address: input.current_address || input.address || null,
-    current_city: input.current_city || input.city || null,
-    current_state: input.current_state || input.state || null,
-    current_country: input.current_country || input.country || null,
-    current_postal_code: input.current_postal_code || input.postal_code || null,
-    // Permanent address
-    permanent_address: input.permanent_address || input.current_address || input.address || null,
-    permanent_city: input.permanent_city || input.current_city || input.city || null,
-    permanent_state: input.permanent_state || input.current_state || input.state || null,
-    permanent_country: input.permanent_country || input.current_country || input.country || null,
-    permanent_postal_code: input.permanent_postal_code || input.current_postal_code || input.postal_code || null,
-    marital_status: input.marital_status ?? null,
-    blood_group: input.blood_group ?? null,
-    joining_date: input.joining_date,
-    employment_type: input.employment_type ?? 'Full-time',
-    department_id: input.department_id ?? null,
-    designation_id: input.designation_id ?? null,
-    manager_id: input.manager_id ?? null,
-    status: input.status ?? 'Active',
-    branch: input.branch ?? 'HQ',
+    emergency_contact:          input.emergency_contact_phone || input.emergency_contact          || null,
+    emergency_contact_name:     input.emergency_contact_name  || input.guardian_name              || null,
+    emergency_contact_relation: input.emergency_contact_relation || input.guardian_relation       || null,
+    emergency_contact_phone:    input.emergency_contact_phone  || input.guardian_phone            || null,
+    guardian_name:              input.guardian_name            || input.emergency_contact_name    || null,
+    guardian_phone:             input.guardian_phone           || input.emergency_contact_phone   || null,
+    guardian_relation:          input.guardian_relation        || input.emergency_contact_relation || null,
   }
 
-  let createdEmployee: Employee | null = null
+  // Attempt 1: Full payload with join select
+  const res1 = await supabase
+    .from('employees')
+    .insert(payload)
+    .select('*, department:departments!department_id(*), designation:designations(*)')
+    .maybeSingle()
 
-  try {
-    let { data, error } = await supabase.from('employees').insert(payload).select().single()
-    if (!error && data) {
-      createdEmployee = data as Employee
+  if (!res1.error && res1.data) return res1.data as Employee
+
+  // Attempt 2: Fallback plain select (no join)
+  const res2 = await supabase
+    .from('employees')
+    .insert(payload)
+    .select('*')
+    .maybeSingle()
+
+  if (!res2.error && res2.data) return res2.data as Employee
+
+  // Attempt 3: If failure was due to missing optional columns (e.g. allowances, basic_salary, branch),
+  // strip those optional fields and retry with the base core workforce schema
+  const corePayload: Record<string, unknown> = {
+    first_name:       input.first_name.trim(),
+    last_name:        input.last_name.trim(),
+    email:            input.email.trim().toLowerCase(),
+    phone:            input.phone.trim(),
+    gender:           input.gender || null,
+    date_of_birth:    input.date_of_birth || null,
+    marital_status:   input.marital_status || null,
+    blood_group:      input.blood_group || null,
+    address:          input.address || input.current_address || null,
+    city:             input.city || input.current_city || null,
+    state:            input.state || input.current_state || null,
+    country:          input.country || input.current_country || null,
+    postal_code:      input.postal_code || input.current_postal_code || null,
+    joining_date:     input.joining_date || new Date().toISOString().slice(0, 10),
+    employment_type:  input.employment_type || 'Full-time',
+    department_id:    input.department_id || null,
+    designation_id:   input.designation_id || null,
+    manager_id:       input.manager_id || null,
+    status:           input.status || 'Active',
+  }
+
+  const res3 = await supabase
+    .from('employees')
+    .insert(corePayload)
+    .select('*, department:departments!department_id(*), designation:designations(*)')
+    .maybeSingle()
+
+  let createdEmp: Employee | null = null
+  if (!res1.error && res1.data) createdEmp = res1.data as Employee
+  else if (!res2.error && res2.data) createdEmp = res2.data as Employee
+  else if (!res3.error && res3.data) createdEmp = res3.data as Employee
+  else if (!res4.error && res4.data) createdEmp = res4.data as Employee
+
+  if (!createdEmp) {
+    const err = res4.error || res3.error || res2.error || res1.error
+    console.error('createEmployee failed:', err)
+    throw new Error(err?.message || err?.details || 'Failed to create employee. Please ensure email and phone are unique.')
+  }
+
+  // Provision Supabase Auth & public.users credentials if password was provided
+  if (input.password && input.password.trim()) {
+    const pwd = input.password.trim()
+    try {
+      // 1. Try atomic PostgreSQL RPC provision_employee_login
+      const { error: rpcErr } = await supabase.rpc('provision_employee_login', {
+        p_employee_id: createdEmp.id,
+        p_email: createdEmp.email,
+        p_password: pwd,
+        p_role_name: 'Employee',
+      })
+
+      if (rpcErr) {
+        console.warn('provision_employee_login RPC fallback notice:', rpcErr.message)
+        // 2. Fallback: direct Supabase Auth signUp
+        const { data: signUpData } = await supabase.auth.signUp({
+          email: createdEmp.email,
+          password: pwd,
+          options: {
+            data: {
+              name: `${createdEmp.first_name} ${createdEmp.last_name}`,
+              employee_id: createdEmp.id,
+            },
+          },
+        })
+
+        const authUserId = signUpData?.user?.id
+        if (authUserId) {
+          await supabase.from('employees').update({ user_id: authUserId }).eq('id', createdEmp.id)
+          const { data: roleData } = await supabase.from('roles').select('id').ilike('name', 'Employee').maybeSingle()
+          if (roleData?.id) {
+            await supabase.from('users').upsert({
+              id: authUserId,
+              auth_id: authUserId,
+              email: createdEmp.email,
+              role_id: roleData.id,
+              employee_id: createdEmp.id,
+              status: 'active',
+            }, { onConflict: 'email' })
+          }
+        }
+      }
+    } catch (authErr) {
+      console.error('Failed to provision auth user for employee:', authErr)
     }
-  } catch (err) {
-    console.warn('Supabase createEmployee insert skipped/failed:', err)
   }
 
-  if (!createdEmployee) {
-    const dept = INITIAL_DEPARTMENTS.find((d) => d.id === input.department_id) ?? null
-    const desig = INITIAL_DESIGNATIONS.find((d) => d.id === input.designation_id) ?? null
-    createdEmployee = {
-      ...payload,
-      id: 'emp-' + Date.now(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      department: dept,
-      designation: desig,
-    } as Employee
-  }
-
-  const current = getLocalEmployees()
-  saveLocalEmployees([createdEmployee, ...current])
-  return createdEmployee
+  return createdEmp
 }
 
+// =============================================================================
+// UPDATE EMPLOYEE
+// =============================================================================
 export async function updateEmployee(id: string, patch: Partial<EmployeeInput>): Promise<Employee> {
-  try {
-    const { data, error } = await supabase.from('employees').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).select('*').single()
-    if (!error && data) {
-      const current = getLocalEmployees().map((e) => (e.id === id ? { ...e, ...data } : e))
-      saveLocalEmployees(current)
-      return data as Employee
+  const { password, ...dbPatch } = patch
+  const { data, error } = await supabase
+    .from('employees')
+    .update({ ...dbPatch, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) throw new Error(error.message || 'Failed to update employee in Supabase')
+
+  const updatedEmp = data as Employee
+
+  if (password && password.trim()) {
+    try {
+      await supabase.rpc('provision_employee_login', {
+        p_employee_id: updatedEmp.id,
+        p_email: updatedEmp.email,
+        p_password: password.trim(),
+        p_role_name: 'Employee',
+      })
+    } catch (e) {
+      console.error('Failed to update employee password:', e)
     }
-  } catch {}
+  }
 
-  const current = getLocalEmployees().map((e) => (e.id === id ? { ...e, ...patch, updated_at: new Date().toISOString() } : e))
-  saveLocalEmployees(current)
-  return current.find((e) => e.id === id)!
+  return updatedEmp
 }
 
+// =============================================================================
+// DELETE EMPLOYEE (single by UUID)
+// =============================================================================
 export async function deleteEmployee(id: string) {
-  try {
-    await supabase.from('employees').delete().eq('id', id)
-  } catch {}
-  const current = getLocalEmployees().filter((e) => e.id !== id)
-  saveLocalEmployees(current)
+  // Block the linked user account if one exists
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id, user_id, employee_code')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (emp?.user_id) {
+    await supabase.from('users').update({ status: 'Blocked' }).eq('id', emp.user_id)
+  }
+
+  const { error } = await supabase.from('employees').delete().eq('id', id)
+  if (error) console.warn('Supabase employee delete warning:', error)
 }
 
+// =============================================================================
+// DELETE EMPLOYEE BY ID OR CODE
+// =============================================================================
 export async function deleteEmployeeByIdOrCode(idOrCode: string) {
   const queryStr = idOrCode.trim()
-  const current = getLocalEmployees()
-  const found = current.find((e) => e.id === queryStr || e.employee_code === queryStr)
-  if (!found) {
-    throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
-  }
-  await deleteEmployee(found.id)
-  return found
+
+  const { data } = await supabase
+    .from('employees')
+    .select('id, user_id, first_name, last_name, employee_code, email')
+    .or(`employee_code.eq.${queryStr},id.eq.${queryStr}`)
+    .maybeSingle()
+
+  if (!data) throw new Error(`Employee with ID or Code "${queryStr}" not found.`)
+
+  await deleteEmployee(data.id)
+  return data
 }
+
+

@@ -258,11 +258,12 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
   // Provision Supabase Auth & public.users credentials if password was provided
   if (input.password && input.password.trim()) {
     const pwd = input.password.trim()
+    const cleanEmail = (createdEmp.email || input.email).toLowerCase().trim()
     try {
       // 1. Primary: Atomic PostgreSQL RPC provision_employee_login
       const { data: rpcData, error: rpcErr } = await supabase.rpc('provision_employee_login', {
         p_employee_id: createdEmp.id,
-        p_email: createdEmp.email,
+        p_email: cleanEmail,
         p_password: pwd,
         p_role_name: 'Employee',
       })

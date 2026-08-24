@@ -1,6 +1,7 @@
 /**
  * HRMS OKLUT — Background SMTP Mailer Daemon
- * Realtime listener + queue poller for candidate applications and notifications
+ * Polls audit_logs for EMAIL_PENDING records and delivers them via TLS SMTP.
+ * After successful delivery, updates the row to EMAIL_SENT to prevent re-delivery.
  */
 
 import tls from 'tls'
@@ -17,6 +18,9 @@ const SMTP_CONFIG = {
   fromName: 'OKLUT Human Resources',
 }
 
+const POLL_INTERVAL_MS = 15000
+const MAX_RETRIES = 3
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 function sendEmailTls({ to, subject, html }) {
@@ -26,97 +30,114 @@ function sendEmailTls({ to, subject, html }) {
     })
 
     let step = 0
+    let buffer = ''
     socket.setEncoding('utf8')
 
     socket.on('data', (data) => {
-      if (data.startsWith('220') && step === 0) {
-        step = 1
-        socket.write('EHLO localhost\r\n')
-      } else if (data.startsWith('250') && step === 1) {
-        step = 2
-        socket.write('AUTH LOGIN\r\n')
-      } else if (data.startsWith('334') && step === 2) {
-        step = 3
-        socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
-      } else if (data.startsWith('334') && step === 3) {
-        step = 4
-        socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
-      } else if (data.startsWith('235') && step === 4) {
-        step = 5
-        socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
-      } else if (data.startsWith('250') && step === 5) {
-        step = 6
-        socket.write(`RCPT TO:<${to}>\r\n`)
-      } else if (data.startsWith('250') && step === 6) {
-        step = 7
-        socket.write('DATA\r\n')
-      } else if (data.startsWith('354') && step === 7) {
-        step = 8
-        const message = [
-          `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
-          `To: <${to}>`,
-          `Subject: ${subject}`,
-          `MIME-Version: 1.0`,
-          `Content-Type: text/html; charset=utf-8`,
-          ``,
-          html,
-          `\r\n.\r\n`
-        ].join('\r\n')
-        socket.write(message)
-      } else if (data.startsWith('250') && step === 8) {
-        step = 9
-        socket.write('QUIT\r\n')
-      } else if (data.startsWith('221') && step === 9) {
-        socket.end()
-        resolve({ success: true })
-      } else if (data.startsWith('5') || data.startsWith('4')) {
-        socket.end()
-        reject(new Error('SMTP Error: ' + data.trim()))
+      buffer += data
+      const lines = buffer.split('\r\n')
+      buffer = lines.pop()
+      for (const line of lines) {
+        if (!line) continue
+        if (line.startsWith('220') && step === 0) {
+          step = 1; socket.write('EHLO localhost\r\n')
+        } else if (line.startsWith('250') && step === 1) {
+          step = 2; socket.write('AUTH LOGIN\r\n')
+        } else if (line.startsWith('334') && step === 2) {
+          step = 3; socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
+        } else if (line.startsWith('334') && step === 3) {
+          step = 4; socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
+        } else if (line.startsWith('235') && step === 4) {
+          step = 5; socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
+        } else if (line.startsWith('250') && step === 5) {
+          step = 6; socket.write(`RCPT TO:<${to}>\r\n`)
+        } else if (line.startsWith('250') && step === 6) {
+          step = 7; socket.write('DATA\r\n')
+        } else if (line.startsWith('354') && step === 7) {
+          step = 8
+          const message = [
+            `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
+            `To: <${to}>`,
+            `Subject: ${subject}`,
+            `MIME-Version: 1.0`,
+            `Content-Type: text/html; charset=utf-8`,
+            ``,
+            html,
+            `\r\n.\r\n`
+          ].join('\r\n')
+          socket.write(message)
+        } else if (line.startsWith('250') && step === 8) {
+          step = 9; socket.write('QUIT\r\n')
+        } else if (line.startsWith('221') && step === 9) {
+          socket.end(); resolve({ success: true })
+        } else if (line.startsWith('5') || line.startsWith('4')) {
+          socket.end(); reject(new Error('SMTP Error: ' + line.trim()))
+        }
       }
     })
 
-    socket.on('error', (err) => {
-      socket.destroy()
-      reject(err)
-    })
+    socket.on('error', (err) => { socket.destroy(); reject(err) })
+    socket.setTimeout(30000, () => { socket.destroy(); reject(new Error('SMTP timeout')) })
   })
 }
 
 async function processPendingEmails() {
-  try {
-    const { data: logs, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('action', 'EMAIL_PENDING')
-      .limit(10)
+  const { data: pending, error } = await supabase
+    .from('audit_logs')
+    .select('id, details')
+    .eq('action', 'EMAIL_PENDING')
+    .order('created_at', { ascending: true })
+    .limit(10)
 
-    if (error || !logs || logs.length === 0) return
+  if (error) { console.error('[MAILER] Fetch error:', error.message); return }
+  if (!pending || pending.length === 0) return
 
-    for (const log of logs) {
-      const { to, subject, html, refId } = log.details || {}
-      if (to && html) {
-        console.log(`[MAILER] Dispatching email to ${to} (Ref: ${refId})...`)
-        try {
-          await sendEmailTls({ to, subject, html })
-          console.log(`[MAILER] Successfully delivered email to ${to}`)
-          await supabase
-            .from('audit_logs')
-            .update({ action: 'EMAIL_DELIVERED', updated_at: new Date().toISOString() })
-            .eq('id', log.id)
-        } catch (err) {
-          console.error(`[MAILER] Delivery failed for ${to}:`, err.message)
-          await supabase
-            .from('audit_logs')
-            .update({ action: 'EMAIL_FAILED', details: { ...log.details, error: err.message } })
-            .eq('id', log.id)
-        }
-      }
+  for (const log of pending) {
+    const details = log.details || {}
+    const { to, subject, html, refId } = details
+
+    if (!to || !subject || !html) {
+      console.warn(`[MAILER] Skipping log ${log.id} — missing fields`)
+      await supabase.from('audit_logs').update({ action: 'EMAIL_FAILED', details: { ...details, last_error: 'Missing required fields' } }).eq('id', log.id)
+      continue
     }
-  } catch (err) {
-    console.error('[MAILER] Polling error:', err)
+
+    if ((details.retry_count || 0) >= MAX_RETRIES) {
+      await supabase.from('audit_logs').update({ action: 'EMAIL_FAILED' }).eq('id', log.id)
+      continue
+    }
+
+    // *** CRITICAL: Mark as IN_PROGRESS before sending to prevent concurrent re-delivery ***
+    await supabase.from('audit_logs').update({ action: 'EMAIL_IN_PROGRESS' }).eq('id', log.id)
+
+    console.log(`[MAILER] Dispatching email to: ${to} (Ref: ${refId || 'N/A'})...`)
+    try {
+      await sendEmailTls({ to, subject, html })
+      await supabase.from('audit_logs').update({
+        action: 'EMAIL_SENT',
+        details: { ...details, delivered_at: new Date().toISOString() },
+      }).eq('id', log.id)
+      console.log(`✅ Email delivered to ${to}`)
+    } catch (err) {
+      const retries = (details.retry_count || 0) + 1
+      console.error(`❌ Failed to deliver to ${to}:`, err.message)
+      await supabase.from('audit_logs').update({
+        action: retries >= MAX_RETRIES ? 'EMAIL_FAILED' : 'EMAIL_PENDING',
+        details: { ...details, retry_count: retries, last_error: err.message, last_attempt_at: new Date().toISOString() },
+      }).eq('id', log.id)
+    }
   }
 }
 
-console.log('🚀 OKLUT SMTP Mailer Daemon started. Listening for application emails...')
-setInterval(processPendingEmails, 3000)
-processPendingEmails()
+async function main() {
+  console.log('[MAILER] OKLUT SMTP Daemon started')
+  console.log(`[MAILER] SMTP: ${SMTP_CONFIG.user}@${SMTP_CONFIG.host}:${SMTP_CONFIG.port}`)
+  console.log(`[MAILER] Poll interval: ${POLL_INTERVAL_MS / 1000}s | Max retries: ${MAX_RETRIES}`)
+  await processPendingEmails()
+  setInterval(processPendingEmails, POLL_INTERVAL_MS)
+}
+
+main().catch((err) => { console.error('[MAILER] Fatal error:', err); process.exit(1) })
+
+
+

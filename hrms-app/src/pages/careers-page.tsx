@@ -375,14 +375,14 @@ export default function CareersPage() {
 
       {/* Application Dialog */}
       <Dialog open={!!selectedJob} onOpenChange={(o) => !o && setSelectedJob(null)}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl">
-          <div className="bg-indigo-600 px-8 py-10 text-white relative overflow-hidden">
+        <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl max-h-[92vh] flex flex-col">
+          <div className="bg-indigo-600 px-8 py-8 text-white relative overflow-hidden flex-shrink-0">
             <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-            <DialogTitle className="text-3xl font-bold mb-2">Apply for {selectedJob?.title}</DialogTitle>
-            <p className="text-indigo-100">Take the next step in your career with us.</p>
+            <DialogTitle className="text-2xl font-bold mb-1">Apply for {selectedJob?.title}</DialogTitle>
+            <p className="text-indigo-100 text-sm">Take the next step in your career with us.</p>
           </div>
           
-          <form onSubmit={handleApply} className="p-8 space-y-6 bg-white">
+          <form onSubmit={handleApply} className="p-8 space-y-6 bg-white overflow-y-auto flex-1">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label className="text-slate-700 font-medium">Full Name <span className="text-rose-500">*</span></Label>

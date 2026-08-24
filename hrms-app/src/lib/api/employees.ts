@@ -268,9 +268,10 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
       })
 
       if (!rpcErr && rpcData?.success) {
-        console.log('Employee portal login successfully provisioned for:', createdEmp.email)
+        console.log('Employee portal login successfully provisioned via RPC for:', createdEmp.email)
       } else {
         if (rpcErr) console.warn('provision_employee_login RPC notice:', rpcErr.message)
+
         // 2. Secondary Fallback: Supabase Auth signUp
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
           email: createdEmp.email,
@@ -288,19 +289,29 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
         }
 
         const authUserId = signUpData?.user?.id
+
+        // 3. CRITICAL: Always upsert public.users so login lookup by email works
+        // This runs whether or not auth.signUp succeeded.
+        const { data: roleData } = await supabase.from('roles').select('id').ilike('name', 'Employee').maybeSingle()
+        const empName = `${createdEmp.first_name} ${createdEmp.last_name}`.trim()
+        const upsertPayload: Record<string, unknown> = {
+          email: createdEmp.email.toLowerCase(),
+          role_id: roleData?.id || null,
+          employee_id: createdEmp.id,
+          status: 'active',
+          name: empName,
+        }
         if (authUserId) {
+          upsertPayload.id = authUserId
+          upsertPayload.auth_id = authUserId
+          // Link the auth user back to the employee row
           await supabase.from('employees').update({ user_id: authUserId }).eq('id', createdEmp.id)
-          const { data: roleData } = await supabase.from('roles').select('id').ilike('name', 'Employee').maybeSingle()
-          if (roleData?.id) {
-            await supabase.from('users').upsert({
-              id: authUserId,
-              auth_id: authUserId,
-              email: createdEmp.email,
-              role_id: roleData.id,
-              employee_id: createdEmp.id,
-              status: 'active',
-            }, { onConflict: 'email' })
-          }
+        }
+        const { error: upsertErr } = await supabase.from('users').upsert(upsertPayload, { onConflict: 'email' })
+        if (upsertErr) {
+          console.warn('public.users upsert notice:', upsertErr.message)
+        } else {
+          console.log('public.users entry ensured for:', createdEmp.email)
         }
       }
     } catch (authErr) {

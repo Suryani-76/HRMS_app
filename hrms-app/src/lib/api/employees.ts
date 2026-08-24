@@ -196,6 +196,8 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
     guardian_relation:          input.guardian_relation        || input.emergency_contact_relation || null,
   }
 
+  let createdEmp: Employee | null = null
+
   // Attempt 1: Full payload with join select
   const res1 = await supabase
     .from('employees')
@@ -203,56 +205,56 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
     .select('*, department:departments!department_id(*), designation:designations(*)')
     .maybeSingle()
 
-  if (!res1.error && res1.data) return res1.data as Employee
+  if (!res1.error && res1.data) {
+    createdEmp = res1.data as Employee
+  } else {
+    // Attempt 2: Fallback plain select (no join)
+    const res2 = await supabase
+      .from('employees')
+      .insert(payload)
+      .select('*')
+      .maybeSingle()
 
-  // Attempt 2: Fallback plain select (no join)
-  const res2 = await supabase
-    .from('employees')
-    .insert(payload)
-    .select('*')
-    .maybeSingle()
+    if (!res2.error && res2.data) {
+      createdEmp = res2.data as Employee
+    } else {
+      // Attempt 3: If failure was due to missing optional columns, retry with core payload
+      const corePayload: Record<string, unknown> = {
+        first_name:       input.first_name.trim(),
+        last_name:        input.last_name.trim(),
+        email:            input.email.trim().toLowerCase(),
+        phone:            input.phone.trim(),
+        gender:           input.gender || null,
+        date_of_birth:    input.date_of_birth || null,
+        marital_status:   input.marital_status || null,
+        blood_group:      input.blood_group || null,
+        address:          input.address || input.current_address || null,
+        city:             input.city || input.current_city || null,
+        state:            input.state || input.current_state || null,
+        country:          input.country || input.current_country || null,
+        postal_code:      input.postal_code || input.current_postal_code || null,
+        joining_date:     input.joining_date || new Date().toISOString().slice(0, 10),
+        employment_type:  input.employment_type || 'Full-time',
+        department_id:    input.department_id || null,
+        designation_id:   input.designation_id || null,
+        manager_id:       input.manager_id || null,
+        status:           input.status || 'Active',
+      }
 
-  if (!res2.error && res2.data) return res2.data as Employee
+      const res3 = await supabase
+        .from('employees')
+        .insert(corePayload)
+        .select('*, department:departments!department_id(*), designation:designations(*)')
+        .maybeSingle()
 
-  // Attempt 3: If failure was due to missing optional columns (e.g. allowances, basic_salary, branch),
-  // strip those optional fields and retry with the base core workforce schema
-  const corePayload: Record<string, unknown> = {
-    first_name:       input.first_name.trim(),
-    last_name:        input.last_name.trim(),
-    email:            input.email.trim().toLowerCase(),
-    phone:            input.phone.trim(),
-    gender:           input.gender || null,
-    date_of_birth:    input.date_of_birth || null,
-    marital_status:   input.marital_status || null,
-    blood_group:      input.blood_group || null,
-    address:          input.address || input.current_address || null,
-    city:             input.city || input.current_city || null,
-    state:            input.state || input.current_state || null,
-    country:          input.country || input.current_country || null,
-    postal_code:      input.postal_code || input.current_postal_code || null,
-    joining_date:     input.joining_date || new Date().toISOString().slice(0, 10),
-    employment_type:  input.employment_type || 'Full-time',
-    department_id:    input.department_id || null,
-    designation_id:   input.designation_id || null,
-    manager_id:       input.manager_id || null,
-    status:           input.status || 'Active',
-  }
-
-  const res3 = await supabase
-    .from('employees')
-    .insert(corePayload)
-    .select('*, department:departments!department_id(*), designation:designations(*)')
-    .maybeSingle()
-
-  let createdEmp: Employee | null = null
-  if (!res1.error && res1.data) createdEmp = res1.data as Employee
-  else if (!res2.error && res2.data) createdEmp = res2.data as Employee
-  else if (!res3.error && res3.data) createdEmp = res3.data as Employee
-
-  if (!createdEmp) {
-    const err = res3.error || res2.error || res1.error
-    console.error('createEmployee failed:', err)
-    throw new Error(err?.message || err?.details || 'Failed to create employee. Please ensure email and phone are unique.')
+      if (!res3.error && res3.data) {
+        createdEmp = res3.data as Employee
+      } else {
+        const err = res3.error || res2.error || res1.error
+        console.error('createEmployee failed:', err)
+        throw new Error(err?.message || err?.details || 'Failed to create employee. Please ensure email and phone are unique.')
+      }
+    }
   }
 
   // Provision Supabase Auth & public.users credentials if password was provided

@@ -488,15 +488,11 @@ export const ROLES = {
   EMPLOYEE: 'Employee',
 } as const
 
-export const isAdminRole = (role?: string | null) => {
-  if (!role) return false
-  const r = role.trim().toLowerCase()
-  return r === 'admin' || r === 'ceo' || r === 'superadmin' || r === 'super_admin'
+export const isAdminRole = (role?: string | null): boolean => {
+  return role === ROLES.ADMIN
 }
 
-export const isManagerRole = (role?: string | null) => {
-  if (!role) return false
-  const r = role.trim().toLowerCase()
-  return r === 'admin' || r === 'manager' || r === 'hr' || r === 'ceo' || r === 'superadmin'
+export const isManagerRole = (role?: string | null): boolean => {
+  return role === ROLES.ADMIN || role === ROLES.HR || role === ROLES.MANAGER
 }
 

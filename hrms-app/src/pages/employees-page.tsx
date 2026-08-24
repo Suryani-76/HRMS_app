@@ -185,7 +185,7 @@ export default function EmployeesPage() {
     <div className="space-y-5">
       <PageHeader
         title="Employees"
-        description={`${filtered.length} of ${employees.length} employee${employees.length === 1 ? '' : 's'}`}
+        description={filtered.length < employees.length ? `${filtered.length} of ${employees.length} employees in the directory` : `${employees.length} employees in the directory`}
         actions={
           isManager ? (
             <div className="flex items-center gap-2">

@@ -1103,6 +1103,8 @@ function OffersTab() {
   const [jobId, setJobId] = useState('')
   const [salary, setSalary] = useState('')
   const [joiningDate, setJoiningDate] = useState('')
+  const [relocation, setRelocation] = useState('Yes')
+  const [bond, setBond] = useState('No Bond')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1113,9 +1115,11 @@ function OffersTab() {
       salary_offered: salary ? Number(salary) : undefined,
       joining_date: joiningDate || undefined,
       status: 'issued',
+      relocation_agreed: relocation === 'Yes',
+      bond_agreed: bond !== 'No' && bond !== 'No Bond',
     })
     setDialog(false)
-    setCandidateId(''); setJobId(''); setSalary(''); setJoiningDate('')
+    setCandidateId(''); setJobId(''); setSalary(''); setJoiningDate(''); setRelocation('Yes'); setBond('No Bond')
   }
 
   return (
@@ -1151,7 +1155,9 @@ function OffersTab() {
                     <td className="px-4 py-2.5">{o.job_opening?.title ?? '—'}</td>
                     <td className="px-4 py-2.5">
                       {o.salary_offered ? formatCurrency(o.salary_offered, true) : '—'}
-                      <div className="text-[10px] text-muted-foreground mt-0.5">Relocation: Yes · Bond: No</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                        Relocation: {o.relocation_agreed === false ? 'No' : 'Yes'} · Bond: {o.bond_agreed ? 'Bond Required' : 'No Bond'}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5">{o.joining_date ? formatDate(o.joining_date) : '—'}</td>
                     <td className="px-4 py-2.5">
@@ -1231,7 +1237,7 @@ function OffersTab() {
               </div>
               <div className="space-y-2">
                 <Label>Relocation Support</Label>
-                <Select defaultValue="Yes">
+                <Select value={relocation} onValueChange={setRelocation}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Yes">Yes</SelectItem>
@@ -1241,12 +1247,12 @@ function OffersTab() {
               </div>
               <div className="space-y-2">
                 <Label>Employment Bond</Label>
-                <Select defaultValue="No">
+                <Select value={bond} onValueChange={setBond}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="No Bond">No Bond</SelectItem>
                     <SelectItem value="1 Year">1 Year Bond</SelectItem>
                     <SelectItem value="2 Year">2 Year Bond</SelectItem>
-                    <SelectItem value="No">No Bond</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

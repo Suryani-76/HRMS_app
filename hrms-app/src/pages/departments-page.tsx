@@ -180,7 +180,10 @@ export default function DepartmentsPage() {
                     <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
                       <span className="font-medium">{countFor(d.id)} employees</span>
                       <span className="text-muted-foreground">
-                        Head: {d.head?.first_name ? `${d.head.first_name} ${d.head.last_name}` : '—'}
+                        Head: {(() => {
+                          const h = d.head || employees.find((e) => e.id === d.head_id)
+                          return h && (h.first_name || h.last_name) ? `${h.first_name ?? ''} ${h.last_name ?? ''}`.trim() : '—'
+                        })()}
                       </span>
                     </div>
                   </CardContent>

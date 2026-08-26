@@ -397,7 +397,7 @@ export default function CareersPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label className="text-slate-700 font-medium">Phone Number</Label>
-                <Input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" placeholder="+1 (555) 000-0000" />
+                <Input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" placeholder="+91 98765 43210" />
               </div>
               <div className="space-y-3">
                 <Label className="text-slate-700 font-medium">

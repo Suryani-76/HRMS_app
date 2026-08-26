@@ -5,7 +5,7 @@ export async function fetchDepartments(): Promise<Department[]> {
   try {
     let { data, error } = await supabase
       .from('departments')
-      .select('*, head:employees!head_id(first_name, last_name)')
+      .select('*, head:employees!departments_head_id_fkey(first_name, last_name)')
       .order('name')
 
     if (error) {

@@ -351,14 +351,30 @@ export async function createOffer(input: {
   salary_offered?: number
   joining_date?: string
   status?: string
+  relocation_agreed?: boolean
+  bond_agreed?: boolean
 }) {
   const { data: session } = await supabase.auth.getSession()
-  const { data, error } = await supabase
-    .from('offers')
-    .insert({ ...input, issued_by: session.session?.user.id ?? null })
-    .select()
-    .single()
-  if (error) throw error
+  const payload: Record<string, unknown> = {
+    candidate_id: input.candidate_id,
+    job_opening_id: input.job_opening_id || null,
+    salary_offered: input.salary_offered ?? null,
+    joining_date: input.joining_date || null,
+    status: input.status || 'issued',
+    issued_by: session.session?.user.id ?? null,
+  }
+  if (typeof input.relocation_agreed === 'boolean') payload.relocation_agreed = input.relocation_agreed
+  if (typeof input.bond_agreed === 'boolean') payload.bond_agreed = input.bond_agreed
+
+  let insertRes = await supabase.from('offers').insert(payload).select().single()
+  if (insertRes.error) {
+    // Fallback without extra columns if not in schema
+    delete payload.relocation_agreed
+    delete payload.bond_agreed
+    insertRes = await supabase.from('offers').insert(payload).select().single()
+  }
+  if (insertRes.error) throw insertRes.error
+  const data = insertRes.data
 
   try {
     await supabase.from('candidates').update({

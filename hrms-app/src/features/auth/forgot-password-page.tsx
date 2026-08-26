@@ -18,6 +18,34 @@ export function ForgotPasswordPage() {
     setError(null)
     setSubmitting(true)
     const cleanEmail = email.trim().toLowerCase()
+
+    // Enforce role restriction: Password reset is exclusively permitted for HR and CEO/Admin accounts
+    const isCeoOrAdmin = cleanEmail === 'ceo@oklut.com' || cleanEmail.startsWith('admin@')
+    const isHrEmail = cleanEmail === 'hr@oklut.com' || cleanEmail.startsWith('hr@') || cleanEmail.includes('hr')
+
+    let isAuthorized = isCeoOrAdmin || isHrEmail
+
+    if (!isAuthorized) {
+      try {
+        const { data: user } = await supabase
+          .from('users')
+          .select('id, email, role:roles(name)')
+          .eq('email', cleanEmail)
+          .maybeSingle()
+
+        const roleName = (Array.isArray(user?.role) ? (user.role[0] as any)?.name : (user?.role as any)?.name) || ''
+        if (roleName === 'Admin' || roleName === 'HR') {
+          isAuthorized = true
+        }
+      } catch {}
+    }
+
+    if (!isAuthorized) {
+      setSubmitting(false)
+      setError('Password reset is restricted to HR and CEO/Admin accounts. For employee password resets, please contact HR or your system administrator.')
+      return
+    }
+
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '')
     const redirectUrl = `${window.location.origin}${baseUrl}/reset-password`
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {

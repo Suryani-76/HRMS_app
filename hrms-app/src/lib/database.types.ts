@@ -348,6 +348,8 @@ export interface Offer {
   candidate_response?: string | null
   relocation_agreed?: boolean | null
   bond_agreed?: boolean | null
+  bond_terms?: string | null
+  relocation_support?: string | null
   issued_by?: string | null
   created_at: string
   candidate?: Candidate | null

@@ -1117,6 +1117,8 @@ function OffersTab() {
       status: 'issued',
       relocation_agreed: relocation === 'Yes',
       bond_agreed: bond !== 'No' && bond !== 'No Bond',
+      bond: bond,
+      relocation: relocation,
     })
     setDialog(false)
     setCandidateId(''); setJobId(''); setSalary(''); setJoiningDate(''); setRelocation('Yes'); setBond('No Bond')
@@ -1156,7 +1158,7 @@ function OffersTab() {
                     <td className="px-4 py-2.5">
                       {o.salary_offered ? formatCurrency(o.salary_offered, true) : '—'}
                       <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
-                        Relocation: {o.relocation_agreed === false ? 'No' : 'Yes'} · Bond: {o.bond_agreed ? 'Bond Required' : 'No Bond'}
+                        Relocation: {o.relocation_support || (o.relocation_agreed === false ? 'No' : 'Yes')} · Bond: {o.bond_terms || (o.bond_agreed ? 'Bond Required' : 'No Bond')}
                       </div>
                     </td>
                     <td className="px-4 py-2.5">{o.joining_date ? formatDate(o.joining_date) : '—'}</td>

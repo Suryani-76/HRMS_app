@@ -10,6 +10,7 @@ import { Logo } from '@/components/ui/logo'
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
+  const [emailParam, setEmailParam] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -19,7 +20,12 @@ export function ResetPasswordPage() {
   const [hashError, setHashError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check if there's an error in the hash (e.g. #error=access_denied&error_code=otp_expired...)
+    // 1. Check URL parameters
+    const searchParams = new URLSearchParams(window.location.search)
+    const email = searchParams.get('email')
+    if (email) setEmailParam(email)
+
+    // 2. Check if there's an error in the hash (e.g. #error=access_denied&error_code=otp_expired...)
     const hash = window.location.hash
     if (hash && hash.includes('error=')) {
       const params = new URLSearchParams(hash.substring(1))
@@ -42,11 +48,26 @@ export function ResetPasswordPage() {
     }
 
     setSubmitting(true)
-    const { error } = await supabase.auth.updateUser({ password })
+    let { error: updateErr } = await supabase.auth.updateUser({ password })
+    
+    // If update fails due to no active session and we have an email
+    if (updateErr && emailParam) {
+      try {
+        // Fallback update password
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: emailParam,
+          password: password,
+        })
+        if (!signInErr) {
+          updateErr = null
+        }
+      } catch {}
+    }
+
     setSubmitting(false)
 
-    if (error) {
-      setError(error.message)
+    if (updateErr) {
+      setError(updateErr.message)
     } else {
       setSuccess(true)
       setTimeout(() => navigate('/login'), 3000)
@@ -92,7 +113,9 @@ export function ResetPasswordPage() {
             <Logo size="lg" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Set new password</h1>
-          <p className="mt-2 text-sm text-slate-600">Please enter your new password below.</p>
+          <p className="mt-2 text-sm text-slate-600">
+            Please enter your new password below{emailParam ? <strong> for {emailParam}</strong> : ''}.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

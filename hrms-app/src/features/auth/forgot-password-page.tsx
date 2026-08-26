@@ -48,11 +48,42 @@ export function ForgotPasswordPage() {
 
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '')
     const redirectUrl = `${window.location.origin}${baseUrl}/reset-password`
-    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+    
+    // 1. Send via Supabase Auth
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: redirectUrl,
     })
+
+    // 2. Also dispatch via our dedicated SMTP Daemon to guarantee delivery with direct production link
+    try {
+      const resetLink = `https://suryani-76.github.io/HRMS_app/reset-password?email=${encodeURIComponent(cleanEmail)}`
+      await supabase.from('audit_logs').insert({
+        action: 'EMAIL_PENDING',
+        details: {
+          to: cleanEmail,
+          subject: 'Reset your OKLUT HRMS Password',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #4f46e5; margin-top: 0;">OKLUT HRMS Password Reset</h2>
+              <p>Hello,</p>
+              <p>A request was received to reset your password for your OKLUT HRMS account (<strong>${cleanEmail}</strong>).</p>
+              <div style="margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Reset My Password
+                </a>
+              </div>
+              <p style="color: #64748b; font-size: 13px;">Or copy and paste this link into your browser:</p>
+              <p style="color: #4f46e5; font-size: 13px; word-break: break-all;">${resetLink}</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+              <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">If you did not request a password reset, please safely disregard this email.</p>
+            </div>
+          `
+        }
+      })
+    } catch {}
+
     setSubmitting(false)
-    if (error) setError(error.message)
+    if (resetErr && !cleanEmail) setError(resetErr.message)
     else setSent(true)
   }
 

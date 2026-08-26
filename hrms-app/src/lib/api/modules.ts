@@ -334,10 +334,35 @@ export async function fetchOffers(): Promise<Offer[]> {
   try {
     const { data, error } = await supabase
       .from('offers')
-      .select('*, candidate:candidates(name, email), job_opening:job_openings(title)')
+      .select('*, candidate:candidates(name, email, notes), job_opening:job_openings(title)')
       .order('created_at', { ascending: false })
     if (!error && data !== null) {
-      return data as Offer[]
+      return (data as any[]).map((o) => {
+        let bondVal = 'No Bond'
+        let relocVal = 'Yes'
+        if (o.offer_letter_url) {
+          try {
+            const parsed = JSON.parse(o.offer_letter_url)
+            if (parsed.bond) bondVal = parsed.bond
+            if (parsed.relocation) relocVal = parsed.relocation
+          } catch {
+            if (o.offer_letter_url.includes('Bond:')) {
+              const match = o.offer_letter_url.match(/Bond:\s*([^|,\n]+)/)
+              if (match) bondVal = match[1].trim()
+            }
+          }
+        } else if (o.candidate?.notes && o.candidate.notes.includes('Bond:')) {
+          const match = o.candidate.notes.match(/Bond:\s*([^|,\n]+)/)
+          if (match) bondVal = match[1].trim()
+        }
+        return {
+          ...o,
+          bond_terms: bondVal,
+          bond_agreed: bondVal !== 'No' && bondVal !== 'No Bond',
+          relocation_support: relocVal,
+          relocation_agreed: relocVal !== 'No',
+        } as Offer
+      })
     }
   } catch (err) {
     console.error('fetchOffers error:', err)
@@ -353,8 +378,17 @@ export async function createOffer(input: {
   status?: string
   relocation_agreed?: boolean
   bond_agreed?: boolean
+  bond?: string
+  relocation?: string
 }) {
   const { data: session } = await supabase.auth.getSession()
+  const bondText = input.bond || (input.bond_agreed ? 'Bond Required' : 'No Bond')
+  const relocText = input.relocation || (input.relocation_agreed === false ? 'No' : 'Yes')
+  const letterMeta = JSON.stringify({
+    bond: bondText,
+    relocation: relocText,
+  })
+
   const payload: Record<string, unknown> = {
     candidate_id: input.candidate_id,
     job_opening_id: input.job_opening_id || null,
@@ -362,28 +396,32 @@ export async function createOffer(input: {
     joining_date: input.joining_date || null,
     status: input.status || 'issued',
     issued_by: session.session?.user.id ?? null,
+    offer_letter_url: letterMeta,
   }
-  if (typeof input.relocation_agreed === 'boolean') payload.relocation_agreed = input.relocation_agreed
-  if (typeof input.bond_agreed === 'boolean') payload.bond_agreed = input.bond_agreed
 
-  let insertRes = await supabase.from('offers').insert(payload).select().single()
-  if (insertRes.error) {
-    // Fallback without extra columns if not in schema
-    delete payload.relocation_agreed
-    delete payload.bond_agreed
-    insertRes = await supabase.from('offers').insert(payload).select().single()
-  }
-  if (insertRes.error) throw insertRes.error
-  const data = insertRes.data
+  const { data, error } = await supabase
+    .from('offers')
+    .insert(payload)
+    .select()
+    .single()
+
+  if (error) throw error
 
   try {
     await supabase.from('candidates').update({
       status: 'offered',
+      notes: `[Offer Terms] Bond: ${bondText} | Relocation: ${relocText}`,
       updated_at: new Date().toISOString(),
     }).eq('id', input.candidate_id)
   } catch {}
 
-  return data as Offer
+  return {
+    ...data,
+    bond_terms: bondText,
+    bond_agreed: bondText !== 'No' && bondText !== 'No Bond',
+    relocation_support: relocText,
+    relocation_agreed: relocText !== 'No',
+  } as Offer
 }
 
 export async function updateOfferStatus(id: string, status: string) {

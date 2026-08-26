@@ -27,9 +27,10 @@ const AuthContext = createContext<AuthState>({
 
 async function fetchProfile(userId: string): Promise<{ user: UserProfile | null; employee: Employee | null }> {
   // 1. Look up user by primary key id or auth_id
+  // 1. Look up user by primary key id or auth_id
   let { data: user } = await supabase
     .from('users')
-    .select('*, role:roles(*), employee:employees(*, department:departments(*), designation:designations(*))')
+    .select('*, role:roles(*), employee:employees(*, department:departments!employees_department_id_fkey(*), designation:designations(*))')
     .or(`id.eq.${userId},auth_id.eq.${userId}`)
     .maybeSingle()
 
@@ -40,7 +41,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     if (email) {
       const res = await supabase
         .from('users')
-        .select('*, role:roles(*), employee:employees(*, department:departments(*), designation:designations(*))')
+        .select('*, role:roles(*), employee:employees(*, department:departments!employees_department_id_fkey(*), designation:designations(*))')
         .eq('email', email.toLowerCase())
         .maybeSingle()
       user = res.data
@@ -51,7 +52,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     // If user has an employee record with this user_id or auth session id
     const { data: empDirect } = await supabase
       .from('employees')
-      .select('*, department:departments(*), designation:designations(*)')
+      .select('*, department:departments!employees_department_id_fkey(*), designation:designations(*)')
       .or(`user_id.eq.${userId},id.eq.${userId}`)
       .maybeSingle()
 
@@ -91,7 +92,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
   if (!employee) {
     const { data: empFallback } = await supabase
       .from('employees')
-      .select('*, department:departments(*), designation:designations(*)')
+      .select('*, department:departments!employees_department_id_fkey(*), designation:designations(*)')
       .or(`user_id.eq.${userId},id.eq.${user.employee_id || userId}`)
       .maybeSingle()
 
@@ -207,6 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await supabase.auth.signOut()
           return { error: 'Your account has been terminated/blocked by HR. Access denied.' }
         }
+        setState(profile.user)
+        setEmployee(profile.employee)
+        setLoading(false)
       }
 
       await refresh()

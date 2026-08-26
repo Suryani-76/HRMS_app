@@ -260,18 +260,49 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
   // Provision Supabase Auth & public.users credentials if password was provided
   if (input.password && input.password.trim()) {
     const pwd = input.password.trim()
+    // Dynamically determine system role based on designation, department, or email
+    let targetRole = 'Employee'
     const cleanEmail = (createdEmp.email || input.email).toLowerCase().trim()
+    if (cleanEmail === 'ceo@oklut.com' || cleanEmail.startsWith('admin@')) {
+      targetRole = 'Admin'
+    } else if (cleanEmail === 'hr@oklut.com' || cleanEmail.startsWith('hr@') || cleanEmail.includes('hr')) {
+      targetRole = 'HR'
+    } else if (createdEmp.designation_id || input.designation_id || createdEmp.department_id || input.department_id) {
+      try {
+        const desigId = createdEmp.designation_id || input.designation_id
+        const deptId = createdEmp.department_id || input.department_id
+        if (desigId) {
+          const { data: dData } = await supabase.from('designations').select('name').eq('id', desigId).maybeSingle()
+          const dName = (dData?.name || '').toLowerCase()
+          if (dName.includes('hr') || dName.includes('human resource') || dName.includes('recruiter') || dName.includes('talent')) {
+            targetRole = 'HR'
+          } else if (dName.includes('manager') || dName.includes('director') || dName.includes('lead') || dName.includes('head')) {
+            targetRole = 'Manager'
+          }
+        }
+        if (targetRole === 'Employee' && deptId) {
+          const { data: deptData } = await supabase.from('departments').select('name').eq('id', deptId).maybeSingle()
+          const deptName = (deptData?.name || '').toLowerCase()
+          if (deptName.includes('human resource') || deptName.includes('hr')) {
+            targetRole = 'HR'
+          }
+        }
+      } catch (roleErr) {
+        console.warn('Role inference notice:', roleErr)
+      }
+    }
+
     try {
       // 1. Primary: Atomic PostgreSQL RPC provision_employee_login
       const { data: rpcData, error: rpcErr } = await supabase.rpc('provision_employee_login', {
         p_employee_id: createdEmp.id,
         p_email: cleanEmail,
         p_password: pwd,
-        p_role_name: 'Employee',
+        p_role_name: targetRole,
       })
 
       if (!rpcErr && rpcData?.success) {
-        console.log('Employee portal login successfully provisioned via RPC for:', createdEmp.email)
+        console.log(`Employee portal login (${targetRole}) successfully provisioned via RPC for:`, createdEmp.email)
       } else {
         if (rpcErr) console.warn('provision_employee_login RPC notice:', rpcErr.message)
 
@@ -283,6 +314,7 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
             data: {
               name: `${createdEmp.first_name} ${createdEmp.last_name}`,
               employee_id: createdEmp.id,
+              role: targetRole,
             },
           },
         })
@@ -295,11 +327,12 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
 
         // 3. CRITICAL: Always upsert public.users so login lookup by email works
         // This runs whether or not auth.signUp succeeded.
-        const { data: roleData } = await supabase.from('roles').select('id').ilike('name', 'Employee').maybeSingle()
+        const { data: roleData } = await supabase.from('roles').select('id').ilike('name', targetRole).maybeSingle()
+        const fallbackRoleData = roleData || (await supabase.from('roles').select('id').ilike('name', 'Employee').maybeSingle()).data
         const empName = `${createdEmp.first_name} ${createdEmp.last_name}`.trim()
         const upsertPayload: Record<string, unknown> = {
-          email: createdEmp.email.toLowerCase(),
-          role_id: roleData?.id || null,
+          email: cleanEmail,
+          role_id: fallbackRoleData?.id || null,
           employee_id: createdEmp.id,
           status: 'active',
           name: empName,
@@ -314,7 +347,7 @@ export async function createEmployee(input: EmployeeInput): Promise<Employee> {
         if (upsertErr) {
           console.warn('public.users upsert notice:', upsertErr.message)
         } else {
-          console.log('public.users entry ensured for:', createdEmp.email)
+          console.log(`public.users entry ensured (${targetRole}) for:`, createdEmp.email)
         }
       }
     } catch (authErr) {

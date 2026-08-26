@@ -14,6 +14,7 @@ import {
   useCreateMeetingHallBooking,
   useUpdateMeetingHallBookingStatus,
   useDeleteMeetingHallBooking,
+  useEmployees,
 } from '@/hooks/use-queries'
 import {
   Dialog,
@@ -28,6 +29,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 
 export default function MeetingHallPage() {
   const { user, employee, isAdmin, isManager } = useAuth()
+  const { data: allEmployees = [] } = useEmployees()
   const { data: bookings = [], isLoading } = useMeetingHallBookings()
   const createBooking = useCreateMeetingHallBooking()
   const updateStatus = useUpdateMeetingHallBookingStatus()
@@ -74,7 +76,7 @@ export default function MeetingHallPage() {
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const currentEmployeeId = employee?.id || user?.employee_id || '00000000-0000-0000-0000-000000000010'
+    const currentEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
 
     const start = new Date(`${date}T${startTime}`)
     const end = new Date(`${date}T${endTime}`)

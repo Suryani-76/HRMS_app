@@ -144,11 +144,15 @@ function ManagerAttendance() {
 }
 
 function EmployeeAttendance() {
-  const { employee } = useAuth()
+  const { user, employee } = useAuth()
+  const { data: allEmployees = [] } = useEmployees()
+  const effectiveEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
   const [month, setMonth] = useState(currentPayPeriod())
-  const { data: records = [], isLoading } = useAttendanceMonth(employee?.id ?? '', month)
+  const { data: records = [], isLoading } = useAttendanceMonth(effectiveEmployeeId, month)
 
-  if (!employee) return null
+  if (!effectiveEmployeeId) {
+    return <EmptyState title="Attendance Profile Loading" description="Employee record is being synchronized." />
+  }
 
   const present = records.filter((r) => r.status === 'present' || r.status === 'late').length
   const totalHours = records.reduce((s, r) => s + (r.working_hours ?? 0), 0)
@@ -156,7 +160,7 @@ function EmployeeAttendance() {
 
   return (
     <div className="space-y-4">
-      <TodayAttendanceCard employeeId={employee.id} />
+      <TodayAttendanceCard employeeId={effectiveEmployeeId} />
 
       <div className="flex items-center gap-2">
         <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="sm:w-44" />

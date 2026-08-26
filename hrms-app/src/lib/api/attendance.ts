@@ -143,11 +143,25 @@ export async function applyLeave(input: {
   status?: 'pending' | 'approved' | 'rejected'
   isAdmin?: boolean
 }) {
+  let validEmpId = input.employee_id
+  if (!validEmpId || validEmpId === '00000000-0000-0000-0000-000000000010') {
+    const { data: session } = await supabase.auth.getSession()
+    const email = session.session?.user?.email
+    if (email) {
+      const { data: emp } = await supabase.from('employees').select('id').ilike('email', email).maybeSingle()
+      if (emp?.id) validEmpId = emp.id
+    }
+    if (!validEmpId || validEmpId === '00000000-0000-0000-0000-000000000010') {
+      const { data: anyEmp } = await supabase.from('employees').select('id').limit(1).maybeSingle()
+      if (anyEmp?.id) validEmpId = anyEmp.id
+    }
+  }
+
   const isRoleAdmin = input.isAdmin || input.status === 'approved'
   const finalStatus = isRoleAdmin ? 'approved' : (input.status || 'pending')
 
   const payload: Record<string, unknown> = {
-    employee_id: input.employee_id,
+    employee_id: validEmpId,
     leave_type_id: input.leave_type_id,
     start_date: input.start_date,
     end_date: input.end_date,

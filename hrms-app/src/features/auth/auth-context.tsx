@@ -29,7 +29,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
   // 1. Look up user by primary key id or auth_id
   let { data: user } = await supabase
     .from('users')
-    .select('*, role:roles(*), employee:employees(*)')
+    .select('*, role:roles(*), employee:employees(*, department:departments(*), designation:designations(*))')
     .or(`id.eq.${userId},auth_id.eq.${userId}`)
     .maybeSingle()
 
@@ -40,7 +40,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     if (email) {
       const res = await supabase
         .from('users')
-        .select('*, role:roles(*), employee:employees(*)')
+        .select('*, role:roles(*), employee:employees(*, department:departments(*), designation:designations(*))')
         .eq('email', email.toLowerCase())
         .maybeSingle()
       user = res.data
@@ -51,16 +51,22 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     // If user has an employee record with this user_id or auth session id
     const { data: empDirect } = await supabase
       .from('employees')
-      .select('*')
+      .select('*, department:departments(*), designation:designations(*)')
       .or(`user_id.eq.${userId},id.eq.${userId}`)
       .maybeSingle()
 
     if (empDirect) {
       const emailLower = (empDirect.email || '').toLowerCase()
+      const desigName = (empDirect.designation?.name || '').toLowerCase()
+      const deptName = (empDirect.department?.name || '').toLowerCase()
+      const isHr = emailLower.includes('hr') || desigName.includes('hr') || desigName.includes('human resource') || deptName.includes('hr') || deptName.includes('human resource')
+      const isMgr = desigName.includes('manager') || desigName.includes('director') || desigName.includes('lead')
       const roleName = emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
         ? 'Admin'
-        : emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
+        : isHr
         ? 'HR'
+        : isMgr
+        ? 'Manager'
         : 'Employee'
 
       return {
@@ -80,32 +86,43 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
     return { user: null, employee: null }
   }
 
-  // If user found but role relation wasn't loaded, infer from email or assign
-  if (!user.role || !user.role.name) {
-    const emailLower = (user.email || '').toLowerCase()
-    const roleName = emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
-      ? 'Admin'
-      : emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
-      ? 'HR'
-      : 'Employee'
-    user = {
-      ...user,
-      role: { id: user.role_id || '', name: roleName, description: roleName },
-    }
-  }
-  
   let employee = user.employee ?? null
-  
+
   if (!employee) {
     const { data: empFallback } = await supabase
       .from('employees')
-      .select('*')
+      .select('*, department:departments(*), designation:designations(*)')
       .or(`user_id.eq.${userId},id.eq.${user.employee_id || userId}`)
       .maybeSingle()
-      
+
     if (empFallback) {
       employee = empFallback
     }
+  }
+
+  // If user found, infer HR / Manager / Admin role if role is Employee or not set
+  const emailLower = (user.email || employee?.email || '').toLowerCase()
+  const desigName = (employee?.designation?.name || '').toLowerCase()
+  const deptName = (employee?.department?.name || '').toLowerCase()
+  const isHr = emailLower.includes('hr') || desigName.includes('hr') || desigName.includes('human resource') || deptName.includes('hr') || deptName.includes('human resource')
+  const isMgr = desigName.includes('manager') || desigName.includes('director') || desigName.includes('lead')
+
+  let currentRoleName = user.role?.name || ''
+  if (!currentRoleName || currentRoleName === 'Employee') {
+    if (emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')) {
+      currentRoleName = 'Admin'
+    } else if (isHr) {
+      currentRoleName = 'HR'
+    } else if (isMgr) {
+      currentRoleName = 'Manager'
+    } else {
+      currentRoleName = 'Employee'
+    }
+  }
+
+  user = {
+    ...user,
+    role: { id: user.role_id || '', name: currentRoleName, description: currentRoleName },
   }
 
   return { user, employee }
@@ -209,7 +226,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const emailLower = (state?.email || employee?.email || '').toLowerCase().trim()
   const role = state?.role?.name ?? null
   const isAdmin = isAdminRole(role) || emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
-  const isManager = isManagerRole(role) || isAdmin || emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@')
+  const isHR = role === 'HR' || emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@') || emailLower.includes('hr')
+  const isManager = isManagerRole(role) || isAdmin || isHR
 
   return (
     <AuthContext.Provider

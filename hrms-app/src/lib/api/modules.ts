@@ -252,6 +252,50 @@ export async function createInterview(input: {
 }) {
   const { data, error } = await supabase.from('interviews').insert(input).select().single()
   if (error) throw error
+
+  // Sync candidate record so Candidate Portal displays the scheduled interview & meeting link immediately
+  try {
+    const isHrRound = (input.round || '').toLowerCase().includes('hr')
+    const updatePayload: Record<string, unknown> = {
+      status: 'interview_scheduled',
+      updated_at: new Date().toISOString(),
+    }
+    if (isHrRound) {
+      updatePayload.hr_interview_status = 'scheduled'
+      updatePayload.hr_interview_date = input.scheduled_at
+    } else {
+      updatePayload.technical_interview_status = 'scheduled'
+      updatePayload.technical_interview_date = input.scheduled_at
+    }
+    if (input.meeting_link) {
+      updatePayload.meeting_link = input.meeting_link
+    }
+    await supabase.from('candidates').update(updatePayload).eq('id', input.candidate_id)
+
+    // Queue email invitation
+    const { data: cand } = await supabase.from('candidates').select('name, email, reference_id, date_of_birth').eq('id', input.candidate_id).maybeSingle()
+    if (cand?.email) {
+      const scheduledFormatted = new Date(input.scheduled_at).toLocaleString()
+      await supabase.from('audit_logs').insert({
+        action: 'EMAIL_PENDING',
+        entity_name: 'interview_invitation',
+        details: {
+          to: cand.email,
+          name: cand.name,
+          refId: cand.reference_id,
+          round: input.round || 'Technical',
+          scheduled_at: scheduledFormatted,
+          meeting_link: input.meeting_link || '',
+          exam_link: input.exam_link || '',
+          from: 'hr@oklut.com',
+          subject: `Interview Scheduled: ${input.round || 'Technical'} Round — OKLUT HRMS`,
+        },
+      })
+    }
+  } catch (syncErr) {
+    console.warn('Candidate interview sync notice:', syncErr)
+  }
+
   return data as Interview
 }
 
@@ -263,6 +307,26 @@ export async function updateInterviewStatus(id: string, status: string, feedback
     .select()
     .single()
   if (error) throw error
+
+  try {
+    if (data?.candidate_id) {
+      const isHrRound = (data.round || '').toLowerCase().includes('hr')
+      const updatePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      }
+      if (isHrRound) {
+        updatePayload.hr_interview_status = status.toLowerCase()
+        if (feedback) updatePayload.hr_interview_feedback = feedback
+      } else {
+        updatePayload.technical_interview_status = status.toLowerCase()
+        if (feedback) updatePayload.technical_interview_feedback = feedback
+      }
+      await supabase.from('candidates').update(updatePayload).eq('id', data.candidate_id)
+    }
+  } catch (syncErr) {
+    console.warn('Candidate status sync notice:', syncErr)
+  }
+
   return data as Interview
 }
 
@@ -295,6 +359,14 @@ export async function createOffer(input: {
     .select()
     .single()
   if (error) throw error
+
+  try {
+    await supabase.from('candidates').update({
+      status: 'offered',
+      updated_at: new Date().toISOString(),
+    }).eq('id', input.candidate_id)
+  } catch {}
+
   return data as Offer
 }
 
@@ -351,9 +423,36 @@ export async function createMeetingHallBooking(input: {
   requested_by: string
   status?: string
 }): Promise<MeetingHallBooking> {
+  let validRequestedBy = input.requested_by
+
+  // Ensure requested_by references a valid employee row
+  if (!validRequestedBy || validRequestedBy === '00000000-0000-0000-0000-000000000010') {
+    const { data: session } = await supabase.auth.getSession()
+    const email = session.session?.user?.email
+    if (email) {
+      const { data: emp } = await supabase.from('employees').select('id').ilike('email', email).maybeSingle()
+      if (emp?.id) validRequestedBy = emp.id
+    }
+    if (!validRequestedBy || validRequestedBy === '00000000-0000-0000-0000-000000000010') {
+      const { data: anyEmp } = await supabase.from('employees').select('id').limit(1).maybeSingle()
+      if (anyEmp?.id) validRequestedBy = anyEmp.id
+    }
+  } else {
+    const { data: exists } = await supabase.from('employees').select('id').eq('id', validRequestedBy).maybeSingle()
+    if (!exists) {
+      const { data: anyEmp } = await supabase.from('employees').select('id').limit(1).maybeSingle()
+      if (anyEmp?.id) validRequestedBy = anyEmp.id
+    }
+  }
+
+  const payload = {
+    ...input,
+    requested_by: validRequestedBy,
+  }
+
   const { data, error } = await supabase
     .from('meeting_hall_bookings')
-    .insert(input)
+    .insert(payload)
     .select(`*, requester:employees(id, first_name, last_name, email, employee_code)`)
     .single()
 

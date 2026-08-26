@@ -22,6 +22,7 @@ import {
   useApplyLeave,
   useReviewLeave,
   useCancelLeave,
+  useEmployees,
 } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, formatDateTime, daysBetween } from '@/lib/format'
@@ -408,14 +409,15 @@ function EmployeeLeaveTab({
   employeeId,
   isHrOrManager,
   isAdmin,
+  onApplyClick,
 }: {
   employeeId: string
   isHrOrManager?: boolean
   isAdmin?: boolean
+  onApplyClick: () => void
 }) {
-  const { data: requests = [], isLoading } = useLeaveRequests({ employeeId })
+  const { data: requests = [], isLoading } = useLeaveRequests({ employeeId: employeeId || undefined })
   const cancel = useCancelLeave()
-  const [dialog, setDialog] = useState(false)
 
   return (
     <div className="space-y-4">
@@ -433,7 +435,7 @@ function EmployeeLeaveTab({
                     : 'Track your applications and approvals.'}
                 </p>
               </div>
-              <Button onClick={() => setDialog(true)} size="sm">
+              <Button onClick={onApplyClick} size="sm">
                 <CalendarPlus className="mr-2 h-4 w-4" /> {isAdmin ? 'Record Leave' : 'Apply Leave'}
               </Button>
             </CardHeader>
@@ -481,26 +483,19 @@ function EmployeeLeaveTab({
           <CardContent><LeaveBalances employeeId={employeeId} /></CardContent>
         </Card>
       </div>
-
-      <ApplyLeaveDialog
-        open={dialog}
-        onOpenChange={setDialog}
-        employeeId={employeeId}
-        isHrOrManager={isHrOrManager}
-        isAdmin={isAdmin}
-      />
     </div>
   )
 }
 
 export default function LeavePage() {
   const { user, employee, isManager, isAdmin } = useAuth()
+  const { data: allEmployees = [] } = useEmployees()
   const [applyOpen, setApplyOpen] = useState(false)
   const { data: allRequests = [] } = useLeaveRequests({ status: 'pending' })
   const pendingCount = allRequests.length
 
-  // Fallback ID for HR / manager if employee record isn't linked yet
-  const effectiveEmployeeId = employee?.id || '00000000-0000-0000-0000-000000000010'
+  // Gracefully fallback to employee ID from profile or directory
+  const effectiveEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
   const isHrOrManager = isManager || Boolean(user?.role?.name === 'HR' || user?.role?.name === 'Admin' || user?.role?.name === 'Manager')
 
   return (
@@ -551,6 +546,7 @@ export default function LeavePage() {
               employeeId={effectiveEmployeeId}
               isHrOrManager={isHrOrManager}
               isAdmin={false}
+              onApplyClick={() => setApplyOpen(true)}
             />
           </TabsContent>
         </Tabs>
@@ -559,10 +555,11 @@ export default function LeavePage() {
           employeeId={effectiveEmployeeId}
           isHrOrManager={false}
           isAdmin={false}
+          onApplyClick={() => setApplyOpen(true)}
         />
       )}
 
-      {/* Global Apply Leave Dialog for non-admins */}
+      {/* Single Consolidated Apply Leave Dialog */}
       {!isAdmin && (
         <ApplyLeaveDialog
           open={applyOpen}

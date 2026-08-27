@@ -119,7 +119,7 @@ export function useCreateDepartment() {
 export function useUpdateDepartment() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<{ name: string; code: string; description: string; head_id: string }> }) => api.updateDepartment(id, input),
+    mutationFn: ({ id, input }: { id: string; input: Partial<{ name: string; code: string; description: string; head_id: string | null }> }) => api.updateDepartment(id, input),
     onSuccess: () => { invalidate([queryKeys.departments]); toast.success('Department updated') },
     onError: toastError,
   })

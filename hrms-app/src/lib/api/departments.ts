@@ -24,14 +24,23 @@ export async function fetchDepartments(): Promise<Department[]> {
   return []
 }
 
-export async function createDepartment(input: { name: string; code?: string; description?: string }) {
-  const { data, error } = await supabase.from('departments').insert(input).select().single()
+export async function createDepartment(input: { name: string; code?: string; description?: string; head_id?: string | null }) {
+  const { data, error } = await supabase
+    .from('departments')
+    .insert(input)
+    .select('*, head:employees!departments_head_id_fkey(first_name, last_name)')
+    .single()
   if (error) throw error
   return data as Department
 }
 
-export async function updateDepartment(id: string, input: Partial<{ name: string; code: string; description: string; head_id: string }>) {
-  const { data, error } = await supabase.from('departments').update(input).eq('id', id).select().single()
+export async function updateDepartment(id: string, input: Partial<{ name: string; code: string; description: string; head_id: string | null }>) {
+  const { data, error } = await supabase
+    .from('departments')
+    .update(input)
+    .eq('id', id)
+    .select('*, head:employees!departments_head_id_fkey(first_name, last_name)')
+    .single()
   if (error) throw error
   return data as Department
 }

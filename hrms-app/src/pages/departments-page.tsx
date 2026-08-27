@@ -82,10 +82,11 @@ export default function DepartmentsPage() {
 
   const submitDept = async (e: React.FormEvent) => {
     e.preventDefault()
+    const headId = deptHead.trim() ? deptHead : null
     if (editingDept) {
-      await updateDept.mutateAsync({ id: editingDept.id, input: { name: deptName, code: deptCode, description: deptDesc, head_id: deptHead } })
+      await updateDept.mutateAsync({ id: editingDept.id, input: { name: deptName, code: deptCode, description: deptDesc, head_id: headId } })
     } else {
-      await createDept.mutateAsync({ name: deptName, code: deptCode, description: deptDesc })
+      await createDept.mutateAsync({ name: deptName, code: deptCode, description: deptDesc, head_id: headId })
     }
     setDeptDialog(false)
   }

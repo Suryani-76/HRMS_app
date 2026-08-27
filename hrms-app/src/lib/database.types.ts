@@ -289,6 +289,20 @@ export interface JobOpening {
   employment_type?: string | null
   status?: string | null
   published: boolean
+  total_questions?: number | null
+  exam_duration_mins?: number | null
+  exam_passing_score?: number | null
+  exam_window_start?: string | null
+  exam_window_end?: string | null
+  exam_start_date?: string | null
+  exam_end_date?: string | null
+  technical_slot_1_max_count?: number | null
+  technical_slot_2_max_count?: number | null
+  technical_slot_3_max_count?: number | null
+  hr_slot_1_max_count?: number | null
+  hr_slot_2_max_count?: number | null
+  hr_slot_3_max_count?: number | null
+  exam_link?: string | null
   created_by?: string | null
   created_at: string
   department?: Department | null
@@ -297,16 +311,33 @@ export interface JobOpening {
 export interface Candidate {
   id: string
   job_opening_id?: string | null
+  temp_id?: string | null
+  user_id?: string | null
   name: string
   email: string
   phone?: string | null
   resume_url?: string | null
   cover_letter?: string | null
   status?: string | null
+  category?: string | null
   source?: string | null
+  malpractice_flag?: boolean | null
+  cheating_detected?: boolean | null
+  exam_score?: number | null
+  exam_completed_at?: string | null
+  exam_started_at?: string | null
+  exam_feedback?: string | null
+  technical_interview_status?: string | null
+  technical_interview_feedback?: string | null
+  technical_interview_date?: string | null
+  hr_interview_status?: string | null
+  hr_interview_feedback?: string | null
+  hr_interview_date?: string | null
+  disqualified_at?: string | null
+  disqualified_reason?: string | null
   converted_employee_id?: string | null
+  candidate_id?: string | null
   reference_id?: string | null
-  temp_id?: string | null
   date_of_birth?: string | null
   dob?: string | null
   referred_by?: string | null
@@ -331,10 +362,31 @@ export interface Interview {
   feedback?: string | null
   rating?: number | null
   malpractice_flag?: boolean
+  metrics?: Record<string, number> | null
+  candidate_confirmed?: boolean | null
+  reschedule_requested?: boolean | null
+  reschedule_status?: string | null
+  reschedule_reason?: string | null
+  reschedule_preferred_time?: string | null
+  reschedule_admin_note?: string | null
+  attended_at?: string | null
+  slot_key?: string | null
   created_at: string
   candidate?: Candidate | null
   job_opening?: JobOpening | null
   interviewer?: Employee | null
+}
+
+export interface InterviewSlot {
+  id: string
+  job_opening_id: string
+  round: 'technical' | 'hr'
+  scheduled_at: string
+  meeting_link?: string | null
+  max_candidates: number
+  status?: string | null
+  created_by?: string | null
+  created_at: string
 }
 
 export interface Offer {
@@ -344,6 +396,10 @@ export interface Offer {
   offer_letter_url?: string | null
   salary_offered?: number | null
   joining_date?: string | null
+  service_bond_years?: number | null
+  relocation_required?: boolean | null
+  relocation_location?: string | null
+  salary_breakdown?: any | null
   status?: string | null
   candidate_response?: string | null
   relocation_agreed?: boolean | null

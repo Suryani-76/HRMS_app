@@ -40,6 +40,7 @@ export const router = createBrowserRouter(
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/careers" element={<CareersPage />} />
       <Route path="/candidate-portal" element={<CandidatePortalPage />} />
+      <Route path="/portal" element={<CandidatePortalPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>

@@ -650,6 +650,22 @@ export async function submitRescheduleRequest(input: {
       })
     if (error) throw error
   }
+
+  try {
+    await supabase.from('audit_logs').insert({
+      action: 'RESCHEDULE_REQUESTED',
+      entity_name: 'interviews',
+      details: {
+        candidate_id: input.candidateId,
+        round: input.round,
+        reason: input.reason,
+        preferred_time: input.preferredTime,
+        requested_at: now,
+      },
+    })
+  } catch (auditErr) {
+    console.warn('Audit log insert notice:', auditErr)
+  }
 }
 
 export async function revertRescheduleRequest(input: { interviewId: string }) {

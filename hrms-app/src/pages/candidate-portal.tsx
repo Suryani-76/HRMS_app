@@ -787,14 +787,14 @@ export default function CandidatePortalPage() {
   })
   const hasExamInterviewPassed = examInterviews.some((i) => {
     const s = (i.status || '').toLowerCase()
-    return s === 'passed' || (s === 'completed' && !!i.feedback && (i.rating == null || i.rating >= 3))
+    return s === 'passed'
   })
 
   const isExamPassed =
     isCandidateShortlisted ||
     hasExamInterviewPassed ||
-    (candidate?.exam_score != null && candidate.exam_score >= (passPercentage ?? 60)) ||
-    (calculatedExamPercentage >= (passPercentage ?? 60) && candidate?.exam_score != null)
+    (candidate?.exam_score != null && candidate?.exam_completed_at != null && candidate.exam_score >= (passPercentage ?? 60)) ||
+    (candidate?.exam_score != null && candidate?.exam_completed_at != null && calculatedExamPercentage >= (passPercentage ?? 60))
 
   const scorePercentage =
     candidate?.exam_score != null ? (totalQuestions > 0 && candidate.exam_score <= totalQuestions ? calculatedExamPercentage : candidate.exam_score) : null

@@ -1190,8 +1190,56 @@ function InterviewsTab() {
     setCandidateId(''); setJobId(''); setInterviewerId(''); setLink(''); setExamLink('')
   }
 
+  const pendingReschedules = interviews.filter(
+    (i) => i.reschedule_requested === true && i.reschedule_status === 'pending'
+  )
+
   return (
     <div className="space-y-4">
+      {/* Pending Reschedule Requests Notification Banner */}
+      {pendingReschedules.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-4 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              </span>
+              <span>Pending Reschedule Requests ({pendingReschedules.length})</span>
+            </div>
+            <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-100 font-semibold text-xs gap-1">
+              <Clock className="h-3 w-3" /> Action Required
+            </Badge>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {pendingReschedules.map((req) => (
+              <div key={req.id} className="flex items-start justify-between p-3 rounded-lg bg-white border border-amber-200/80 shadow-xs gap-3">
+                <div className="space-y-1 text-xs text-slate-800 min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">
+                    {req.candidate?.name} · <span className="text-indigo-600 font-medium">{req.round}</span>
+                  </div>
+                  <div className="text-slate-600 line-clamp-2">
+                    <strong>Reason:</strong> "{req.reschedule_reason || 'Schedule conflict'}"
+                  </div>
+                  {req.reschedule_preferred_time && (
+                    <div className="text-amber-800 font-medium">
+                      <strong>Requested Slot:</strong> {formatDateTime(req.reschedule_preferred_time)}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => openRescheduleDialog(req)}
+                  className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 gap-1 shadow-xs"
+                >
+                  <Clock className="h-3 w-3" /> Review
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button onClick={() => setDialog(true)}>
           <Plus className="mr-2 h-4 w-4" /> Schedule Interview
@@ -1942,6 +1990,11 @@ function OffersTab() {
 
 export default function RecruitmentPage() {
   const { isManager } = useAuth()
+  const { data: interviews = [] } = useInterviews()
+  const pendingRescheduleCount = interviews.filter(
+    (i) => i.reschedule_requested === true && i.reschedule_status === 'pending'
+  ).length
+
   if (!isManager) return <PageHeader title="Recruitment" description="Only managers can access recruitment." />
   return (
     <div>
@@ -1950,7 +2003,14 @@ export default function RecruitmentPage() {
         <TabsList>
           <TabsTrigger value="jobs">Jobs</TabsTrigger>
           <TabsTrigger value="candidates">Candidates</TabsTrigger>
-          <TabsTrigger value="interviews">Interviews</TabsTrigger>
+          <TabsTrigger value="interviews" className="relative flex items-center gap-1.5">
+            Interviews
+            {pendingRescheduleCount > 0 && (
+              <Badge className="h-4.5 px-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] animate-pulse rounded-full">
+                {pendingRescheduleCount}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="offers">Offers</TabsTrigger>
         </TabsList>
         <TabsContent value="jobs" className="mt-4"><JobsTab /></TabsContent>

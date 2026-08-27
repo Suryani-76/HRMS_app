@@ -251,32 +251,46 @@ const normalizePortalRound = (r?: string | null): 'Online Exam' | 'Technical' | 
   return 'Technical'
 }
 
-const toPortalInterview = (row: Interview): PortalInterview => ({
-  id: row.id,
-  candidate_id: row.candidate_id,
-  job_opening_id: row.job_opening_id ?? null,
-  interviewer: row.interviewer
-    ? { first_name: row.interviewer.first_name, last_name: row.interviewer.last_name }
-    : null,
-  round: normalizePortalRound(row.round) as any,
-  scheduled_at: row.scheduled_at ?? null,
-  mode: row.mode ?? 'online',
-  meeting_link: row.meeting_link ?? (row as any).exam_link ?? null,
-  status: row.status ?? null,
-  candidate_confirmed: row.candidate_confirmed ?? false,
-  attended_at: row.attended_at ?? null,
-  created_at: row.created_at,
-  updated_at: row.created_at,
-  reschedule_requested: row.reschedule_requested ?? false,
-  reschedule_status: (row.reschedule_status as 'pending' | 'accepted' | 'rejected') ?? null,
-  reschedule_reason: row.reschedule_reason ?? null,
-  reschedule_preferred_time: row.reschedule_preferred_time ?? null,
-  reschedule_admin_note: row.reschedule_admin_note ?? null,
-  feedback: row.feedback ?? null,
-  rating: row.rating ?? null,
-  metrics: row.metrics ?? null,
-  slot_key: row.slot_key ?? null,
-})
+const toPortalInterview = (row: any): PortalInterview => {
+  let reschedule_reason = row.reschedule_reason || null
+  let reschedule_preferred_time = row.reschedule_preferred_time || null
+  let reschedule_admin_note = row.reschedule_admin_note || null
+
+  if (row.feedback && typeof row.feedback === 'string' && row.feedback.includes('[RESCHEDULE_REQ:')) {
+    const match = row.feedback.match(/\[RESCHEDULE_REQ:\s*preferred=([^|]*)\|reason=([^\]]*)\]/)
+    if (match) {
+      if (!reschedule_preferred_time) reschedule_preferred_time = match[1]?.trim()
+      if (!reschedule_reason) reschedule_reason = match[2]?.trim()
+    }
+  }
+
+  return {
+    id: row.id,
+    candidate_id: row.candidate_id,
+    job_opening_id: row.job_opening_id ?? null,
+    interviewer: row.interviewer
+      ? { first_name: row.interviewer.first_name, last_name: row.interviewer.last_name }
+      : null,
+    round: normalizePortalRound(row.round) as any,
+    scheduled_at: row.scheduled_at ?? null,
+    mode: row.mode ?? 'online',
+    meeting_link: row.meeting_link ?? (row as any).exam_link ?? null,
+    status: row.status ?? null,
+    candidate_confirmed: row.candidate_confirmed ?? false,
+    attended_at: row.attended_at ?? null,
+    created_at: row.created_at,
+    updated_at: row.created_at,
+    reschedule_requested: row.reschedule_requested ?? false,
+    reschedule_status: (row.reschedule_status as 'pending' | 'accepted' | 'rejected') ?? null,
+    reschedule_reason,
+    reschedule_preferred_time,
+    reschedule_admin_note,
+    feedback: row.feedback ?? null,
+    rating: row.rating ?? null,
+    metrics: row.metrics ?? null,
+    slot_key: row.slot_key ?? null,
+  }
+}
 
 const ACTIVE_BOOKING_STATUSES = ['scheduled', 'ongoing', 'proposed']
 
@@ -615,40 +629,82 @@ export async function submitRescheduleRequest(input: {
   existingInterviewId?: string | null
 }) {
   const now = new Date().toISOString()
-  const reschedulePatch = {
-    reschedule_requested: true,
-    reschedule_status: 'pending',
-    reschedule_reason: input.reason,
-    reschedule_preferred_time: input.preferredTime,
+  const cleanReason = (input.reason || '').replace(/[|\]]/g, ' ').trim()
+  const metaTag = `[RESCHEDULE_REQ: preferred=${input.preferredTime}|reason=${cleanReason}]`
+
+  let targetInterviewId = input.existingInterviewId
+
+  if (!targetInterviewId) {
+    const { data: existing } = await supabase
+      .from('interviews')
+      .select('id, feedback')
+      .eq('candidate_id', input.candidateId)
+      .ilike('round', `%${input.round}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    targetInterviewId = existing?.id ?? null
   }
 
-  if (input.existingInterviewId) {
+  if (targetInterviewId) {
+    const { data: currentIv } = await supabase
+      .from('interviews')
+      .select('feedback')
+      .eq('id', targetInterviewId)
+      .single()
+
+    const cleanFb = (currentIv?.feedback || '').replace(/\[RESCHEDULE_REQ:[^\]]*\]/g, '').trim()
+    const newFb = cleanFb ? `${cleanFb}\n${metaTag}` : metaTag
+
     const { error } = await supabase
       .from('interviews')
-      .update(reschedulePatch)
-      .eq('id', input.existingInterviewId)
+      .update({
+        reschedule_requested: true,
+        reschedule_status: 'pending',
+        feedback: newFb,
+      })
+      .eq('id', targetInterviewId)
     if (error) throw error
   } else {
     const { error } = await supabase
       .from('interviews')
       .insert({
-        ...reschedulePatch,
         candidate_id: input.candidateId,
         job_opening_id: input.jobOpeningId,
         round: roundLabel(input.round),
         scheduled_at: input.preferredTime,
         mode: 'online',
         meeting_link: null,
-        status: 'proposed',
-        candidate_confirmed: false,
-        attended_at: null,
-        feedback: null,
-        rating: null,
-        metrics: null,
-        slot_key: null,
+        status: 'scheduled',
+        feedback: metaTag,
+        reschedule_requested: true,
+        reschedule_status: 'pending',
         created_at: now,
       })
     if (error) throw error
+  }
+
+  // Update candidate record notes so it is visible in candidate views
+  try {
+    const { data: currentCand } = await supabase
+      .from('candidates')
+      .select('notes')
+      .eq('id', input.candidateId)
+      .single()
+
+    const candNote = `[Reschedule Request: ${input.round.toUpperCase()} to ${input.preferredTime}. Reason: ${cleanReason}]`
+    const updatedNotes = currentCand?.notes ? `${currentCand.notes}\n${candNote}` : candNote
+
+    await supabase
+      .from('candidates')
+      .update({
+        notes: updatedNotes,
+        updated_at: now,
+      })
+      .eq('id', input.candidateId)
+  } catch (cErr) {
+    console.warn('Candidate notes patch notice:', cErr)
   }
 
   try {
@@ -658,7 +714,7 @@ export async function submitRescheduleRequest(input: {
       details: {
         candidate_id: input.candidateId,
         round: input.round,
-        reason: input.reason,
+        reason: cleanReason,
         preferred_time: input.preferredTime,
         requested_at: now,
       },

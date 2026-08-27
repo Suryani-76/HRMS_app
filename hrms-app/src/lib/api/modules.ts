@@ -239,6 +239,27 @@ export async function deleteCandidate(id: string) {
   if (error) throw error
 }
 
+export function parseInterviewRecord(row: any): Interview {
+  let reschedule_reason = row.reschedule_reason || null
+  let reschedule_preferred_time = row.reschedule_preferred_time || null
+  let reschedule_admin_note = row.reschedule_admin_note || null
+
+  if (row.feedback && typeof row.feedback === 'string' && row.feedback.includes('[RESCHEDULE_REQ:')) {
+    const match = row.feedback.match(/\[RESCHEDULE_REQ:\s*preferred=([^|]*)\|reason=([^\]]*)\]/)
+    if (match) {
+      if (!reschedule_preferred_time) reschedule_preferred_time = match[1]?.trim()
+      if (!reschedule_reason) reschedule_reason = match[2]?.trim()
+    }
+  }
+
+  return {
+    ...row,
+    reschedule_reason,
+    reschedule_preferred_time,
+    reschedule_admin_note,
+  } as Interview
+}
+
 export async function fetchInterviews(): Promise<Interview[]> {
   try {
     const { data, error } = await supabase
@@ -246,7 +267,7 @@ export async function fetchInterviews(): Promise<Interview[]> {
       .select('*, candidate:candidates(name, email, phone), job_opening:job_openings(title), interviewer:employees(first_name, last_name)')
       .order('scheduled_at', { ascending: false })
     if (!error && data !== null) {
-      return data as Interview[]
+      return data.map(parseInterviewRecord)
     }
   } catch (err) {
     console.error('fetchInterviews error:', err)
@@ -410,10 +431,21 @@ export async function rescheduleInterview(input: {
   action: 'approve' | 'reschedule' | 'decline'
 }) {
   const isDecline = input.action === 'decline'
+
+  const { data: currentIv } = await supabase
+    .from('interviews')
+    .select('feedback')
+    .eq('id', input.id)
+    .single()
+
+  const cleanFb = (currentIv?.feedback || '').replace(/\[RESCHEDULE_REQ:[^\]]*\]/g, '').trim()
+  const noteTag = input.admin_note ? `[HR Note: ${input.admin_note}]` : ''
+  const finalFb = cleanFb ? (noteTag ? `${cleanFb} — ${noteTag}` : cleanFb) : (noteTag || null)
+
   const updateFields: Record<string, unknown> = {
     reschedule_requested: false,
     reschedule_status: isDecline ? 'rejected' : 'accepted',
-    reschedule_admin_note: input.admin_note || (isDecline ? 'Reschedule request declined.' : 'Reschedule confirmed.'),
+    feedback: finalFb,
     updated_at: new Date().toISOString(),
   }
 
@@ -422,6 +454,8 @@ export async function rescheduleInterview(input: {
     if (input.meeting_link) updateFields.meeting_link = input.meeting_link
     if (input.exam_link) updateFields.exam_link = input.exam_link
     updateFields.status = 'scheduled'
+  } else {
+    updateFields.status = 'cancelled'
   }
 
   const { data, error } = await supabase
@@ -434,16 +468,21 @@ export async function rescheduleInterview(input: {
 
   // Sync candidate record if scheduled_at changed
   try {
-    if (!isDecline && data?.candidate_id) {
+    if (data?.candidate_id) {
       const roundLower = (data.round || '').toLowerCase()
       const isHr = roundLower.includes('hr')
       const candPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-      if (isHr) {
-        candPatch.hr_interview_date = input.scheduled_at
-      } else if (!roundLower.includes('screen') && !roundLower.includes('exam')) {
-        candPatch.technical_interview_date = input.scheduled_at
+      if (!isDecline) {
+        if (isHr) {
+          candPatch.hr_interview_date = input.scheduled_at
+        } else if (!roundLower.includes('screen') && !roundLower.includes('exam')) {
+          candPatch.technical_interview_date = input.scheduled_at
+        }
+        if (input.meeting_link) candPatch.meeting_link = input.meeting_link
+      } else {
+        if (isHr) candPatch.hr_interview_status = 'failed'
+        else if (!roundLower.includes('screen') && !roundLower.includes('exam')) candPatch.technical_interview_status = 'failed'
       }
-      if (input.meeting_link) candPatch.meeting_link = input.meeting_link
       await supabase.from('candidates').update(candPatch).eq('id', data.candidate_id)
     }
 
@@ -477,7 +516,7 @@ export async function rescheduleInterview(input: {
     console.warn('Candidate reschedule sync error:', syncErr)
   }
 
-  return data as Interview
+  return parseInterviewRecord(data)
 }
 
 export async function fetchOffers(): Promise<Offer[]> {

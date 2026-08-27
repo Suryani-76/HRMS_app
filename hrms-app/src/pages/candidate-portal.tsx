@@ -175,6 +175,18 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
       rName = 'Technical Interview'
     }
 
+    let resReason = iv.reschedule_reason ?? null
+    let resPrefTime = iv.reschedule_preferred_time ?? null
+    let resAdminNote = iv.reschedule_admin_note ?? null
+
+    if (iv.feedback && typeof iv.feedback === 'string' && iv.feedback.includes('[RESCHEDULE_REQ:')) {
+      const match = iv.feedback.match(/\[RESCHEDULE_REQ:\s*preferred=([^|]*)\|reason=([^\]]*)\]/)
+      if (match) {
+        if (!resPrefTime) resPrefTime = match[1]?.trim() ?? null
+        if (!resReason) resReason = match[2]?.trim() ?? null
+      }
+    }
+
     return {
       id: iv.id,
       candidate_id: iv.candidate_id,
@@ -193,9 +205,9 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
       updated_at: iv.created_at,
       reschedule_requested: iv.reschedule_requested ?? null,
       reschedule_status: (iv.reschedule_status ?? null) as MockInterview['reschedule_status'],
-      reschedule_reason: iv.reschedule_reason ?? null,
-      reschedule_preferred_time: iv.reschedule_preferred_time ?? null,
-      reschedule_admin_note: iv.reschedule_admin_note ?? null,
+      reschedule_reason: resReason,
+      reschedule_preferred_time: resPrefTime,
+      reschedule_admin_note: resAdminNote,
       feedback: iv.feedback ?? null,
       rating: iv.rating ?? null,
       metrics: iv.metrics ?? null,
@@ -853,6 +865,12 @@ export default function CandidatePortalPage() {
   const clearedAllEffective = isExperienced ? roundCleared2 && roundCleared3 : isExamPassed && roundCleared2 && roundCleared3
   const allRequiredRoundsCleared = clearedAllEffective
 
+  const isCandidateMovedToScreeningOrShortlisted =
+    candStatusNorm === 'shortlisted' ||
+    candStatusNorm === 'screening' ||
+    ((candidate as any)?.stage || '').toLowerCase() === 'screening' ||
+    ((candidate as any)?.stage || '').toLowerCase() === 'shortlisted'
+
   const candidateStatusBadge = isExperienced
     ? isHired
       ? 'Hired'
@@ -864,7 +882,9 @@ export default function CandidatePortalPage() {
             ? 'HR Interview Passed'
             : techStatus === 'passed'
               ? 'Technical Interview Passed'
-              : 'Applied'
+              : isCandidateMovedToScreeningOrShortlisted
+                ? 'Shortlisted'
+                : 'Applied'
     : isHired
       ? 'Hired'
       : overallRejected || (scorePercentage !== null && !isExamPassed) || examExpiredUnattempted
@@ -876,8 +896,10 @@ export default function CandidatePortalPage() {
             : techStatus === 'passed'
               ? 'Technical Interview Passed'
               : isExamPassed
-                ? 'Exam Passed'
-                : 'Applied'
+                ? 'Stage 1 Cleared'
+                : isCandidateMovedToScreeningOrShortlisted
+                  ? 'Shortlisted'
+                  : 'Applied'
 
   const displayStatusBadge = isDqActive ? 'Disqualified' : candidateStatusBadge
 
@@ -890,7 +912,7 @@ export default function CandidatePortalPage() {
 
   const examPillText =
     isExamPassed
-      ? 'Cleared'
+      ? 'Stage 1 Cleared'
       : candidate?.exam_score != null
         ? 'Not Cleared'
         : candidate?.exam_completed_at != null
@@ -2002,7 +2024,7 @@ export default function CandidatePortalPage() {
                           <Badge
                             variant={
                               round.key === 'exam'
-                                ? (roundStates.exam === 'passed' && examPillText === 'Scheduled') || examPillText === 'Cleared'
+                                ? roundStates.exam === 'passed' || examPillText === 'Stage 1 Cleared'
                                   ? 'success'
                                   : (roundStates.exam === 'failed' && examPillText === 'Scheduled') || examPillText === 'Not Cleared' || examPillText === 'Unattempted'
                                     ? 'destructive'
@@ -2412,7 +2434,7 @@ function ExamRound({
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-sm leading-tight">
-              {passed ? 'Stage Cleared' : 'Not Qualified in This Round'}
+              {passed ? 'Stage 1 Cleared' : 'Not Qualified in This Round'}
             </h4>
             <p className="text-xs mt-1 leading-normal opacity-90">
               {passed

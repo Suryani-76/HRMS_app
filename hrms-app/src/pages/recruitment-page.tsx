@@ -1325,26 +1325,29 @@ function InterviewsTab() {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {hasRescheduleReq ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="relative inline-flex items-center">
+                            {hasRescheduleReq && (
+                              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 z-20 pointer-events-none">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 border-2 border-white shadow-xs"></span>
+                              </span>
+                            )}
                             <Button
                               size="sm"
+                              variant={hasRescheduleReq ? "default" : "outline"}
                               onClick={() => openRescheduleDialog(i)}
-                              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-sm"
+                              className={`h-8 text-xs gap-1.5 font-medium transition-all ${
+                                hasRescheduleReq
+                                  ? 'bg-red-600 hover:bg-red-700 text-white font-semibold shadow-xs ring-2 ring-red-300'
+                                  : 'text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+                              }`}
+                              title={hasRescheduleReq ? 'Candidate requested reschedule — Click to review & reschedule or cancel' : 'Reschedule slot or change meeting link'}
                             >
-                              <Clock className="h-3.5 w-3.5" /> Review Request
+                              <CalendarClock className="h-3.5 w-3.5" />
+                              {hasRescheduleReq ? 'Review Request' : 'Reschedule'}
                             </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openRescheduleDialog(i)}
-                              className="h-8 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 gap-1 font-medium"
-                              title="Reschedule slot or change meeting link"
-                            >
-                              <CalendarClock className="h-3.5 w-3.5" /> Reschedule
-                            </Button>
-                          )}
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
@@ -1383,20 +1386,21 @@ function InterviewsTab() {
               </DialogHeader>
 
               {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending' && (
-                <div className="my-4 p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
-                  <div className="font-semibold flex items-center gap-1.5 text-amber-950">
-                    <Clock className="h-4 w-4 text-amber-600" /> Candidate Request Details:
+                <div className="my-4 p-3.5 bg-red-50/80 border border-red-200 rounded-lg text-xs space-y-1.5 text-red-950">
+                  <div className="font-semibold flex items-center gap-1.5 text-red-900">
+                    <span className="h-2 w-2 rounded-full bg-red-600 animate-ping" />
+                    <Clock className="h-4 w-4 text-red-600" /> Candidate Request Details:
                   </div>
-                  <div><strong>Reason:</strong> {rescheduleModal.reschedule_reason || 'Personal / Schedule conflict'}</div>
+                  <div><strong>Reason for Reschedule:</strong> {rescheduleModal.reschedule_reason || 'Personal / Schedule conflict'}</div>
                   {rescheduleModal.reschedule_preferred_time && (
-                    <div><strong>Requested Time:</strong> {formatDateTime(rescheduleModal.reschedule_preferred_time)}</div>
+                    <div><strong>Candidate's Requested Time:</strong> {formatDateTime(rescheduleModal.reschedule_preferred_time)}</div>
                   )}
                 </div>
               )}
 
               <div className="space-y-4 my-4">
                 <div className="space-y-2">
-                  <Label>New Scheduled Date &amp; Time *</Label>
+                  <Label>Scheduled Date &amp; Time *</Label>
                   <Input
                     type="datetime-local"
                     value={newDate}
@@ -1426,48 +1430,51 @@ function InterviewsTab() {
                 </div>
               </div>
 
-              <DialogFooter className="flex justify-between sm:justify-between items-center pt-2">
+              <DialogFooter className="flex justify-between sm:justify-between items-center pt-2 gap-2">
                 {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending' && (
                   <Button
                     type="button"
                     variant="destructive"
                     size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
                     disabled={rescheduleMutation.isPending}
                     onClick={async () => {
                       await rescheduleMutation.mutateAsync({
                         id: rescheduleModal.id,
                         scheduled_at: rescheduleModal.scheduled_at,
-                        admin_note: rescheduleNote || 'Reschedule request declined by hiring team.',
+                        admin_note: rescheduleNote || 'Reschedule request declined / chance cancelled by hiring team.',
                         action: 'decline',
                       })
                       setRescheduleModal(null)
                     }}
                   >
-                    Decline Request
+                    Cancel Chance / Decline
                   </Button>
                 )}
                 <div className="flex gap-2 ml-auto">
                   <Button type="button" variant="outline" size="sm" onClick={() => setRescheduleModal(null)}>
-                    Cancel
+                    Close
                   </Button>
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
                     disabled={rescheduleMutation.isPending || !newDate}
                     onClick={async () => {
                       await rescheduleMutation.mutateAsync({
                         id: rescheduleModal.id,
                         scheduled_at: new Date(newDate).toISOString(),
                         meeting_link: newLink || undefined,
-                        admin_note: rescheduleNote || 'Reschedule confirmed.',
+                        admin_note: rescheduleNote || 'Reschedule confirmed by HR.',
                         action: 'approve',
                       })
                       setRescheduleModal(null)
                     }}
                   >
-                    {rescheduleMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Approve &amp; Confirm Slot
+                    {rescheduleMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                    {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending'
+                      ? 'Approve & Update Schedule'
+                      : 'Update Schedule'}
                   </Button>
                 </div>
               </DialogFooter>

@@ -1548,18 +1548,53 @@ function OffersTab() {
                       </td>
                       <td className="px-4 py-2.5 text-muted-foreground">{o.joining_date ? formatDate(o.joining_date) : '—'}</td>
                       <td className="px-4 py-2.5">
-                        {o.pdf_url ? (
-                          <a
-                            href={o.pdf_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline bg-indigo-50 px-2 py-1 rounded border border-indigo-200"
-                          >
-                            <FileText className="h-3.5 w-3.5" /> View PDF
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Standard Template</span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {o.pdf_url ? (
+                            <a
+                              href={o.pdf_url}
+                              download={`Offer_Letter_${(o.candidate?.name || 'Candidate').replace(/\s+/g, '_')}.pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download PDF
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const printWindow = window.open('', '_blank')
+                                if (printWindow) {
+                                  printWindow.document.write(`
+                                    <!DOCTYPE html><html><head><title>Offer Letter - ${o.candidate?.name || 'Candidate'}</title>
+                                    <style>
+                                      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+                                      .header { border-bottom: 2px solid #4f46e5; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; }
+                                      .company { font-size: 24px; font-weight: 800; color: #0f172a; }
+                                      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; background: #f8fafc; padding: 16px; border-radius: 8px; }
+                                    </style></head>
+                                    <body>
+                                      <div class="header">
+                                        <div><div class="company">OKLUT INC.</div><div>Official Employment Offer</div></div>
+                                        <div>Date: ${new Date().toLocaleDateString('en-IN')}</div>
+                                      </div>
+                                      <p>Dear <strong>${o.candidate?.name || 'Candidate'}</strong>,</p>
+                                      <p>We are pleased to extend an offer for the position of <strong>${o.job_opening?.title || 'Associate'}</strong> at OKLUT INC.</p>
+                                      <div class="grid">
+                                        <div><strong>Annual CTC:</strong> ₹${o.salary_offered?.toLocaleString('en-IN') || 'As Discussed'}</div>
+                                        <div><strong>Joining Date:</strong> ${o.joining_date ? new Date(o.joining_date).toLocaleDateString('en-IN') : 'Immediate'}</div>
+                                      </div>
+                                      <script>window.onload = () => { window.print(); }</script>
+                                    </body></html>
+                                  `)
+                                  printWindow.document.close()
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 px-2.5 py-1 rounded border border-slate-200 font-medium"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download Offer
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         {isAccepted ? (

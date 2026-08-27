@@ -26,6 +26,7 @@ export default function CareersPage() {
   const [phone, setPhone] = useState('')
   const [dob, setDob] = useState('')
   const [resumeUrl, setResumeUrl] = useState('')
+  const [resumeName, setResumeName] = useState('')
   const [coverLetter, setCoverLetter] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -412,11 +413,18 @@ export default function CareersPage() {
               <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50 hover:bg-slate-100 transition-colors relative group cursor-pointer">
                 <Input type="file" accept=".pdf,.doc,.docx" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={e => {
                   const file = e.target.files?.[0]
-                  if (file) setResumeUrl(file.name)
+                  if (file) {
+                    setResumeName(file.name)
+                    const reader = new FileReader()
+                    reader.onload = (ev) => {
+                      setResumeUrl((ev.target?.result as string) || file.name)
+                    }
+                    reader.readAsDataURL(file)
+                  }
                 }} />
                 <div className="flex flex-col items-center justify-center gap-2 text-slate-500">
                   <UploadCloud className="h-8 w-8 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
-                  <span className="font-medium text-slate-700">{resumeUrl || 'Click to upload or drag and drop'}</span>
+                  <span className="font-medium text-slate-700">{resumeName || 'Click to upload or drag and drop'}</span>
                   <span className="text-xs">PDF, DOC, DOCX (Max 5MB)</span>
                 </div>
               </div>

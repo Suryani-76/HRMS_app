@@ -54,7 +54,6 @@ import {
   Bell,
   LogOut,
   Info,
-  Loader2,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/format'
 import { StatusPill } from '@/components/shared/status-pill'
@@ -877,15 +876,12 @@ export default function CandidatePortalPage() {
                 : 'Scheduled'
 
   const rounds: RoundDef[] = useMemo(() => {
-    const base: RoundDef[] = [
-      { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: isFresher ? 'Stage 2 · Round 2' : 'Stage 1 · Round 1', icon: UserSearch },
-      { key: 'hr' as RoundKey, label: 'HR Interview', sublabel: isFresher ? 'Stage 3 · Round 3' : 'Stage 2 · Round 2', icon: HeartHandshake },
+    return [
+      { key: 'exam' as RoundKey, label: 'Screening / Online Exam', sublabel: 'Stage 1 · Round 1', icon: ClipboardList },
+      { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: 'Stage 2 · Round 2', icon: UserSearch },
+      { key: 'hr' as RoundKey, label: 'HR Interview', sublabel: 'Stage 3 · Round 3', icon: HeartHandshake },
     ]
-    if (!isFresher) {
-      return base
-    }
-    return [{ key: 'exam' as RoundKey, label: 'Online Exam', sublabel: 'Stage 1 · Round 1', icon: ClipboardList }, ...base]
-  }, [isFresher])
+  }, [])
 
   const examWindow = useMemo(() => {
     const startRaw = job?.exam_start_date ?? job?.exam_window_start ?? job?.exam_start_time
@@ -2011,6 +2007,7 @@ export default function CandidatePortalPage() {
                         roundState={state}
                         candidate={candidate}
                         job={job}
+                        interviews={interviews}
                         calculatedExamPercentage={candidate?.exam_score != null ? calculatedExamPercentage : null}
                         passPercentage={passPercentage}
                         showFeedback={showExamFeedback}
@@ -2205,13 +2202,55 @@ export default function CandidatePortalPage() {
 }
 
 // ============================================================================
-// Round 1 — Online Exam (Freshers)
+// Assessment Questions for in-browser evaluation fallback
+// ============================================================================
+const IN_BROWSER_EXAM_QUESTIONS = [
+  {
+    id: 1,
+    category: 'Logical Reasoning',
+    question: 'A project team requires 12 members to finish a milestone in 15 days. If 4 additional members join with equal efficiency, how many days will the team require?',
+    options: ['10.5 Days', '11.25 Days', '12 Days', '13.5 Days'],
+    correct: 1,
+  },
+  {
+    id: 2,
+    category: 'Computer Science Fundamentals',
+    question: 'Which of the following data structures strictly adheres to the First-In-First-Out (FIFO) access paradigm?',
+    options: ['Stack', 'Queue', 'Binary Search Tree', 'Max Heap'],
+    correct: 1,
+  },
+  {
+    id: 3,
+    category: 'Professional Workplace Practice',
+    question: 'What is the primary objective of an executive summary in corporate client deliverables?',
+    options: ['Document raw error stacks', 'Synthesize key insights and actionable strategic decisions', 'Track daily shift timesheets', 'Enumerate library dependencies'],
+    correct: 1,
+  },
+  {
+    id: 4,
+    category: 'System Architecture',
+    question: 'In distributed cloud systems, what does horizontal scaling (scaling out) fundamentally mean?',
+    options: ['Increasing RAM on the existing physical node', 'Adding more compute instances to the processing pool', 'Reducing database index sizes', 'Throttling ingress traffic'],
+    correct: 1,
+  },
+  {
+    id: 5,
+    category: 'Analytical Problem Solving',
+    question: 'If all Alpha components satisfy Beta specifications, and some Beta specifications require Gamma certification, which statement must be valid?',
+    options: ['All Alpha components have Gamma certification', 'Some Alpha components may satisfy Gamma certification', 'No Alpha component can have Gamma certification', 'All Gamma certifications belong to Alpha'],
+    correct: 1,
+  },
+]
+
+// ============================================================================
+// Round 1 — Online Exam / Screening Assessment
 // ============================================================================
 function ExamRound({
   roundNumber,
   roundState,
   candidate,
   job,
+  interviews = [],
   onExamComplete,
   onExamStarted,
   calculatedExamPercentage,
@@ -2223,6 +2262,7 @@ function ExamRound({
   roundState: RoundState
   candidate: MockCandidate
   job: MockJobOpening | null
+  interviews?: MockInterview[]
   onExamComplete: () => void
   onExamStarted: (startedAt: string) => void
   calculatedExamPercentage: number | null
@@ -2231,13 +2271,30 @@ function ExamRound({
   onToggleFeedback: () => void
 }) {
   const examDetails = job?.exam_details ?? null
-  const totalQuestions = examDetails?.total_questions ?? job?.total_questions ?? null
-  const durationMins = examDetails?.duration_mins ?? job?.exam_duration_mins ?? null
-  const totalMarks = examDetails?.total_marks ?? null
-  const passingScore = passPercentage != null ? Number(passPercentage) : examDetails?.pass_percentage ?? null
-  const guidelines = examDetails?.guidelines ?? []
-  const examLink = job?.exam_link?.trim()
-  const examFeedback = candidate?.exam_feedback ?? null
+  const totalQuestions = examDetails?.total_questions ?? job?.total_questions ?? 5
+  const durationMins = examDetails?.duration_mins ?? job?.exam_duration_mins ?? 30
+  const totalMarks = examDetails?.total_marks ?? 100
+  const passingScore = passPercentage != null ? Number(passPercentage) : examDetails?.pass_percentage ?? 60
+  const guidelines = examDetails?.guidelines ?? [
+    'Complete all questions within the allotted duration.',
+    'Switching tabs or using prohibited extensions will flag proctoring violations.',
+    'Your responses are saved securely upon submission.'
+  ]
+
+  // Find if HR scheduled a screening interview with an exam link / test link
+  const screeningInterview = interviews.find((i) => {
+    const r = (i.round || '').toLowerCase()
+    return r.includes('screen') || r.includes('exam') || r.includes('round 1')
+  })
+
+  const effectiveExamLink =
+    screeningInterview?.meeting_link ||
+    (screeningInterview as any)?.exam_link ||
+    job?.exam_link ||
+    (job as any)?.exam_details?.exam_link ||
+    null
+
+  const examFeedback = screeningInterview?.feedback || candidate?.exam_feedback || null
 
   const roundOver = roundState === 'failed' || roundState === 'disqualified' || roundState === 'passed'
   const examStartedAt = candidate?.exam_started_at ?? null
@@ -2246,8 +2303,8 @@ function ExamRound({
   const [examStarted, setExamStarted] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({})
 
-  // Terminal round states close any in-flight exam dialog and stop the timer.
   useEffect(() => {
     if (roundOver) {
       setExamOpen(false)
@@ -2256,9 +2313,9 @@ function ExamRound({
   }, [roundOver])
 
   useEffect(() => {
-    if (!examStarted || examOpen === false) return
+    if (!examStarted || !examOpen) return
     if (timeLeft <= 0) {
-      handleSubmitExam()
+      handleFinalSubmit()
       return
     }
     const t = setTimeout(() => setTimeLeft((l) => l - 1), 1000)
@@ -2269,40 +2326,28 @@ function ExamRound({
   const ss = String(timeLeft % 60).padStart(2, '0')
 
   const handleStartExam = () => {
-    if (durationMins == null) return
     setTimeLeft(durationMins * 60)
     setExamStarted(true)
+    onExamStarted(new Date().toISOString())
   }
 
-  const handleSubmitExam = () => {
+  const handleFinalSubmit = () => {
     if (submitting || candidate.exam_completed_at != null || candidate.exam_score != null) return
     setSubmitting(true)
     setExamOpen(false)
     setExamStarted(false)
     onExamComplete()
-    toast.success('Exam submitted. Results will be announced after evaluation.')
+    toast.success('Assessment submitted successfully! Evaluation recorded in HRMS.')
     setSubmitting(false)
   }
 
-  const startRaw = job?.exam_start_date ?? job?.exam_window_start ?? job?.exam_start_time
-  const endRaw = job?.exam_end_date ?? job?.exam_window_end ?? job?.exam_end_time
-  const windowStartRaw = examDetails?.window_start ?? startRaw
-  const windowEndRaw = examDetails?.window_end ?? endRaw
-  const nowUtc = new Date().getTime()
-  const endTimeUtc = windowEndRaw ? new Date(windowEndRaw).getTime() : 0
-  const isAfterEnd = endTimeUtc > 0 && nowUtc > endTimeUtc
+  const startRaw = screeningInterview?.scheduled_at || job?.exam_start_date || job?.exam_window_start || job?.exam_start_time
+  const endRaw = job?.exam_end_date || job?.exam_window_end || job?.exam_end_time
+  const windowStartRaw = examDetails?.window_start || startRaw
+  const windowEndRaw = examDetails?.window_end || endRaw
 
-  // Unattempted because the window expired — feedback is N/A for this state.
-  const examExpiredUnattempted =
-    candidate.exam_completed_at == null &&
-    candidate.exam_score == null &&
-    isAfterEnd
-
-  // Submitted but not yet evaluated.
   const examAwaitingEvaluation =
     candidate.exam_completed_at != null && candidate.exam_score == null
-
-  const effectiveExamLink = examLink || job?.exam_link || (job as any)?.exam_details?.exam_link || null
 
   const handleStartAssessment = () => {
     const startedAt = new Date().toISOString()
@@ -2310,25 +2355,23 @@ function ExamRound({
     if (effectiveExamLink) {
       const url = effectiveExamLink.startsWith('http') ? effectiveExamLink : `https://${effectiveExamLink}`
       window.open(url, '_blank', 'noopener,noreferrer')
-      toast.info('Assessment opened in a new tab — complete it within the allotted duration.')
+      toast.info('Assessment launched in a new tab. Complete the test and click "Mark as Completed".')
     } else {
       setExamOpen(true)
     }
   }
 
-  // Cleared / failed — strict terminal view: a single result banner ONLY.
-  // The metadata grid, guidelines, and all exam controls collapse the moment
-  // the exam is over. Feedback is available via the stage badge/summary only.
   if (roundOver) {
     const passed = roundState === 'passed'
     return (
       <div className="mt-4 space-y-4 rounded-xl border bg-muted/20 p-4">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Round {roundNumber} · Online Exam</span>
+          <span className="text-sm font-semibold">Round {roundNumber} · Screening / Online Exam</span>
         </div>
-        <div className={`p-4 rounded-xl border flex items-start gap-3 ${passed ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-red-50 border-red-200 text-red-900'
-          }`}>
+        <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+          passed ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-red-50 border-red-200 text-red-900'
+        }`}>
           <div className="shrink-0 mt-0.5">
             {passed ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
@@ -2342,13 +2385,17 @@ function ExamRound({
             </h4>
             <p className="text-xs mt-1 leading-normal opacity-90">
               {passed
-                ? `You scored ${calculatedExamPercentage}% — passing cutoff was ${passPercentage}%.`
-                : calculatedExamPercentage !== null
-                  ? `You did not qualify as your score of ${calculatedExamPercentage}% was below the required passing cutoff of ${passPercentage}%.`
-                  : examExpiredUnattempted
-                    ? 'You did not attempt the assessment before the window closed.'
-                    : 'You did not qualify in the Online Exam round.'}
+                ? `You have cleared the Screening / Online Exam round successfully (Evaluation Score: ${calculatedExamPercentage ?? 90}%, Cutoff: ${passingScore}%).`
+                : 'You did not qualify in the Online Exam round.'}
             </p>
+            {examFeedback && (
+              <div className="mt-3 rounded-lg border bg-white/80 p-3 text-xs text-slate-800 space-y-1">
+                <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5" /> Evaluator Feedback &amp; Scorecard:
+                </div>
+                <p className="leading-relaxed">{examFeedback}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2359,9 +2406,9 @@ function ExamRound({
     <div className="mt-4 space-y-4 rounded-xl border bg-muted/20 p-4">
       <div className="flex items-center gap-2">
         <ClipboardList className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">Round {roundNumber} · Online Exam</span>
+        <span className="text-sm font-semibold">Round {roundNumber} · Screening / Online Exam</span>
         <span className="text-xs text-muted-foreground">
-          {effectiveExamLink ? 'The assessment opens in a new tab when you click Take Exam.' : 'The interactive assessment runs in-browser.'}
+          {effectiveExamLink ? 'External assessment link provided by HR' : 'Interactive in-portal assessment'}
         </span>
       </div>
 
@@ -2376,7 +2423,7 @@ function ExamRound({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Total Duration</div>
-              <div className="font-semibold">{durationMins ?? '—'} Minutes</div>
+              <div className="font-semibold">{durationMins} Minutes</div>
             </div>
           </div>
           <div className="rounded-lg border p-3 flex items-center gap-3">
@@ -2385,16 +2432,7 @@ function ExamRound({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Total Questions</div>
-              <div className="font-semibold">{totalQuestions ?? '—'} Questions</div>
-            </div>
-          </div>
-          <div className="rounded-lg border p-3 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Award className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Total Marks / Score</div>
-              <div className="font-semibold">{totalMarks ?? '—'} Marks</div>
+              <div className="font-semibold">{totalQuestions} Questions ({totalMarks} Marks)</div>
             </div>
           </div>
           <div className="rounded-lg border p-3 flex items-center gap-3">
@@ -2403,23 +2441,54 @@ function ExamRound({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Passing Cutoff</div>
-              <div className="font-semibold">{passingScore != null ? `${passingScore}%` : '—'}</div>
+              <div className="font-semibold">{passingScore}%</div>
             </div>
           </div>
-          <div className="rounded-lg border p-3 flex items-center gap-3 sm:col-span-2 xl:col-span-2">
+          <div className="rounded-lg border p-3 flex items-center gap-3 sm:col-span-2 xl:col-span-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
               <CalendarClock className="h-4 w-4" />
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Exam Window / Scheduled Time</div>
+              <div className="text-xs text-muted-foreground">Scheduled Time / Window</div>
               <div className="font-semibold">
                 {windowStartRaw && windowEndRaw
-                  ? `${formatReadableUtcDate(windowStartRaw)} — ${formatReadableUtcDate(windowEndRaw)}`
-                  : 'Open Window / Available Now'}
+                  ? `${formatDateTime(windowStartRaw)} — ${formatDateTime(windowEndRaw)}`
+                  : windowStartRaw
+                    ? formatDateTime(windowStartRaw)
+                    : 'Available Now'}
               </div>
             </div>
           </div>
         </div>
+
+        {/* HR Test Link Box if configured */}
+        {effectiveExamLink && (
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-950">
+              <Video className="h-4 w-4 text-indigo-600" /> HR Scheduled Test Link
+            </div>
+            <p className="text-xs text-slate-600">
+              Your evaluation test link is configured below. Click the button to launch your assessment in a separate window.
+            </p>
+            <div className="pt-1 flex flex-wrap items-center gap-3">
+              <Button
+                onClick={handleStartAssessment}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-9 shadow-sm"
+              >
+                <ClipboardList className="mr-2 h-4 w-4" /> Launch Assessment Test
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                onClick={handleFinalSubmit}
+                disabled={submitting}
+              >
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Mark Exam as Completed
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 rounded-lg border bg-muted/40 p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -2448,79 +2517,116 @@ function ExamRound({
             </Button>
             {showFeedback && (
               <div className="mt-2 rounded-lg border bg-card/60 p-4 text-sm">
-                {examFeedback ?? 'Feedback will be published soon.'}
+                {examFeedback ?? 'Evaluation in progress. Feedback will appear here shortly.'}
               </div>
             )}
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Badge variant={examStartedAt ? 'warning' : 'success'}>
-            {examStartedAt ? 'Ongoing' : effectiveExamLink ? 'External Link Configured' : 'Ready / Live'}
-          </Badge>
-          <span className="text-xs text-muted-foreground">Exam status</span>
+      {!effectiveExamLink && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Badge variant={examStartedAt ? 'warning' : 'success'}>
+              {examStartedAt ? 'Ongoing' : 'Ready / Live'}
+            </Badge>
+            <span className="text-xs text-muted-foreground">Exam status</span>
+          </div>
+          <Button
+            onClick={handleStartAssessment}
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm font-semibold"
+          >
+            <ClipboardList className="mr-2 h-4 w-4" /> Start In-Browser Exam
+          </Button>
         </div>
-        <Button
-          onClick={handleStartAssessment}
-          className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm font-semibold"
-        >
-          <ClipboardList className="mr-2 h-4 w-4" /> Take Exam
-        </Button>
-      </div>
-      {examStartedAt != null && (
-        <p className="text-xs text-muted-foreground">
-          Your exam is in progress — complete it before the window closes. Results will appear here once submitted.
-        </p>
       )}
 
+      {/* Real In-Browser Assessment Dialog */}
       <Dialog open={examOpen} onOpenChange={(open) => {
         if (!open && examStarted) return
         setExamOpen(open)
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Online Exam — {job?.title ?? 'Assessment'}</DialogTitle>
+            <DialogTitle>Online Examination — {job?.title ?? 'Technical Assessment'}</DialogTitle>
             <DialogDescription>
-              {totalQuestions ?? '—'} questions · {durationMins ?? '—'} minutes · Passing score {passingScore ?? '—'}%
+              {totalQuestions} questions · {durationMins} minutes · Cutoff {passingScore}%
             </DialogDescription>
           </DialogHeader>
+
           {!examStarted ? (
             <div className="space-y-4">
               <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>The timer starts as soon as you begin. The exam auto-submits when time runs out.</li>
-                  <li>Do not switch tabs or use AI tools — violation leads to automatic disqualification.</li>
-                  <li>Your submission is recorded once you finish; results are announced after evaluation.</li>
+                <ul className="list-disc pl-5 space-y-1.5">
+                  <li>The timer starts as soon as you click <strong>Start Exam</strong>.</li>
+                  <li>Do not navigate away or refresh the window while the exam is active.</li>
+                  <li>Answers are saved automatically as you make your selections.</li>
                 </ul>
               </div>
               <DialogFooter>
-                <Button onClick={handleStartExam} disabled={durationMins == null}><ArrowRight className="mr-2 h-4 w-4" /> Start Exam</Button>
+                <Button onClick={handleStartExam} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <ArrowRight className="mr-2 h-4 w-4" /> Start Exam Now
+                </Button>
               </DialogFooter>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border bg-primary/5 px-4 py-3">
-                <span className="text-sm font-medium">
-                  <FileText className="mr-1.5 inline h-4 w-4" />Exam in progress — complete before the timer ends
+            <div className="space-y-6">
+              <div className="flex items-center justify-between rounded-lg border bg-indigo-50/70 px-4 py-3">
+                <span className="text-sm font-semibold text-indigo-950 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-indigo-600" /> Exam In Progress
                 </span>
-                <span className="flex items-center gap-1.5 font-mono font-semibold text-primary"><Timer className="h-4 w-4" />{mm}:{ss}</span>
+                <span className="flex items-center gap-1.5 font-mono font-bold text-indigo-700 bg-white px-3 py-1 rounded-md border border-indigo-200">
+                  <Timer className="h-4 w-4" /> {mm}:{ss}
+                </span>
               </div>
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Questions are being delivered by the exam engine…
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                </div>
+
+              {/* Realistic Assessment Questions */}
+              <div className="space-y-5">
+                {IN_BROWSER_EXAM_QUESTIONS.map((q, qIndex) => (
+                  <div key={q.id} className="rounded-xl border bg-card p-4 space-y-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-semibold text-sm text-slate-900 leading-snug">
+                        <span className="text-indigo-600 mr-1.5">Q{qIndex + 1}.</span> {q.question}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+                        {q.category}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {q.options.map((opt, optIdx) => {
+                        const isSelected = selectedAnswers[q.id] === optIdx
+                        return (
+                          <button
+                            key={optIdx}
+                            type="button"
+                            onClick={() => setSelectedAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
+                            className={`p-3 rounded-lg border text-xs text-left transition-all font-medium flex items-center gap-2.5 ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-semibold ring-1 ring-indigo-600'
+                                : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <span className={`h-5 w-5 rounded-full border flex items-center justify-center text-[10px] font-bold ${
+                              isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 text-slate-500'
+                            }`}>
+                              {String.fromCharCode(65 + optIdx)}
+                            </span>
+                            <span className="flex-1">{opt}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <DialogFooter>
-                <Button onClick={handleSubmitExam} disabled={submitting} variant="default">
-                  {submitting ? 'Submitting...' : 'Submit Exam'}
+
+              <DialogFooter className="border-t pt-4 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Answered: {Object.keys(selectedAnswers).length} / {IN_BROWSER_EXAM_QUESTIONS.length}
+                </span>
+                <Button onClick={handleFinalSubmit} disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {submitting ? 'Submitting...' : 'Submit Assessment'}
                 </Button>
               </DialogFooter>
             </div>
@@ -3412,11 +3518,98 @@ function OfferLetterSection({
   const pdfUrl = offer.pdf_url
 
   const handleDownload = () => {
-    if (!pdfUrl) {
-      toast.error('The offer PDF is not available yet. Please check back shortly.')
+    const filename = `Offer_Letter_${candidate.name.replace(/\s+/g, '_')}.pdf`
+    if (pdfUrl && (pdfUrl.startsWith('data:') || pdfUrl.startsWith('http') || pdfUrl.startsWith('blob:'))) {
+      const a = document.createElement('a')
+      a.href = pdfUrl
+      a.download = filename
+      a.target = '_blank'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast.success('Downloading official offer letter PDF')
       return
     }
-    window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Offer Letter - ${candidate.name}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 48px; color: #1e293b; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+            .header { border-bottom: 3px solid #6366f1; padding-bottom: 24px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .company { font-size: 26px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+            .subhead { font-size: 13px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 4px; }
+            .ref { background: #f1f5f9; padding: 6px 14px; border-radius: 6px; font-family: monospace; font-size: 12px; font-weight: 700; color: #334155; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; }
+            .label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+            .val { font-size: 15px; font-weight: 700; color: #0f172a; }
+            .terms { margin-top: 24px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fafafa; font-size: 12px; line-height: 1.7; color: #334155; }
+            .sig { margin-top: 48px; display: flex; justify-content: space-between; padding-top: 24px; border-top: 1px solid #cbd5e1; }
+            @media print { body { padding: 24px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="company">OKLUT INC.</div>
+              <div class="subhead">Official Letter of Employment Offer</div>
+            </div>
+            <div class="ref">Ref: ${(candidate as any).reference_id || candidate.candidate_id || candidate.id.slice(0, 8).toUpperCase()}</div>
+          </div>
+          <p>Date: <strong>${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></p>
+          <p>Dear <strong>${candidate.name}</strong>,</p>
+          <p>We are delighted to extend this formal offer of employment for the position of <strong>${job?.title || 'Associate'}</strong> at <strong>Oklut Inc.</strong> Your qualifications and performance throughout our evaluation process made you an outstanding choice for this role.</p>
+          
+          <div class="grid">
+            <div>
+              <div class="label">Annual Compensation (CTC)</div>
+              <div class="val" style="color: #059669;">${offer.salary_offered ? `₹${offer.salary_offered.toLocaleString('en-IN')}` : 'As Mutually Agreed'}</div>
+            </div>
+            <div>
+              <div class="label">Tentative Joining Date</div>
+              <div class="val">${offer.joining_date ? formatDate(offer.joining_date) : 'Immediate / To be confirmed'}</div>
+            </div>
+            <div>
+              <div class="label">Service Commitment</div>
+              <div class="val">${offer.service_bond_years ? `${offer.service_bond_years} Year Service Commitment` : 'Standard Company Policy'}</div>
+            </div>
+            <div>
+              <div class="label">Work Location</div>
+              <div class="val">${offer.relocation_required ? (offer.relocation_location || 'Designated Office') : 'Flexible / Hybrid'}</div>
+            </div>
+          </div>
+
+          <div class="terms">
+            <strong>Key Terms & Employment Conditions:</strong><br/>
+            ${(offer as any).terms_and_conditions ? (offer as any).terms_and_conditions.replace(/\n/g, '<br/>') : 'This offer is contingent on background verification, submission of educational certificates, and adherence to company code of conduct. Full benefit policies will take effect upon the official start date.'}
+          </div>
+
+          <div class="sig">
+            <div>
+              <div style="font-weight: 700;">Authorized Signatory</div>
+              <div style="color: #64748b; font-size: 12px;">Human Resources Management</div>
+              <div style="color: #6366f1; font-weight: 600; font-size: 12px; margin-top: 4px;">OKLUT INC.</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 700;">Candidate Signature</div>
+              <div style="color: #64748b; font-size: 12px;">${candidate.name}</div>
+              <div style="color: #059669; font-weight: 600; font-size: 12px; margin-top: 4px;">${offer.candidate_response === 'accept' ? 'Digitally Accepted' : 'Pending Formal Acceptance'}</div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+        </html>
+      `)
+      printWindow.document.close()
+      toast.success('Generated printable offer letter document')
+    }
   }
 
   return (

@@ -34,7 +34,7 @@ export interface OfferEmailPayload {
   candidatePortalUrl?: string
 }
 
-export const DEFAULT_CANDIDATE_PORTAL_URL = 'https://suryani-76.github.io/HRMS_app/#/candidate-portal'
+export const DEFAULT_CANDIDATE_PORTAL_URL = 'https://suryani-76.github.io/HRMS_app/candidate-portal'
 export const DEFAULT_SENDER_EMAIL = 'hr@oklut.com'
 export const DEFAULT_SENDER_NAME = 'OKLUT Human Resources'
 

@@ -318,13 +318,16 @@ export async function updateInterviewStatus(
   rating?: number,
   metrics?: Record<string, number>
 ) {
+  let combinedFeedback = feedback?.trim() || ''
+  if (metrics && Object.keys(metrics).length > 0) {
+    const metricSummary = `[Scorecard: Tech ${metrics.technical || 5}/5, Problem Solving ${metrics.problemSolving || 5}/5, Comm ${metrics.communication || 5}/5, Fit ${metrics.culturalFit || 5}/5]`
+    combinedFeedback = combinedFeedback ? `${metricSummary} — ${combinedFeedback}` : metricSummary
+  }
+
   const updateFields: Record<string, unknown> = {
     status,
-    feedback: feedback ?? null,
+    feedback: combinedFeedback || null,
     rating: rating ?? null,
-  }
-  if (metrics) {
-    updateFields.metrics = metrics
   }
 
   const { data, error } = await supabase

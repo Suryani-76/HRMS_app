@@ -4,14 +4,19 @@
     <meta charset="utf-8">
     <title>Oklut HRMS</title>
     <script>
-      // GitHub Pages SPA redirect: store the path and redirect to the base
-      var path = window.location.pathname;
-      var base = '/HRMS_app/';
-      // Strip the base from the path to get the sub-path
-      var sub = path.startsWith(base) ? path.slice(base.length - 1) : path;
-      sessionStorage.setItem('redirect_path', sub);
-      window.location.replace(base);
+      // Single Page Apps for GitHub Pages
+      // MIT License https://github.com/rafgraph/spa-github-pages
+      var pathSegmentsToKeep = 1;
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
     </script>
   </head>
-  <body></body>
+  <body>
+  </body>
 </html>

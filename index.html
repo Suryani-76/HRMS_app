@@ -7,19 +7,21 @@
     <meta name="description" content="Oklut HRMS - Human Resource Management System" />
     <title>Oklut HRMS</title>
     <script>
-      // Restore path saved by 404.html for GitHub Pages SPA routing
-      (function() {
-        var redirect = sessionStorage.getItem('redirect_path');
-        if (redirect) {
-          sessionStorage.removeItem('redirect_path');
-          if (redirect && redirect !== '/') {
-            window.history.replaceState(null, '', '/HRMS_app' + redirect);
-          }
+      // Single Page Apps for GitHub Pages
+      // MIT License https://github.com/rafgraph/spa-github-pages
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&') 
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
         }
-      })();
+      }(window.location))
     </script>
-    <script type="module" crossorigin src="/HRMS_app/assets/index-BL_rtP2I.js"></script>
-    <link rel="stylesheet" crossorigin href="/HRMS_app/assets/index-_sXoF_y5.css">
+    <script type="module" crossorigin src="/HRMS_app/assets/index--A-ldbiK.js"></script>
+    <link rel="stylesheet" crossorigin href="/HRMS_app/assets/index-DbkPRQXt.css">
   </head>
   <body>
     <div id="root"></div>

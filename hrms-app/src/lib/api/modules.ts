@@ -161,6 +161,8 @@ export async function createCandidate(input: {
   name: string
   email: string
   phone?: string
+  date_of_birth?: string
+  dob?: string
   job_opening_id?: string
   status?: string
   resume_url?: string
@@ -171,8 +173,9 @@ export async function createCandidate(input: {
   temp_id?: string
   ats_score?: number
 }) {
-  const refId = input.reference_id || input.temp_id || `CAN-${String(Math.floor(Math.random() * 900) + 100)}`
+  const refId = input.reference_id || input.temp_id || `CAND-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
   const atsScore = input.ats_score || Math.floor(Math.random() * 35) + 65
+  const dobVal = input.date_of_birth || input.dob || '2000-01-01'
 
   const baseCandidate = {
     name: input.name,
@@ -180,9 +183,12 @@ export async function createCandidate(input: {
     phone: input.phone || null,
     job_opening_id: input.job_opening_id || null,
     status: input.status || 'applied',
+    stage: input.status || 'Applied',
     source: input.source || `HR Entry (ATS: ${atsScore}) | Ref: ${refId}`,
     resume_url: input.resume_url || null,
     cover_letter: input.cover_letter || null,
+    date_of_birth: dobVal,
+    dob: dobVal,
   }
 
   const fullCandidate = {
@@ -190,11 +196,13 @@ export async function createCandidate(input: {
     reference_id: refId,
     temp_id: refId,
     ats_score: atsScore,
+    category: 'Fresher',
+    password: dobVal,
   }
 
-  let { data, error } = await supabase.from('candidates').insert(fullCandidate).select().single()
+  let { data, error } = await supabase.from('candidates').insert(fullCandidate).select('*, job_opening:job_openings(title)').single()
   if (error) {
-    const fallbackRes = await supabase.from('candidates').insert(baseCandidate).select().single()
+    const fallbackRes = await supabase.from('candidates').insert(baseCandidate).select('*, job_opening:job_openings(title)').single()
     data = fallbackRes.data
     error = fallbackRes.error
   }

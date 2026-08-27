@@ -64,136 +64,100 @@ export default function CareersPage() {
     }
     setIsSubmitting(true)
 
-    // Call RPC — creates candidate row + auth.users portal login in one step
-    // Returns the temp_id (portal login ID) e.g. CAND-AB1CD2
-    const { data: tempId, error } = await supabase.rpc('create_candidate_with_auth', {
-      p_name: name,
-      p_email: email,
-      p_phone: phone || null,
-      p_job_opening_id: selectedJob.id,
-      p_source: 'Careers Page',
-      p_resume_url: resumeUrl || null,
-      p_cover_letter: coverLetter || null,
-      p_category: 'Fresher',
-    })
+    const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+    const atsScore = Math.floor(Math.random() * 41) + 60
+
+    const fullCandidate = {
+      job_opening_id: selectedJob.id,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone || null,
+      date_of_birth: dob,
+      dob: dob,
+      resume_url: resumeUrl || null,
+      cover_letter: coverLetter || null,
+      reference_id: refId,
+      temp_id: refId,
+      ats_score: atsScore,
+      status: 'applied',
+      stage: 'Applied',
+      source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
+      password: dob,
+    }
+
+    const baseCandidate = {
+      job_opening_id: selectedJob.id,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone || null,
+      date_of_birth: dob,
+      dob: dob,
+      resume_url: resumeUrl || null,
+      cover_letter: coverLetter || null,
+      status: 'applied',
+      stage: 'Applied',
+      source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
+    }
+
+    let { data: insertedData, error: insertErr } = await supabase.from('candidates').insert(fullCandidate).select().maybeSingle()
+    if (insertErr) {
+      const fallbackRes = await supabase.from('candidates').insert(baseCandidate).select().maybeSingle()
+      insertErr = fallbackRes.error
+      insertedData = fallbackRes.data
+    }
 
     setIsSubmitting(false)
-    if (error || !tempId) {
-      // Fallback: direct insert if RPC not yet deployed
-      const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
-      const atsScore = Math.floor(Math.random() * 41) + 60
 
-      const fullCandidate = {
-        job_opening_id: selectedJob.id,
-        name,
-        email,
-        phone: phone || null,
-        date_of_birth: dob,
-        dob: dob,
-        resume_url: resumeUrl || null,
-        cover_letter: coverLetter || null,
-        reference_id: refId,
-        temp_id: refId,
-        ats_score: atsScore,
-        status: 'applied',
-        source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
-      }
-
-      const baseCandidate = {
-        job_opening_id: selectedJob.id,
-        name,
-        email,
-        phone: phone || null,
-        date_of_birth: dob,
-        dob: dob,
-        resume_url: resumeUrl || null,
-        cover_letter: coverLetter || null,
-        status: 'applied',
-        source: `Careers Page (ATS: ${atsScore}) | Ref: ${refId}`,
-      }
-
-      let { data: insertedData, error: insertErr } = await supabase.from('candidates').insert(fullCandidate).select().maybeSingle()
-      if (insertErr) {
-        // Fallback to baseCandidate if ats_score / temp_id column is not in database
-        const fallbackRes = await supabase.from('candidates').insert(baseCandidate).select().maybeSingle()
-        insertErr = fallbackRes.error
-        insertedData = fallbackRes.data
-      }
-
-      if (insertErr) {
-        toast.error('Failed to submit application: ' + insertErr.message)
-      } else {
-        // Update local candidates cache as well
-        const newCandidateItem = {
-          id: (insertedData as any)?.id || 'can-' + Date.now(),
-          ...baseCandidate,
-          reference_id: refId,
-          temp_id: refId,
-          date_of_birth: dob,
-          dob: dob,
-          ats_score: atsScore,
-          applied_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          job_opening: { title: selectedJob.title },
-        }
-        try {
-          const raw = localStorage.getItem('hrms_local_candidates')
-          const curr = raw ? JSON.parse(raw) : []
-          localStorage.setItem('hrms_local_candidates', JSON.stringify([newCandidateItem, ...curr.filter((c: any) => c.email !== email)]))
-        } catch {}
-
-        // Dispatch confirmation email to candidate with Reference ID and Date of Birth password
-        sendCandidateApplicationEmail({
-          candidateName: name.trim(),
-          candidateEmail: email.trim(),
-          jobTitle: selectedJob.title,
-          referenceId: refId,
-          dateOfBirth: dob,
-          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-        })
-
-        setSubmittedSuccess({
-          name: name.trim(),
-          email: email.trim(),
-          jobTitle: selectedJob.title,
-          refId,
-          dob,
-        })
-
-        toast.success(`Application submitted! 🎉 Confirmation email sent to ${email}.`, { duration: 8000 })
-        setSelectedJob(null); setName(''); setEmail(''); setPhone(''); setDob(''); setResumeUrl(''); setCoverLetter('')
-      }
-    } else {
-      const activeRef = (tempId as string) || 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
-      sendCandidateApplicationEmail({
-        candidateName: name.trim(),
-        candidateEmail: email.trim(),
-        jobTitle: selectedJob.title,
-        referenceId: activeRef,
-        dateOfBirth: dob,
-        candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-      })
-
-      setSubmittedSuccess({
-        name: name.trim(),
-        email: email.trim(),
-        jobTitle: selectedJob.title,
-        refId: activeRef,
-        dob,
-      })
-
-      toast.success(
-        `Application submitted! 🎉 Confirmation email sent to ${email}.`,
-        { duration: 8000 }
-      )
-      setSelectedJob(null)
-      setName('')
-      setEmail('')
-      setPhone('')
-      setDob('')
-      setResumeUrl('')
-      setCoverLetter('')
+    if (insertErr) {
+      toast.error('Failed to submit application: ' + insertErr.message)
+      return
     }
+
+    // Update local candidates cache as well
+    const newCandidateItem = {
+      id: (insertedData as any)?.id || 'can-' + Date.now(),
+      ...baseCandidate,
+      reference_id: refId,
+      temp_id: refId,
+      date_of_birth: dob,
+      dob: dob,
+      ats_score: atsScore,
+      applied_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      job_opening: { title: selectedJob.title },
+    }
+    try {
+      const raw = localStorage.getItem('hrms_local_candidates')
+      const curr = raw ? JSON.parse(raw) : []
+      localStorage.setItem('hrms_local_candidates', JSON.stringify([newCandidateItem, ...curr.filter((c: any) => c.email !== email)]))
+    } catch {}
+
+    // Dispatch confirmation email to candidate with Reference ID and Date of Birth password
+    sendCandidateApplicationEmail({
+      candidateName: name.trim(),
+      candidateEmail: email.trim(),
+      jobTitle: selectedJob.title,
+      referenceId: refId,
+      dateOfBirth: dob,
+      candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+    })
+
+    setSubmittedSuccess({
+      name: name.trim(),
+      email: email.trim(),
+      jobTitle: selectedJob.title,
+      refId,
+      dob,
+    })
+
+    toast.success(`Application submitted! 🎉 Confirmation email sent to ${email}.`, { duration: 8000 })
+    setSelectedJob(null)
+    setName('')
+    setEmail('')
+    setPhone('')
+    setDob('')
+    setResumeUrl('')
+    setCoverLetter('')
   }
 
   return (

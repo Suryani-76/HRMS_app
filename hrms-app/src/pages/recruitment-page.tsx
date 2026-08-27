@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
 import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download } from 'lucide-react'
 import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
@@ -361,6 +360,7 @@ function CandidatesTab() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [dob, setDob] = useState('')
   const [jobId, setJobId] = useState('')
   const [source, setSource] = useState('')
   const [resumeUrl, setResumeUrl] = useState('')
@@ -370,60 +370,16 @@ function CandidatesTab() {
     if (!name.trim() || !email.trim()) return
 
     const ats_score = Math.floor(Math.random() * 35) + 65
-    const refId = 'CAN-' + Math.floor(Math.random() * 900 + 100)
+    const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+    const birthDate = dob || '2000-01-01'
 
     try {
-      // Try RPC first to auto-create portal login if available
-      const { data: tempId, error: rpcErr } = await supabase.rpc('create_candidate_with_auth', {
-        p_name: name.trim(),
-        p_email: email.trim(),
-        p_phone: phone || null,
-        p_job_opening_id: jobId || null,
-        p_source: source || 'HR Entry',
-        p_resume_url: resumeUrl || null,
-        p_category: 'Fresher',
-      })
-
-      if (rpcErr || !tempId) {
-        await create.mutateAsync({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone || undefined,
-          job_opening_id: jobId || undefined,
-          source: `${source || 'HR Entry'} (ATS: ${ats_score})`,
-          resume_url: resumeUrl || undefined,
-          reference_id: refId,
-          temp_id: refId,
-          ats_score,
-          status: 'Applied',
-        })
-        const job = jobs.find((j) => j.id === jobId)
-        sendCandidateApplicationEmail({
-          candidateName: name.trim(),
-          candidateEmail: email.trim(),
-          jobTitle: job?.title || 'Open Position',
-          referenceId: refId,
-          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-          passwordPin: '1234',
-        })
-        toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | PIN: 1234)`)
-      } else {
-        const job = jobs.find((j) => j.id === jobId)
-        sendCandidateApplicationEmail({
-          candidateName: name.trim(),
-          candidateEmail: email.trim(),
-          jobTitle: job?.title || 'Open Position',
-          referenceId: tempId,
-          candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-          passwordPin: '1234',
-        })
-        toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${tempId} | PIN: 1234)`)
-      }
-    } catch {
       await create.mutateAsync({
         name: name.trim(),
         email: email.trim(),
         phone: phone || undefined,
+        date_of_birth: birthDate,
+        dob: birthDate,
         job_opening_id: jobId || undefined,
         source: `${source || 'HR Entry'} (ATS: ${ats_score})`,
         resume_url: resumeUrl || undefined,
@@ -432,20 +388,25 @@ function CandidatesTab() {
         ats_score,
         status: 'Applied',
       })
+
       const job = jobs.find((j) => j.id === jobId)
       sendCandidateApplicationEmail({
         candidateName: name.trim(),
         candidateEmail: email.trim(),
         jobTitle: job?.title || 'Open Position',
         referenceId: refId,
+        dateOfBirth: birthDate,
         candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
-        passwordPin: '1234',
       })
-      toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | PIN: 1234)`)
+
+      toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | Password (DOB): ${birthDate})`)
+    } catch (err: any) {
+      console.error('Candidate addition error:', err)
+      toast.error('Failed to add candidate: ' + (err?.message || 'Unknown error'))
     }
 
     setDialog(false)
-    setName(''); setEmail(''); setPhone(''); setJobId(''); setSource(''); setResumeUrl('')
+    setName(''); setEmail(''); setPhone(''); setDob(''); setJobId(''); setSource(''); setResumeUrl('')
   }
 
   const stageOptions = ['Applied', 'Screening', 'Shortlisted', 'Technical Round', 'HR Round', 'Offer Sent', 'Hired', 'Rejected']
@@ -1056,6 +1017,11 @@ function CandidatesTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>Date of Birth * (Portal Password)</Label>
+                <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                <p className="text-[11px] text-muted-foreground">Used as candidate's portal login password.</p>
+              </div>
+              <div className="space-y-2">
                 <Label>Job opening</Label>
                 <Select value={jobId || undefined} onValueChange={setJobId}>
                   <SelectTrigger><SelectValue placeholder="Select opening" /></SelectTrigger>
@@ -1066,6 +1032,8 @@ function CandidatesTab() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Source</Label>
                 <Select value={source || undefined} onValueChange={setSource}>
@@ -1077,18 +1045,18 @@ function CandidatesTab() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Resume/CV Document</Label>
-              <Input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) setResumeUrl(file.name)
-                }}
-              />
-              <p className="text-[11px] text-muted-foreground">Upload resume (PDF/DOC) to auto-calculate ATS score.</p>
+              <div className="space-y-2">
+                <Label>Resume/CV Document</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) setResumeUrl(file.name)
+                  }}
+                />
+                <p className="text-[11px] text-muted-foreground">Upload resume to calculate ATS score.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>

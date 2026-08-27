@@ -777,7 +777,7 @@ export default function CandidatePortalPage() {
       : (candidate?.exam_score ?? 0)
 
   const candStatusNorm = (candidate?.status ?? '').toLowerCase()
-  const isCandidateShortlisted = ['shortlisted', 'technical round', 'interview scheduled', 'hr round', 'offer sent', 'hired'].includes(candStatusNorm)
+  const isCandidateShortlisted = ['shortlisted', 'technical round', 'hr round', 'offer sent', 'hired'].includes(candStatusNorm)
   const isCandidateAtHrOrAbove = ['hr round', 'offer sent', 'hired'].includes(candStatusNorm)
   const isCandidateOfferedOrHired = ['offer sent', 'hired'].includes(candStatusNorm)
 
@@ -787,7 +787,7 @@ export default function CandidatePortalPage() {
   })
   const hasExamInterviewPassed = examInterviews.some((i) => {
     const s = (i.status || '').toLowerCase()
-    return s === 'passed' || s === 'completed' || s === 'cleared'
+    return s === 'passed' || (s === 'completed' && !!i.feedback && (i.rating == null || i.rating >= 3))
   })
 
   const isExamPassed =

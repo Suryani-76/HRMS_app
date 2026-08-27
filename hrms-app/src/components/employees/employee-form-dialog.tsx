@@ -29,6 +29,7 @@ interface EmployeeFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   employee?: Employee | null
+  initialValues?: Record<string, any> | null
 }
 
 const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Probation']
@@ -37,7 +38,7 @@ const MARITAL_STATUS = ['Single', 'Married', 'Divorced', 'Widowed']
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 const RELATIONSHIPS = ['Father', 'Mother', 'Spouse', 'Guardian', 'Brother', 'Sister', 'Son', 'Daughter', 'Friend', 'Other']
 
-export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFormDialogProps) {
+export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues }: EmployeeFormDialogProps) {
   const { isAdmin } = useAuth()
   const { data: departments = [] } = useDepartments()
   const { data: designations = [] } = useDesignations()
@@ -150,6 +151,54 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
           bonus: '',
           password: '',
         })
+      } else if (initialValues) {
+        setSameAsCurrent(false)
+        const nameParts = (initialValues.name || '').trim().split(/\s+/)
+        const fName = initialValues.first_name || nameParts[0] || ''
+        const lName = initialValues.last_name || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '')
+
+        // Auto-match designation or department if available
+        let matchedDesigId = initialValues.designation_id || ''
+        if (!matchedDesigId && initialValues.role) {
+          const matched = designations.find((d) => d.name?.toLowerCase() === initialValues.role?.toLowerCase())
+          if (matched) matchedDesigId = matched.id
+        }
+
+        setForm({
+          first_name: fName,
+          last_name: lName,
+          email: initialValues.email || '',
+          phone: initialValues.phone || '',
+          gender: initialValues.gender || '',
+          date_of_birth: toDateInput(initialValues.date_of_birth || initialValues.dob) || '',
+          marital_status: '',
+          blood_group: '',
+          emergency_contact_name: '',
+          emergency_contact_relation: '',
+          emergency_contact_phone: '',
+          current_address: '',
+          current_city: '',
+          current_state: '',
+          current_country: 'India',
+          current_postal_code: '',
+          permanent_address: '',
+          permanent_city: '',
+          permanent_state: '',
+          permanent_country: 'India',
+          permanent_postal_code: '',
+          branch: '',
+          joining_date: toDateInput(initialValues.joining_date) || new Date().toISOString().slice(0, 10),
+          employment_type: initialValues.employment_type || 'Full-time',
+          department_id: initialValues.department_id || initialValues.deptId || '',
+          designation_id: matchedDesigId,
+          manager_id: '',
+          status: 'Active',
+          basic_salary: initialValues.basic_salary || initialValues.salary || '',
+          hra: '',
+          allowances: '',
+          bonus: '',
+          password: '',
+        })
       } else {
         setSameAsCurrent(false)
         setForm({
@@ -189,7 +238,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         })
       }
     }
-  }, [open, employee])
+  }, [open, employee, initialValues, designations])
 
   const set = <K extends keyof typeof form>(key: K, value: string) => {
     setForm((f) => {

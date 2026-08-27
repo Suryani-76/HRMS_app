@@ -484,6 +484,18 @@ export function useUpdateInterviewStatus() {
     onError: toastError,
   })
 }
+export function useRescheduleInterview() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (input: { id: string; scheduled_at: string; meeting_link?: string; exam_link?: string; admin_note?: string; action: 'approve' | 'reschedule' | 'decline' }) =>
+      api.rescheduleInterview(input),
+    onSuccess: (_, vars) => {
+      invalidate([queryKeys.interviews, queryKeys.candidates])
+      toast.success(vars.action === 'decline' ? 'Reschedule request declined' : 'Interview rescheduled & candidate notified')
+    },
+    onError: toastError,
+  })
+}
 export function useOffers() {
   return useQuery({ queryKey: queryKeys.offers, queryFn: api.fetchOffers })
 }

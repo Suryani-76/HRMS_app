@@ -401,6 +401,85 @@ export async function updateInterviewStatus(
   return data as Interview
 }
 
+export async function rescheduleInterview(input: {
+  id: string
+  scheduled_at: string
+  meeting_link?: string
+  exam_link?: string
+  admin_note?: string
+  action: 'approve' | 'reschedule' | 'decline'
+}) {
+  const isDecline = input.action === 'decline'
+  const updateFields: Record<string, unknown> = {
+    reschedule_requested: false,
+    reschedule_status: isDecline ? 'rejected' : 'accepted',
+    reschedule_admin_note: input.admin_note || (isDecline ? 'Reschedule request declined.' : 'Reschedule confirmed.'),
+    updated_at: new Date().toISOString(),
+  }
+
+  if (!isDecline) {
+    updateFields.scheduled_at = input.scheduled_at
+    if (input.meeting_link) updateFields.meeting_link = input.meeting_link
+    if (input.exam_link) updateFields.exam_link = input.exam_link
+    updateFields.status = 'scheduled'
+  }
+
+  const { data, error } = await supabase
+    .from('interviews')
+    .update(updateFields)
+    .eq('id', input.id)
+    .select('*, candidate:candidates(name, email, reference_id, phone), job_opening:job_openings(title)')
+    .single()
+  if (error) throw error
+
+  // Sync candidate record if scheduled_at changed
+  try {
+    if (!isDecline && data?.candidate_id) {
+      const roundLower = (data.round || '').toLowerCase()
+      const isHr = roundLower.includes('hr')
+      const candPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (isHr) {
+        candPatch.hr_interview_date = input.scheduled_at
+      } else if (!roundLower.includes('screen') && !roundLower.includes('exam')) {
+        candPatch.technical_interview_date = input.scheduled_at
+      }
+      if (input.meeting_link) candPatch.meeting_link = input.meeting_link
+      await supabase.from('candidates').update(candPatch).eq('id', data.candidate_id)
+    }
+
+    // Record audit email event to notify candidate of confirmation
+    const candEmail = (data as any)?.candidate?.email
+    if (candEmail) {
+      const candName = (data as any)?.candidate?.name || 'Candidate'
+      const refId = (data as any)?.candidate?.reference_id || ''
+      const subject = isDecline
+        ? `Interview Reschedule Update: ${data.round || 'Interview'} — OKLUT HRMS`
+        : `Interview Reschedule Confirmed: ${data.round || 'Interview'} — OKLUT HRMS`
+
+      await supabase.from('audit_logs').insert({
+        action: 'EMAIL_PENDING',
+        entity_name: 'interview_rescheduled',
+        details: {
+          to: candEmail,
+          name: candName,
+          refId,
+          round: data.round || 'Interview',
+          scheduled_at: !isDecline ? new Date(input.scheduled_at).toLocaleString() : undefined,
+          meeting_link: input.meeting_link || '',
+          admin_note: input.admin_note || '',
+          status: isDecline ? 'declined' : 'confirmed',
+          from: 'hr@oklut.com',
+          subject,
+        },
+      })
+    }
+  } catch (syncErr) {
+    console.warn('Candidate reschedule sync error:', syncErr)
+  }
+
+  return data as Interview
+}
+
 export async function fetchOffers(): Promise<Offer[]> {
   try {
     const { data, error } = await supabase

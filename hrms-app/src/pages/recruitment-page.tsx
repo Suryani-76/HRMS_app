@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock } from 'lucide-react'
 import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +39,7 @@ import {
   useInterviews,
   useCreateInterview,
   useUpdateInterviewStatus,
+  useRescheduleInterview,
   useOffers,
   useCreateOffer,
   useUpdateOfferStatus,
@@ -269,6 +271,7 @@ function JobsTab() {
 }
 
 function CandidatesTab() {
+  const navigate = useNavigate()
   const { data: candidates = [], isLoading } = useCandidates()
   const { data: jobs = [] } = useJobOpenings()
   const create = useCreateCandidate()
@@ -620,7 +623,29 @@ function CandidatesTab() {
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {/* Resume Quick Preview / Download */}
+                          {['hired', 'offer sent', 'offered', 'shortlisted'].includes((c.status || '').toLowerCase()) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-semibold"
+                              onClick={() => {
+                                const params = new URLSearchParams({
+                                  action: 'add',
+                                  name: c.name || '',
+                                  email: c.email || '',
+                                  phone: c.phone || '',
+                                  role: c.job_opening?.title || '',
+                                  dob: c.date_of_birth || c.dob || '',
+                                  deptId: c.job_opening?.department_id || '',
+                                })
+                                navigate(`/employees?${params.toString()}`)
+                              }}
+                            >
+                              <UserCheck className="h-3.5 w-3.5" /> Convert
+                            </Button>
+                          )}
+
+                          {/* Preview Resume Button */}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -728,100 +753,73 @@ function CandidatesTab() {
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      {displayScore >= 80 ? 'High candidate fit for required skills.' : 'Moderate fit — manual review recommended.'}
+                      Calculated from resume match against {c.job_opening?.title || 'standard qualifications'}.
                     </p>
                   </div>
 
-                  <div className="space-y-1 border-t sm:border-t-0 sm:border-l sm:pl-4 border-slate-200 pt-2 sm:pt-0">
-                    <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                      <User className="h-3.5 w-3.5 text-indigo-500" /> Candidate Portal Login
-                    </span>
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-white border border-slate-300">
-                        {portalId}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">(Pass: 1234)</span>
-                      <button
-                        title="Copy Portal ID"
+                  <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-200 text-xs">
+                    <span className="font-semibold text-slate-700 block">Candidate Portal Access</span>
+                    <div className="font-mono text-indigo-700 bg-indigo-50 px-2 py-1 rounded flex items-center justify-between">
+                      <span>ID: {portalId}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
                         onClick={() => {
                           navigator.clipboard.writeText(portalId)
-                          toast.success(`Copied: ${portalId}`)
+                          toast.success('Portal ID copied!')
                         }}
-                        className="text-slate-500 hover:text-slate-800"
                       >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
+                        <Copy className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <a
-                      href="#/candidate-portal"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] font-medium text-indigo-600 hover:underline flex items-center gap-1 pt-1"
-                    >
-                      Open Candidate Portal <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-
-                {/* Candidate Information Details Grid */}
-                <div className="grid grid-cols-2 gap-4 text-sm bg-white rounded-xl border p-4">
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">Email Address</span>
-                    <p className="font-medium text-slate-800 mt-0.5">
-                      <a href={`mailto:${c.email}`} className="text-indigo-600 hover:underline">
-                        {c.email}
-                      </a>
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">Phone Number</span>
-                    <p className="font-medium text-slate-800 mt-0.5">
-                      {c.phone ? (
-                        <a href={`tel:${c.phone}`} className="hover:underline">
-                          {c.phone}
-                        </a>
-                      ) : 'Not provided'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">Application Source</span>
-                    <p className="font-medium text-slate-800 mt-0.5">
-                      {c.source || 'Website Application'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">Applied Date</span>
-                    <p className="font-medium text-slate-800 mt-0.5">
-                      {(c as any).applied_at || (c as any).created_at
-                        ? new Date((c as any).applied_at || (c as any).created_at).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'long',
-                            year: 'numeric'
-                          })
-                        : 'Recent'}
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Password: <strong>{c.date_of_birth || c.dob || 'Date of Birth'}</strong>
                     </p>
                   </div>
                 </div>
 
-                {/* Cover Letter / Notes */}
+                {/* Candidate Overview Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>{c.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span>{c.phone || 'No phone provided'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    <span>Applied: {new Date(c.applied_at || c.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>Source: {c.source || 'HR Entry'}</span>
+                  </div>
+                </div>
+
+                {/* Candidate Statement / Cover Letter */}
                 {c.cover_letter && (
                   <div className="space-y-1.5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Candidate Cover Letter</h4>
-                    <div className="rounded-xl border bg-slate-50/70 p-3.5 text-xs text-slate-700 leading-relaxed italic">
-                      "{c.cover_letter}"
-                    </div>
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Candidate Statement</h4>
+                    <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed">
+                      {c.cover_letter}
+                    </p>
                   </div>
                 )}
 
-                {/* Resume Attachment */}
+                {/* Resume Attachment Banner */}
                 <div className="space-y-1.5">
-                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Resume / CV Document</h4>
-                  <div className="flex items-center justify-between rounded-xl border bg-slate-50 p-3">
-                    <div className="flex items-center gap-2.5">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Resume Document</h4>
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+                    <div className="flex items-center gap-2">
                       <FileText className="h-5 w-5 text-indigo-600" />
                       <div>
-                        <p className="text-xs font-medium text-slate-800">{c.resume_url || `${c.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`}</p>
-                        <p className="text-[10px] text-muted-foreground">PDF Document · Verified</p>
+                        <p className="text-xs font-semibold text-slate-800">
+                          {c.resume_url ? (c.resume_url.startsWith('data:') ? `${c.name}_resume.pdf` : c.resume_url) : `${c.name}_CV.pdf`}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Original Candidate Submission</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -867,7 +865,27 @@ function CandidatesTab() {
                   </div>
                 </div>
 
-                <DialogFooter className="border-t pt-4">
+                <DialogFooter className="border-t pt-4 flex items-center justify-between sm:justify-between">
+                  {['hired', 'offer sent', 'offered', 'shortlisted'].includes((c.status || '').toLowerCase()) ? (
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 font-semibold"
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          action: 'add',
+                          name: c.name || '',
+                          email: c.email || '',
+                          phone: c.phone || '',
+                          role: c.job_opening?.title || '',
+                          dob: c.date_of_birth || c.dob || '',
+                          deptId: c.job_opening?.department_id || '',
+                        })
+                        navigate(`/employees?${params.toString()}`)
+                      }}
+                    >
+                      <UserCheck className="h-4 w-4" /> Convert to Employee
+                    </Button>
+                  ) : <div />}
                   <Button variant="outline" onClick={() => setSelectedCandidate(null)}>
                     Close
                   </Button>
@@ -883,7 +901,7 @@ function CandidatesTab() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           {previewResumeCandidate && (() => {
             const c = previewResumeCandidate
-            const isPdfData = c.resume_url?.startsWith('data:application/pdf') || c.resume_url?.startsWith('http')
+            const isPdfData = Boolean(c.resume_url && (c.resume_url.startsWith('data:') || c.resume_url.startsWith('http')))
             const filename = c.resume_url && !c.resume_url.startsWith('data:')
               ? c.resume_url
               : `${c.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`
@@ -922,7 +940,7 @@ function CandidatesTab() {
                   <iframe
                     src={c.resume_url}
                     title={`Resume — ${c.name}`}
-                    className="w-full h-[520px] rounded-lg border bg-white shadow-inner"
+                    className="w-full h-[540px] rounded-lg border bg-white shadow-inner"
                   />
                 ) : (
                   <div className="rounded-xl border bg-white p-6 sm:p-8 space-y-6 shadow-sm text-slate-800">
@@ -1052,10 +1070,18 @@ function CandidatesTab() {
                   accept=".pdf,.doc,.docx"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) setResumeUrl(file.name)
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = () => {
+                        if (typeof reader.result === 'string') {
+                          setResumeUrl(reader.result)
+                        }
+                      }
+                      reader.readAsDataURL(file)
+                    }
                   }}
                 />
-                <p className="text-[11px] text-muted-foreground">Upload resume to calculate ATS score.</p>
+                <p className="text-[11px] text-muted-foreground">Upload resume (PDF/DOC) to calculate ATS score.</p>
               </div>
             </div>
             <DialogFooter>
@@ -1071,7 +1097,6 @@ function CandidatesTab() {
     </div>
   )
 }
-
 const DEFAULT_TERMS_TEMPLATE = `1. Employment is subject to satisfactory verification of educational credentials, identity documents, and background checks.
 2. The initial probation period is 3 months from the official date of joining, extendable based on performance evaluation.
 3. Standard working hours are Monday through Friday, 9:30 AM to 6:30 PM, with flexible work arrangements as approved by your manager.
@@ -1085,6 +1110,7 @@ function InterviewsTab() {
   const { data: jobs = [] } = useJobOpenings()
   const create = useCreateInterview()
   const updateStatus = useUpdateInterviewStatus()
+  const rescheduleMutation = useRescheduleInterview()
 
   const [dialog, setDialog] = useState(false)
   const [candidateId, setCandidateId] = useState('')
@@ -1095,6 +1121,19 @@ function InterviewsTab() {
   const [mode, setMode] = useState('video')
   const [link, setLink] = useState('')
   const [examLink, setExamLink] = useState('')
+
+  // Reschedule review modal state
+  const [rescheduleModal, setRescheduleModal] = useState<Interview | null>(null)
+  const [newDate, setNewDate] = useState('')
+  const [newLink, setNewLink] = useState('')
+  const [rescheduleNote, setRescheduleNote] = useState('')
+
+  const openRescheduleDialog = (iv: Interview) => {
+    setRescheduleModal(iv)
+    setNewDate(iv.reschedule_preferred_time ? iv.reschedule_preferred_time.slice(0, 16) : (iv.scheduled_at ? iv.scheduled_at.slice(0, 16) : ''))
+    setNewLink(iv.meeting_link || (iv as any).exam_link || '')
+    setRescheduleNote(iv.reschedule_admin_note || '')
+  }
 
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<Interview | null>(null)
@@ -1173,66 +1212,221 @@ function InterviewsTab() {
                   <th className="px-4 py-3">Round</th>
                   <th className="px-4 py-3">Job</th>
                   <th className="px-4 py-3">Interviewer</th>
-                  <th className="px-4 py-3">Scheduled</th>
-                  <th className="px-4 py-3">Mode</th>
+                  <th className="px-4 py-3">Scheduled Time</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Rating</th>
-                  <th className="px-4 py-3">Candidate Feedback</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {interviews.map((i) => (
-                  <tr key={i.id} className="border-b last:border-0 hover:bg-muted/10">
-                    <td className="px-4 py-2.5 font-medium">{i.candidate?.name}</td>
-                    <td className="px-4 py-2.5 font-medium">
-                      {i.round}
-                      <p className="text-[10px] text-muted-foreground">
-                        {i.job_opening?.requirements?.includes('Fresher') ? '(Fresher Track)' : '(Experienced Track)'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-2.5">{i.job_opening?.title ?? '—'}</td>
-                    <td className="px-4 py-2.5">{i.interviewer ? `${i.interviewer.first_name} ${i.interviewer.last_name}` : '—'}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(i.scheduled_at)}</td>
-                    <td className="px-4 py-2.5 capitalize">{i.mode ?? 'video'}</td>
-                    <td className="px-4 py-2.5">
-                      <Select value={i.status ?? 'scheduled'} onValueChange={(v) => updateStatus.mutate({ id: i.id, status: v })}>
-                        <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="scheduled">Scheduled</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="passed">Passed</SelectItem>
-                          <SelectItem value="failed">Failed</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {i.rating ? (
-                        <Badge variant="outline" className="gap-1 font-semibold">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-500" /> {i.rating}/5
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openFeedbackDialog(i)}
-                        className={`h-8 gap-1.5 text-xs font-semibold ${i.feedback ? 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}`}
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {i.feedback ? 'Edit Feedback' : 'Add Feedback'}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {interviews.map((i) => {
+                  const hasRescheduleReq = i.reschedule_requested === true && i.reschedule_status === 'pending'
+
+                  return (
+                    <tr key={i.id} className="border-b last:border-0 hover:bg-muted/10">
+                      <td className="px-4 py-2.5 font-medium">
+                        <div>{i.candidate?.name}</div>
+                        {hasRescheduleReq && (
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            <Badge className="w-fit text-[10px] bg-amber-500 hover:bg-amber-600 text-white gap-1 animate-pulse font-semibold">
+                              <Clock className="h-3 w-3" /> Reschedule Requested
+                            </Badge>
+                            {i.reschedule_reason && (
+                              <span className="text-[11px] text-amber-800 italic max-w-xs truncate">
+                                "{i.reschedule_reason}"
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium">
+                        {i.round}
+                        <p className="text-[10px] text-muted-foreground">
+                          {i.job_opening?.requirements?.includes('Fresher') ? '(Fresher Track)' : '(Experienced Track)'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5">{i.job_opening?.title ?? '—'}</td>
+                      <td className="px-4 py-2.5">{i.interviewer ? `${i.interviewer.first_name} ${i.interviewer.last_name}` : '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        <div>{formatDateTime(i.scheduled_at)}</div>
+                        {hasRescheduleReq && i.reschedule_preferred_time && (
+                          <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
+                            Requested: {formatDateTime(i.reschedule_preferred_time)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Select value={i.status ?? 'scheduled'} onValueChange={(v) => updateStatus.mutate({ id: i.id, status: v })}>
+                          <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="scheduled">Scheduled</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="passed">Passed</SelectItem>
+                            <SelectItem value="failed">Failed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {i.rating ? (
+                          <Badge variant="outline" className="gap-1 font-semibold">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-500" /> {i.rating}/5
+                          </Badge>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {hasRescheduleReq ? (
+                            <Button
+                              size="sm"
+                              onClick={() => openRescheduleDialog(i)}
+                              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-sm"
+                            >
+                              <Clock className="h-3.5 w-3.5" /> Review Request
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openRescheduleDialog(i)}
+                              className="h-8 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 gap-1 font-medium"
+                              title="Reschedule slot or change meeting link"
+                            >
+                              <CalendarClock className="h-3.5 w-3.5" /> Reschedule
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openFeedbackDialog(i)}
+                            className={`h-8 gap-1.5 text-xs font-semibold ${i.feedback ? 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}`}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            {i.feedback ? 'Feedback' : 'Add Feedback'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
+
+      {/* Review / Reschedule Interview Dialog */}
+      <Dialog open={!!rescheduleModal} onOpenChange={(open) => !open && setRescheduleModal(null)}>
+        <DialogContent className="max-w-lg">
+          {rescheduleModal && (
+            <div>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                  <CalendarClock className="h-5 w-5 text-indigo-600" />
+                  {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending'
+                    ? 'Review Candidate Reschedule Request'
+                    : 'Reschedule Interview'}
+                </DialogTitle>
+                <DialogDescription>
+                  Candidate: <strong>{rescheduleModal.candidate?.name}</strong> · Round: <strong>{rescheduleModal.round}</strong>
+                </DialogDescription>
+              </DialogHeader>
+
+              {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending' && (
+                <div className="my-4 p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
+                  <div className="font-semibold flex items-center gap-1.5 text-amber-950">
+                    <Clock className="h-4 w-4 text-amber-600" /> Candidate Request Details:
+                  </div>
+                  <div><strong>Reason:</strong> {rescheduleModal.reschedule_reason || 'Personal / Schedule conflict'}</div>
+                  {rescheduleModal.reschedule_preferred_time && (
+                    <div><strong>Requested Time:</strong> {formatDateTime(rescheduleModal.reschedule_preferred_time)}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-4 my-4">
+                <div className="space-y-2">
+                  <Label>New Scheduled Date &amp; Time *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Meeting / Test Link</Label>
+                  <Input
+                    type="url"
+                    placeholder="https://meet.google.com/xyz-abc or exam link"
+                    value={newLink}
+                    onChange={(e) => setNewLink(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Note to Candidate (Optional)</Label>
+                  <Textarea
+                    placeholder="e.g. Reschedule confirmed. Please join using the updated meeting link on time."
+                    value={rescheduleNote}
+                    onChange={(e) => setRescheduleNote(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="flex justify-between sm:justify-between items-center pt-2">
+                {rescheduleModal.reschedule_requested && rescheduleModal.reschedule_status === 'pending' && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={rescheduleMutation.isPending}
+                    onClick={async () => {
+                      await rescheduleMutation.mutateAsync({
+                        id: rescheduleModal.id,
+                        scheduled_at: rescheduleModal.scheduled_at,
+                        admin_note: rescheduleNote || 'Reschedule request declined by hiring team.',
+                        action: 'decline',
+                      })
+                      setRescheduleModal(null)
+                    }}
+                  >
+                    Decline Request
+                  </Button>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRescheduleModal(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                    disabled={rescheduleMutation.isPending || !newDate}
+                    onClick={async () => {
+                      await rescheduleMutation.mutateAsync({
+                        id: rescheduleModal.id,
+                        scheduled_at: new Date(newDate).toISOString(),
+                        meeting_link: newLink || undefined,
+                        admin_note: rescheduleNote || 'Reschedule confirmed.',
+                        action: 'approve',
+                      })
+                      setRescheduleModal(null)
+                    }}
+                  >
+                    {rescheduleMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Approve &amp; Confirm Slot
+                  </Button>
+                </div>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Schedule Interview Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
@@ -1322,16 +1516,13 @@ function InterviewsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* HR Feedback Dialog */}
+      {/* Feedback Dialog */}
       <Dialog open={!!feedbackModal} onOpenChange={(open) => !open && setFeedbackModal(null)}>
-        <DialogContent className="max-w-md sm:max-w-lg">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-indigo-600" />
-              Round Feedback — {feedbackModal?.candidate?.name}
-            </DialogTitle>
+            <DialogTitle>Interview Assessment &amp; Feedback</DialogTitle>
             <DialogDescription>
-              Provide evaluation feedback and scores for the {feedbackModal?.round} round. This feedback will be displayed directly to the candidate in their Candidate Portal.
+              {feedbackModal?.candidate?.name} · {feedbackModal?.round}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveFeedback} className="space-y-4">
@@ -1341,11 +1532,9 @@ function InterviewsTab() {
                 <Select value={feedbackStatus} onValueChange={setFeedbackStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="passed">Passed (Qualifies for Next Round)</SelectItem>
-                    <SelectItem value="completed">Completed / Evaluated</SelectItem>
-                    <SelectItem value="failed">Failed (Did Not Clear)</SelectItem>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="passed">Passed / Cleared</SelectItem>
+                    <SelectItem value="completed">Completed (Under Review)</SelectItem>
+                    <SelectItem value="failed">Failed / Rejected</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1392,12 +1581,12 @@ function InterviewsTab() {
             </div>
 
             <div className="space-y-2">
-              <Label>Detailed Feedback Notes for Candidate *</Label>
+              <Label>Detailed Feedback Notes *</Label>
               <Textarea
                 rows={4}
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="e.g. Candidate demonstrated strong problem solving skills, excellent communication, and clear understanding of core concepts. Recommended for next round."
+                placeholder="e.g. Candidate demonstrated strong problem solving skills..."
                 required
               />
             </div>
@@ -1417,6 +1606,7 @@ function InterviewsTab() {
 }
 
 function OffersTab() {
+  const navigate = useNavigate()
   const { data: offers = [], isLoading } = useOffers()
   const { data: candidates = [] } = useCandidates()
   const { data: jobs = [] } = useJobOpenings()
@@ -1595,8 +1785,24 @@ function OffersTab() {
                             </SelectContent>
                           </Select>
                           {isAccepted && (
-                            <Button size="sm" variant="default" className="h-8 text-[11px] bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => toast.success(`Converted ${o.candidate?.name} to Employee. Employee ID and assets provisioned.`)}>
-                              Convert to Employee
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm gap-1"
+                              onClick={() => {
+                                const params = new URLSearchParams({
+                                  action: 'add',
+                                  name: o.candidate?.name || '',
+                                  email: o.candidate?.email || '',
+                                  phone: (o.candidate as any)?.phone || '',
+                                  role: o.job_opening?.title || '',
+                                  salary: String(o.salary_offered || ''),
+                                  joiningDate: o.joining_date || '',
+                                })
+                                navigate(`/employees?${params.toString()}`)
+                              }}
+                            >
+                              <UserCheck className="h-3.5 w-3.5" /> Convert to Employee
                             </Button>
                           )}
                         </div>

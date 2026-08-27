@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useState, useCallback, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search, UserPlus, UserX, Users, Trash2, Loader2,
   AlertTriangle, SlidersHorizontal, RotateCcw, Download,
@@ -77,6 +77,7 @@ const STATUS_OPTIONS = ['Active', 'Inactive', 'On Leave', 'Terminated', 'Probati
 
 export default function EmployeesPage() {
   const { isManager } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // ── Filter state ─────────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -90,8 +91,34 @@ export default function EmployeesPage() {
 
   // ── Dialog state ──────────────────────────────────────────────
   const [formOpen, setFormOpen] = useState(false)
+  const [initialConversionValues, setInitialConversionValues] = useState<Record<string, any> | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [employeeIdInput, setEmployeeIdInput] = useState('')
+
+  useEffect(() => {
+    const action = searchParams.get('action')
+    if (action === 'add') {
+      const name = searchParams.get('name') || ''
+      const email = searchParams.get('email') || ''
+      const phone = searchParams.get('phone') || ''
+      const role = searchParams.get('role') || ''
+      const dob = searchParams.get('dob') || ''
+      const deptId = searchParams.get('deptId') || ''
+      const salary = searchParams.get('salary') || ''
+
+      setInitialConversionValues({
+        name,
+        email,
+        phone,
+        role,
+        dob,
+        deptId,
+        salary,
+      })
+      setFormOpen(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // ── Data ─────────────────────────────────────────────────────
   const { data: departments = [] } = useDepartments()
@@ -480,7 +507,14 @@ export default function EmployeesPage() {
       )}
 
       {/* ── Add / Edit Employee Dialog ── */}
-      <EmployeeFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <EmployeeFormDialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) setInitialConversionValues(null)
+        }}
+        initialValues={initialConversionValues}
+      />
 
       {/* ── Delete by ID / Code Modal ── */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

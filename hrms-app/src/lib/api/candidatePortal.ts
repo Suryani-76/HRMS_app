@@ -272,24 +272,37 @@ const toPortalSlot = (row: InterviewSlot, booked: number): PortalInterviewSlot =
 const toPortalOffer = (row: Offer): PortalOffer => {
   let bondYears: number | null = (row as any).service_bond_years ?? null
   let relocReq = (row as any).relocation_required ?? false
+  let pdfUrl: string | null = null
+  let termsConditions: string | null = null
+
   if (row.offer_letter_url) {
     try {
       const parsed = JSON.parse(row.offer_letter_url)
       if (parsed.bond) {
-        bondYears = parsed.bond.includes('1') ? 1 : parsed.bond.includes('2') ? 2 : 0
+        bondYears = parsed.bond.includes('1') ? 1 : parsed.bond.includes('2') ? 2 : parsed.bond.includes('3') ? 3 : 0
       }
       if (parsed.relocation) {
         relocReq = parsed.relocation === 'Yes'
       }
-    } catch {}
+      if (parsed.pdf_url) {
+        pdfUrl = parsed.pdf_url
+      }
+      if (parsed.terms_conditions) {
+        termsConditions = parsed.terms_conditions
+      }
+    } catch {
+      if (row.offer_letter_url.startsWith('http') || row.offer_letter_url.startsWith('data:')) {
+        pdfUrl = row.offer_letter_url
+      }
+    }
   }
   return {
     id: row.id,
     candidate_id: row.candidate_id,
     job_opening_id: row.job_opening_id ?? null,
-    pdf_url: row.offer_letter_url ?? null,
+    pdf_url: pdfUrl ?? row.pdf_url ?? null,
     document_title: PORTAL_OFFER_DOCUMENT_TITLE,
-    terms_content_html: null,
+    terms_content_html: termsConditions ?? row.terms_conditions ?? null,
     terms_checkbox_labels: null,
     salary_offered: row.salary_offered ?? null,
     joining_date: row.joining_date ?? null,

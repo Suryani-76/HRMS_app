@@ -447,6 +447,14 @@ const TERMS_CHECKBOX_LABELS: Array<string | null> = [
 // Dynamic HTML terms body — generated per offer so the modal renders content
 // strictly from props. Returns null when there is nothing to show.
 function buildTermsContent(offer?: MockOffer | null): string | null {
+  if (offer?.terms_content_html && offer.terms_content_html.trim().length > 0) {
+    const formatted = offer.terms_content_html
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => `<div class="mb-2"><p class="text-slate-800">${line.trim()}</p></div>`)
+      .join('')
+    return `<div class="space-y-3 font-sans text-sm text-slate-800 leading-relaxed">${formatted}</div>`
+  }
   const bond = offer?.service_bond_years
     ? `As part of this offer you agree to serve a service bond of <strong>${offer.service_bond_years} year${offer.service_bond_years > 1 ? 's' : ''}</strong> from the date of joining. Early separation within the bond period is governed by the bond terms set out in your appointment letter.`
     : 'The service bond duration and policies applicable to this position are detailed in your appointment letter. Any service bond obligations will be confirmed by the HR team before joining.'
@@ -454,7 +462,7 @@ function buildTermsContent(offer?: MockOffer | null): string | null {
     ? `This role requires you to be based at <strong>${offer.relocation_location ?? 'the designated office location'}</strong>. You agree to the applicable relocation terms as communicated by the HR team.`
     : 'This role supports a flexible work arrangement (Remote / Hybrid / On-site) as per company policy and role requirements. Your work mode may be adjusted by the company with due notice.'
   const section = (title: string, body: string) =>
-    `<div class="mb-3"><div class="mb-1 font-semibold">${title}</div><p class="text-muted-foreground">${body}</p></div>`
+    `<div class="mb-3"><div class="mb-1 font-semibold text-slate-900">${title}</div><p class="text-muted-foreground">${body}</p></div>`
   return (
     section(
       'Service Bond & Policies',
@@ -3334,6 +3342,7 @@ function CongratulationsCard({ onViewTerms }: { onViewTerms: () => void }) {
 function OfferLetterSection({
   candidate,
   offer,
+  job,
   onRespond,
   onDiscuss,
   discussOpen,
@@ -3384,11 +3393,54 @@ function OfferLetterSection({
           <iframe
             src={pdfUrl}
             title={offer.document_title || `Offer Letter — ${candidate.name}`}
-            className="h-[600px] w-full rounded-lg border"
+            className="h-[600px] w-full rounded-lg border bg-white"
           />
         ) : (
-          <div className="flex h-[600px] w-full items-center justify-center rounded-lg border">
-            <p className="text-sm text-muted-foreground">The offer PDF is not available yet.</p>
+          <div className="rounded-xl border bg-white p-6 sm:p-8 shadow-sm space-y-6 text-slate-800">
+            <div className="flex flex-wrap items-center justify-between border-b pb-4 gap-2">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight text-slate-900">OKLUT INC. — EMPLOYMENT OFFER</h3>
+                <p className="text-xs text-muted-foreground">Official Letter of Intent &amp; Offer Confirmation</p>
+              </div>
+              <span className="inline-flex items-center rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-xs px-3 py-1 font-semibold">
+                Ref: {(candidate as any).reference_id || candidate.candidate_id || candidate.id.slice(0, 8).toUpperCase()}
+              </span>
+            </div>
+            <div className="space-y-3 text-sm">
+              <p>Dear <strong className="text-slate-950">{candidate.name}</strong>,</p>
+              <p className="leading-relaxed">
+                Following your outstanding performance in all evaluation and interview rounds, we are pleased to offer you the position of <strong className="text-slate-950">{job?.title || 'Associate'}</strong> at <strong className="text-slate-950">Oklut Inc.</strong>
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border bg-slate-50 p-4 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Annual CTC Offered:</span>
+                  <p className="text-base font-bold text-emerald-700 mt-0.5">
+                    {offer.salary_offered ? `₹${offer.salary_offered.toLocaleString('en-IN')}` : 'As Discussed'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tentative Joining Date:</span>
+                  <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                    {offer.joining_date ? formatDate(offer.joining_date) : 'Immediate / To be confirmed'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Service Bond Terms:</span>
+                  <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                    {offer.service_bond_years ? `${offer.service_bond_years} Year Service Bond` : 'Standard Policy (No Bond)'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Location / Relocation:</span>
+                  <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                    {offer.relocation_required ? (offer.relocation_location || 'Office Location Required') : 'Flexible / Hybrid'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Please confirm your acceptance of this offer by clicking &quot;Accept Offer&quot; below. Once accepted, our HR team will reach out with the onboarding documentation and welcome kit.
+              </p>
+            </div>
           </div>
         )}
 

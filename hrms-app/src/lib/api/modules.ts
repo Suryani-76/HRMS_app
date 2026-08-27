@@ -330,10 +330,25 @@ export async function createInterview(input: {
   return data as Interview
 }
 
-export async function updateInterviewStatus(id: string, status: string, feedback?: string, rating?: number) {
+export async function updateInterviewStatus(
+  id: string,
+  status: string,
+  feedback?: string,
+  rating?: number,
+  metrics?: Record<string, number>
+) {
+  const updateFields: Record<string, unknown> = {
+    status,
+    feedback: feedback ?? null,
+    rating: rating ?? null,
+  }
+  if (metrics) {
+    updateFields.metrics = metrics
+  }
+
   const { data, error } = await supabase
     .from('interviews')
-    .update({ status, feedback: feedback ?? null, rating: rating ?? null })
+    .update(updateFields)
     .eq('id', id)
     .select()
     .single()
@@ -394,13 +409,20 @@ export async function fetchOffers(): Promise<Offer[]> {
       return (data as any[]).map((o) => {
         let bondVal = 'No Bond'
         let relocVal = 'Yes'
+        let pdfUrl: string | null = null
+        let termsText: string | null = null
+
         if (o.offer_letter_url) {
           try {
             const parsed = JSON.parse(o.offer_letter_url)
             if (parsed.bond) bondVal = parsed.bond
             if (parsed.relocation) relocVal = parsed.relocation
+            if (parsed.pdf_url) pdfUrl = parsed.pdf_url
+            if (parsed.terms_conditions) termsText = parsed.terms_conditions
           } catch {
-            if (o.offer_letter_url.includes('Bond:')) {
+            if (o.offer_letter_url.startsWith('http') || o.offer_letter_url.startsWith('data:')) {
+              pdfUrl = o.offer_letter_url
+            } else if (o.offer_letter_url.includes('Bond:')) {
               const match = o.offer_letter_url.match(/Bond:\s*([^|,\n]+)/)
               if (match) bondVal = match[1].trim()
             }
@@ -415,6 +437,8 @@ export async function fetchOffers(): Promise<Offer[]> {
           bond_agreed: bondVal !== 'No' && bondVal !== 'No Bond',
           relocation_support: relocVal,
           relocation_agreed: relocVal !== 'No',
+          pdf_url: pdfUrl,
+          terms_conditions: termsText,
         } as Offer
       })
     }
@@ -434,6 +458,8 @@ export async function createOffer(input: {
   bond_agreed?: boolean
   bond?: string
   relocation?: string
+  offer_pdf_url?: string
+  terms_conditions?: string
 }) {
   const { data: session } = await supabase.auth.getSession()
   const bondText = input.bond || (input.bond_agreed ? 'Bond Required' : 'No Bond')
@@ -441,6 +467,8 @@ export async function createOffer(input: {
   const letterMeta = JSON.stringify({
     bond: bondText,
     relocation: relocText,
+    pdf_url: input.offer_pdf_url || null,
+    terms_conditions: input.terms_conditions || null,
   })
 
   const payload: Record<string, unknown> = {
@@ -475,6 +503,9 @@ export async function createOffer(input: {
     bond_agreed: bondText !== 'No' && bondText !== 'No Bond',
     relocation_support: relocText,
     relocation_agreed: relocText !== 'No',
+    offer_letter_url: letterMeta,
+    pdf_url: input.offer_pdf_url || null,
+    terms_conditions: input.terms_conditions || null,
   } as Offer
 }
 

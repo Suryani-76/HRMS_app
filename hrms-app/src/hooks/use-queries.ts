@@ -478,9 +478,9 @@ export function useCreateInterview() {
 export function useUpdateInterviewStatus() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
-    mutationFn: ({ id, status, feedback, rating }: { id: string; status: string; feedback?: string; rating?: number }) =>
-      api.updateInterviewStatus(id, status, feedback, rating),
-    onSuccess: () => { invalidate([queryKeys.interviews]); toast.success('Interview updated') },
+    mutationFn: ({ id, status, feedback, rating, metrics }: { id: string; status: string; feedback?: string; rating?: number; metrics?: Record<string, number> }) =>
+      api.updateInterviewStatus(id, status, feedback, rating, metrics),
+    onSuccess: () => { invalidate([queryKeys.interviews, queryKeys.candidates]); toast.success('Interview feedback & status saved') },
     onError: toastError,
   })
 }

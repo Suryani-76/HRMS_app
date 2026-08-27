@@ -394,6 +394,8 @@ export interface Offer {
   candidate_id: string
   job_opening_id?: string | null
   offer_letter_url?: string | null
+  pdf_url?: string | null
+  terms_conditions?: string | null
   salary_offered?: number | null
   joining_date?: string | null
   service_bond_years?: number | null

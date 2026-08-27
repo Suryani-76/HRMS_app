@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star } from 'lucide-react'
 import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,6 +26,7 @@ import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
 import { StatusPill } from '@/components/shared/status-pill'
+import type { Interview } from '@/lib/database.types'
 import {
   useJobOpenings,
   useCreateJobOpening,
@@ -889,6 +891,12 @@ function CandidatesTab() {
   )
 }
 
+const DEFAULT_TERMS_TEMPLATE = `1. Employment is subject to satisfactory verification of educational credentials, identity documents, and background checks.
+2. The initial probation period is 3 months from the official date of joining, extendable based on performance evaluation.
+3. Standard working hours are Monday through Friday, 9:30 AM to 6:30 PM, with flexible work arrangements as approved by your manager.
+4. The employee agrees to adhere to company policies regarding Confidentiality, Non-Disclosure of proprietary information, IP Assignment, and Code of Conduct.
+5. Notice period during the probation period is 15 calendar days, and 60 calendar days following successful employment confirmation.`
+
 function InterviewsTab() {
   const { data: interviews = [], isLoading } = useInterviews()
   const { data: candidates = [] } = useCandidates()
@@ -906,6 +914,44 @@ function InterviewsTab() {
   const [mode, setMode] = useState('video')
   const [link, setLink] = useState('')
   const [examLink, setExamLink] = useState('')
+
+  // Feedback modal state
+  const [feedbackModal, setFeedbackModal] = useState<Interview | null>(null)
+  const [feedbackStatus, setFeedbackStatus] = useState('passed')
+  const [feedbackRating, setFeedbackRating] = useState(4)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackMetrics, setFeedbackMetrics] = useState<Record<string, number>>({
+    'Technical Proficiency': 4,
+    'Problem Solving': 4,
+    'Communication': 4,
+    'Cultural Fit': 4,
+  })
+
+  const openFeedbackDialog = (i: Interview) => {
+    setFeedbackModal(i)
+    setFeedbackStatus(i.status === 'passed' ? 'passed' : i.status === 'failed' ? 'failed' : 'completed')
+    setFeedbackRating(i.rating ?? 4)
+    setFeedbackText(i.feedback ?? '')
+    setFeedbackMetrics(i.metrics ?? {
+      'Technical Proficiency': 4,
+      'Problem Solving': 4,
+      'Communication': 4,
+      'Cultural Fit': 4,
+    })
+  }
+
+  const saveFeedback = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!feedbackModal) return
+    await updateStatus.mutateAsync({
+      id: feedbackModal.id,
+      status: feedbackStatus,
+      feedback: feedbackText,
+      rating: feedbackRating,
+      metrics: feedbackMetrics,
+    })
+    setFeedbackModal(null)
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -937,7 +983,7 @@ function InterviewsTab() {
       ) : interviews.length === 0 ? (
         <EmptyState title="No interviews" description="Schedule interviews to track the hiring process." icon={CalendarClock} />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -949,17 +995,17 @@ function InterviewsTab() {
                   <th className="px-4 py-3">Scheduled</th>
                   <th className="px-4 py-3">Mode</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Malpractice</th>
                   <th className="px-4 py-3">Rating</th>
+                  <th className="px-4 py-3">Candidate Feedback</th>
                 </tr>
               </thead>
               <tbody>
                 {interviews.map((i) => (
-                  <tr key={i.id} className="border-b last:border-0">
+                  <tr key={i.id} className="border-b last:border-0 hover:bg-muted/10">
                     <td className="px-4 py-2.5 font-medium">{i.candidate?.name}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 font-medium">
                       {i.round}
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <p className="text-[10px] text-muted-foreground">
                         {i.job_opening?.requirements?.includes('Fresher') ? '(Fresher Track)' : '(Experienced Track)'}
                       </p>
                     </td>
@@ -980,13 +1026,25 @@ function InterviewsTab() {
                       </Select>
                     </td>
                     <td className="px-4 py-2.5">
-                      {i.malpractice_flag ? (
-                        <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">Flagged</span>
+                      {i.rating ? (
+                        <Badge variant="outline" className="gap-1 font-semibold">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-500" /> {i.rating}/5
+                        </Badge>
                       ) : (
-                        <span className="text-muted-foreground text-xs">Clear</span>
+                        '—'
                       )}
                     </td>
-                    <td className="px-4 py-2.5">{i.rating ? `${i.rating}/5` : '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openFeedbackDialog(i)}
+                        className={`h-8 gap-1.5 text-xs font-semibold ${i.feedback ? 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}`}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {i.feedback ? 'Edit Feedback' : 'Add Feedback'}
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -995,6 +1053,7 @@ function InterviewsTab() {
         </div>
       )}
 
+      {/* Schedule Interview Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1059,22 +1118,16 @@ function InterviewsTab() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Candidate Proposed Dates (3 options)</Label>
-                <Input placeholder="e.g. Oct 12, Oct 14, Oct 15" />
-              </div>
-              <div className="space-y-2">
-                <Label>Scheduled at *</Label>
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} required />
-              </div>
+            <div className="space-y-2">
+              <Label>Scheduled at *</Label>
+              <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label>Exam link</Label>
+              <Label>Exam link (Optional)</Label>
               <Input value={examLink} onChange={(e) => setExamLink(e.target.value)} placeholder="https://test.com/..." />
             </div>
             <div className="space-y-2">
-              <Label>Meeting link</Label>
+              <Label>Meeting link (Optional)</Label>
               <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://meet.google.com/..." />
             </div>
             <DialogFooter>
@@ -1082,6 +1135,97 @@ function InterviewsTab() {
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Schedule
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* HR Feedback Dialog */}
+      <Dialog open={!!feedbackModal} onOpenChange={(open) => !open && setFeedbackModal(null)}>
+        <DialogContent className="max-w-md sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-indigo-600" />
+              Round Feedback — {feedbackModal?.candidate?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Provide evaluation feedback and scores for the {feedbackModal?.round} round. This feedback will be displayed directly to the candidate in their Candidate Portal.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveFeedback} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Round Outcome *</Label>
+                <Select value={feedbackStatus} onValueChange={setFeedbackStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="passed">Passed (Qualifies for Next Round)</SelectItem>
+                    <SelectItem value="completed">Completed / Evaluated</SelectItem>
+                    <SelectItem value="failed">Failed (Did Not Clear)</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Overall Rating</Label>
+                <Select value={String(feedbackRating)} onValueChange={(v) => setFeedbackRating(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 / 5 — Exceptional</SelectItem>
+                    <SelectItem value="4">4 / 5 — Strong Hire / Passed</SelectItem>
+                    <SelectItem value="3">3 / 5 — Meets Requirements</SelectItem>
+                    <SelectItem value="2">2 / 5 — Needs Improvement</SelectItem>
+                    <SelectItem value="1">1 / 5 — Unsatisfactory</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <Label className="text-xs font-semibold text-slate-700">4-Metric Scorecard (Competencies)</Label>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {Object.entries(feedbackMetrics).map(([key, val]) => (
+                  <div key={key} className="space-y-1">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>{key}</span>
+                      <span className="font-semibold text-slate-800">{val}/5</span>
+                    </div>
+                    <Select
+                      value={String(val)}
+                      onValueChange={(v) => setFeedbackMetrics((prev) => ({ ...prev, [key]: Number(v) }))}
+                    >
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 - Excellent</SelectItem>
+                        <SelectItem value="4">4 - Good</SelectItem>
+                        <SelectItem value="3">3 - Average</SelectItem>
+                        <SelectItem value="2">2 - Fair</SelectItem>
+                        <SelectItem value="1">1 - Poor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Detailed Feedback Notes for Candidate *</Label>
+              <Textarea
+                rows={4}
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="e.g. Candidate demonstrated strong problem solving skills, excellent communication, and clear understanding of core concepts. Recommended for next round."
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFeedbackModal(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateStatus.isPending}>
+                {updateStatus.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Feedback &amp; Publish
               </Button>
             </DialogFooter>
           </form>
@@ -1105,6 +1249,26 @@ function OffersTab() {
   const [joiningDate, setJoiningDate] = useState('')
   const [relocation, setRelocation] = useState('Yes')
   const [bond, setBond] = useState('No Bond')
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [pdfDataUrl, setPdfDataUrl] = useState('')
+  const [termsConditions, setTermsConditions] = useState(DEFAULT_TERMS_TEMPLATE)
+
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setPdfFile(null)
+      setPdfDataUrl('')
+      return
+    }
+    setPdfFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPdfDataUrl(reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1119,9 +1283,11 @@ function OffersTab() {
       bond_agreed: bond !== 'No' && bond !== 'No Bond',
       bond: bond,
       relocation: relocation,
+      offer_pdf_url: pdfDataUrl || undefined,
+      terms_conditions: termsConditions || undefined,
     })
     setDialog(false)
-    setCandidateId(''); setJobId(''); setSalary(''); setJoiningDate(''); setRelocation('Yes'); setBond('No Bond')
+    setCandidateId(''); setJobId(''); setSalary(''); setJoiningDate(''); setRelocation('Yes'); setBond('No Bond'); setPdfFile(null); setPdfDataUrl(''); setTermsConditions(DEFAULT_TERMS_TEMPLATE)
   }
 
   return (
@@ -1137,82 +1303,112 @@ function OffersTab() {
       ) : offers.length === 0 ? (
         <EmptyState title="No offers" description="Issue offers to candidates who have cleared interviews." icon={FileText} />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                   <th className="px-4 py-3">Candidate</th>
                   <th className="px-4 py-3">Position</th>
-                  <th className="px-4 py-3">Salary offered</th>
-                  <th className="px-4 py-3">Joining date</th>
-                  <th className="px-4 py-3">Response</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Salary Offered</th>
+                  <th className="px-4 py-3">Joining Date</th>
+                  <th className="px-4 py-3">Offer PDF</th>
+                  <th className="px-4 py-3">Candidate Response</th>
+                  <th className="px-4 py-3">Status &amp; Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {offers.map((o) => (
-                  <tr key={o.id} className="border-b last:border-0">
-                    <td className="px-4 py-2.5 font-medium">{o.candidate?.name}</td>
-                    <td className="px-4 py-2.5">{o.job_opening?.title ?? '—'}</td>
-                    <td className="px-4 py-2.5">
-                      {o.salary_offered ? formatCurrency(o.salary_offered, true) : '—'}
-                      <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
-                        Relocation: {o.relocation_support || (o.relocation_agreed === false ? 'No' : 'Yes')} · Bond: {o.bond_terms || (o.bond_agreed ? 'Bond Required' : 'No Bond')}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">{o.joining_date ? formatDate(o.joining_date) : '—'}</td>
-                    <td className="px-4 py-2.5">
-                      {o.candidate_response === 'accepted' ? (
-                        <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Full Acceptance (Green)</span>
-                      ) : o.candidate_response === 'declined' ? (
-                        <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">Rejected Terms (Red)</span>
-                      ) : o.status === 'issued' ? (
-                        <span className="inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-600/10">Partial / Pending (Orange)</span>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">Waiting</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Select value={o.status ?? 'issued'} onValueChange={(v) => updateStatus.mutate({ id: o.id, status: v })}>
-                          <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="issued">Issued</SelectItem>
-                            <SelectItem value="accepted">Accepted</SelectItem>
-                            <SelectItem value="declined">Declined</SelectItem>
-                            <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {o.status === 'accepted' && (
-                          <Button size="sm" variant="default" className="h-8 text-[11px] bg-green-600 hover:bg-green-700 text-white" onClick={() => toast.success(`Converted ${o.candidate?.name} to Employee. Employee ID and assets will be provisioned.`)}>
-                            Convert to Employee
-                          </Button>
+                {offers.map((o) => {
+                  const isAccepted = o.candidate_response === 'accept' || o.candidate_response === 'accepted' || o.status === 'accepted'
+                  const isDeclined = o.candidate_response === 'declined' || o.candidate_response === 'reject' || o.status === 'declined'
+                  const isDiscuss = o.candidate_response === 'discuss'
+
+                  return (
+                    <tr key={o.id} className="border-b last:border-0 hover:bg-muted/10">
+                      <td className="px-4 py-2.5 font-medium">{o.candidate?.name}</td>
+                      <td className="px-4 py-2.5">{o.job_opening?.title ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {o.salary_offered ? formatCurrency(o.salary_offered, true) : '—'}
+                        <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                          Relocation: {o.relocation_support || (o.relocation_agreed === false ? 'No' : 'Yes')} · Bond: {o.bond_terms || (o.bond_agreed ? 'Bond Required' : 'No Bond')}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{o.joining_date ? formatDate(o.joining_date) : '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {o.pdf_url ? (
+                          <a
+                            href={o.pdf_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline bg-indigo-50 px-2 py-1 rounded border border-indigo-200"
+                          >
+                            <FileText className="h-3.5 w-3.5" /> View PDF
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Standard Template</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {isAccepted ? (
+                          <Badge variant="success" className="bg-emerald-100 text-emerald-800 border-emerald-300 gap-1 font-semibold">
+                            <CheckCircle2 className="h-3 w-3" /> Offer Accepted
+                          </Badge>
+                        ) : isDeclined ? (
+                          <Badge variant="destructive" className="gap-1 font-semibold">
+                            <XCircle className="h-3 w-3" /> Offer Declined
+                          </Badge>
+                        ) : isDiscuss ? (
+                          <Badge variant="warning" className="gap-1 font-semibold bg-amber-100 text-amber-900 border-amber-300">
+                            <MessageSquare className="h-3 w-3" /> Discussion Requested
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            Waiting for Candidate
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Select value={o.status ?? 'issued'} onValueChange={(v) => updateStatus.mutate({ id: o.id, status: v })}>
+                            <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="issued">Issued</SelectItem>
+                              <SelectItem value="accepted">Accepted</SelectItem>
+                              <SelectItem value="declined">Declined</SelectItem>
+                              <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {isAccepted && (
+                            <Button size="sm" variant="default" className="h-8 text-[11px] bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => toast.success(`Converted ${o.candidate?.name} to Employee. Employee ID and assets provisioned.`)}>
+                              Convert to Employee
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
+      {/* Issue Offer Dialog */}
       <Dialog open={dialog} onOpenChange={setDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Issue Offer</DialogTitle>
-            <DialogDescription>Extend an offer letter to a candidate.</DialogDescription>
+            <DialogDescription>Extend an official offer letter, upload offer letter PDF, and customize terms.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Candidate *</Label>
               <Select value={candidateId || undefined} onValueChange={setCandidateId}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select candidate" /></SelectTrigger>
                 <SelectContent>
                   {candidates.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.name} ({c.email})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1220,7 +1416,7 @@ function OffersTab() {
             <div className="space-y-2">
               <Label>Position</Label>
               <Select value={jobId || undefined} onValueChange={setJobId}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select position" /></SelectTrigger>
                 <SelectContent>
                   {jobs.map((j) => (
                     <SelectItem key={j.id} value={j.id}>{j.title}</SelectItem>
@@ -1230,11 +1426,11 @@ function OffersTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>CTC / Salary offered</Label>
-                <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0" />
+                <Label>CTC / Annual Salary Offered (₹)</Label>
+                <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="e.g. 600000" />
               </div>
               <div className="space-y-2">
-                <Label>Joining date</Label>
+                <Label>Expected Joining Date</Label>
                 <Input type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
               </div>
               <div className="space-y-2">
@@ -1242,28 +1438,75 @@ function OffersTab() {
                 <Select value={relocation} onValueChange={setRelocation}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Yes">Yes</SelectItem>
-                    <SelectItem value="No">No</SelectItem>
+                    <SelectItem value="Yes">Yes (Relocation Provided)</SelectItem>
+                    <SelectItem value="No">No (Not Required)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Employment Bond</Label>
+                <Label>Employment Bond Duration</Label>
                 <Select value={bond} onValueChange={setBond}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="No Bond">No Bond</SelectItem>
                     <SelectItem value="1 Year">1 Year Bond</SelectItem>
                     <SelectItem value="2 Year">2 Year Bond</SelectItem>
+                    <SelectItem value="3 Year">3 Year Bond</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {/* Upload PDF */}
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <Upload className="h-4 w-4 text-indigo-600" />
+                Upload Official Offer Letter PDF (Optional)
+              </Label>
+              <Input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handlePdfChange}
+                className="text-xs file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+              {pdfFile && (
+                <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Selected: {pdfFile.name} ({(pdfFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+
+            {/* Terms & Conditions Editable Template */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-800">Customizable Terms &amp; Conditions Template</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTermsConditions(DEFAULT_TERMS_TEMPLATE)}
+                  className="h-6 text-[11px] text-indigo-600 hover:text-indigo-800"
+                >
+                  Reset to Default
+                </Button>
+              </div>
+              <Textarea
+                rows={5}
+                value={termsConditions}
+                onChange={(e) => setTermsConditions(e.target.value)}
+                className="font-sans text-xs leading-relaxed"
+                placeholder="Enter customized employment terms and conditions..."
+              />
+              <p className="text-[11px] text-muted-foreground">
+                These terms will be rendered for the candidate to review and accept in their portal prior to confirming the offer.
+              </p>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Issue
+                Issue Official Offer
               </Button>
             </DialogFooter>
           </form>

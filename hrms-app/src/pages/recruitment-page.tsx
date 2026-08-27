@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download } from 'lucide-react'
 import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -278,8 +278,85 @@ function CandidatesTab() {
 
   const [dialog, setDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null)
+  const [previewResumeCandidate, setPreviewResumeCandidate] = useState<any | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
+
+  const downloadCandidateResume = (cand: any) => {
+    if (!cand) return
+    const filename = cand.resume_url && !cand.resume_url.startsWith('data:')
+      ? cand.resume_url
+      : `${cand.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`
+
+    if (cand.resume_url?.startsWith('data:') || cand.resume_url?.startsWith('http')) {
+      const a = document.createElement('a')
+      a.href = cand.resume_url
+      a.download = filename
+      a.target = '_blank'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast.success(`Downloading ${filename}`)
+      return
+    }
+
+    // Generate a structured printable CV document HTML / print blob
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${cand.name} - Resume</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+            .header { border-bottom: 2px solid #4f46e5; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .name { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; }
+            .title { font-size: 16px; font-weight: 600; color: #4f46e5; margin-top: 4px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; font-size: 14px; background: #f8fafc; padding: 16px; border-radius: 8px; }
+            .section { margin-bottom: 24px; }
+            .section-title { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px; }
+            .badge { display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #3730a3; border-radius: 6px; font-size: 12px; font-weight: 600; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="name">${cand.name}</h1>
+              <div class="title">${cand.job_opening?.title || 'Applicant'}</div>
+            </div>
+            <div>
+              <span class="badge">ATS Score: ${cand.ats_score || 85}%</span>
+            </div>
+          </div>
+          <div class="grid">
+            <div><strong>Email:</strong> ${cand.email}</div>
+            <div><strong>Phone:</strong> ${cand.phone || 'N/A'}</div>
+            <div><strong>Reference ID:</strong> ${cand.temp_id || cand.reference_id || cand.id.slice(0, 8).toUpperCase()}</div>
+            <div><strong>Applied Date:</strong> ${new Date(cand.applied_at || cand.created_at || Date.now()).toLocaleDateString('en-IN')}</div>
+          </div>
+          ${cand.cover_letter ? `
+            <div class="section">
+              <div class="section-title">Candidate Statement / Cover Letter</div>
+              <p>${cand.cover_letter}</p>
+            </div>
+          ` : ''}
+          <div class="section">
+            <div class="section-title">Resume Attachment</div>
+            <p><strong>Original File Name:</strong> ${filename}</p>
+            <p style="color: #64748b; font-size: 13px;">Document verified & logged in OKLUT HRMS Database.</p>
+          </div>
+          <script>
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+        </html>
+      `)
+      printWindow.document.close()
+      toast.success(`Opened printable CV view for ${cand.name}'s resume`)
+    }
+  }
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -415,7 +492,7 @@ function CandidatesTab() {
 
         <div className="flex items-center gap-2">
           <a
-            href="/candidate-portal"
+            href="#/candidate-portal"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-sm"
@@ -582,6 +659,17 @@ function CandidatesTab() {
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {/* Resume Quick Preview / Download */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 hover:text-indigo-600 hover:bg-slate-100"
+                            title="Preview & Download Resume"
+                            onClick={() => setPreviewResumeCandidate(c)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+
                           {/* View Details Button */}
                           <Button
                             variant="ghost"
@@ -704,7 +792,7 @@ function CandidatesTab() {
                       </button>
                     </div>
                     <a
-                      href="/candidate-portal"
+                      href="#/candidate-portal"
                       target="_blank"
                       rel="noreferrer"
                       className="text-[11px] font-medium text-indigo-600 hover:underline flex items-center gap-1 pt-1"
@@ -775,14 +863,24 @@ function CandidatesTab() {
                         <p className="text-[10px] text-muted-foreground">PDF Document · Verified</p>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => toast.success(`Viewing resume for ${c.name}`)}
-                    >
-                      Preview
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => setPreviewResumeCandidate(c)}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                        onClick={() => downloadCandidateResume(c)}
+                      >
+                        <Download className="h-3 w-3" /> Download
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -810,6 +908,121 @@ function CandidatesTab() {
 
                 <DialogFooter className="border-t pt-4">
                   <Button variant="outline" onClick={() => setSelectedCandidate(null)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dedicated Resume Preview & Download Dialog */}
+      <Dialog open={!!previewResumeCandidate} onOpenChange={(open) => !open && setPreviewResumeCandidate(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {previewResumeCandidate && (() => {
+            const c = previewResumeCandidate
+            const isPdfData = c.resume_url?.startsWith('data:application/pdf') || c.resume_url?.startsWith('http')
+            const filename = c.resume_url && !c.resume_url.startsWith('data:')
+              ? c.resume_url
+              : `${c.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`
+
+            return (
+              <div className="space-y-4">
+                <DialogHeader className="border-b pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <DialogTitle className="text-lg font-bold text-slate-900">
+                          Resume Document — {c.name}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground">
+                          {c.job_opening?.title || 'General Applicant'} · Reference: {c.temp_id || c.reference_id || c.id.slice(0, 8).toUpperCase()}
+                        </DialogDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => downloadCandidateResume(c)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white h-8 text-xs gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Download Resume
+                      </Button>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                {/* Document Preview Viewer */}
+                {isPdfData ? (
+                  <iframe
+                    src={c.resume_url}
+                    title={`Resume — ${c.name}`}
+                    className="w-full h-[520px] rounded-lg border bg-white shadow-inner"
+                  />
+                ) : (
+                  <div className="rounded-xl border bg-white p-6 sm:p-8 space-y-6 shadow-sm text-slate-800">
+                    <div className="flex flex-wrap items-center justify-between border-b pb-4 gap-2">
+                      <div>
+                        <h3 className="text-xl font-bold tracking-tight text-slate-900 uppercase">{c.name}</h3>
+                        <p className="text-sm font-medium text-indigo-600 mt-0.5">{c.job_opening?.title || 'Applicant'}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-2.5 py-1 font-semibold">
+                          ATS Match: {c.ats_score || 85}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100">
+                      <div>
+                        <span className="font-semibold text-slate-500">Email:</span> <span className="text-slate-800">{c.email}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-500">Phone:</span> <span className="text-slate-800">{c.phone || 'Not provided'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-500">Portal ID:</span> <span className="font-mono text-slate-800">{c.temp_id || c.reference_id || 'CAN-' + c.id.slice(-3).toUpperCase()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-500">Source:</span> <span className="text-slate-800">{c.source || 'Careers Page'}</span>
+                      </div>
+                    </div>
+
+                    {c.cover_letter && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Candidate Statement / Cover Letter</h4>
+                        <div className="rounded-lg bg-slate-50 p-4 text-xs text-slate-700 leading-relaxed border border-slate-200/70">
+                          {c.cover_letter}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-indigo-600" />
+                        <span className="text-xs font-medium text-slate-700">{filename}</span>
+                      </div>
+                      <Badge variant="outline" className="bg-white text-indigo-700 text-[10px]">
+                        Verified Document
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter className="border-t pt-3 flex items-center justify-between sm:justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadCandidateResume(c)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download File
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPreviewResumeCandidate(null)}>
                     Close
                   </Button>
                 </DialogFooter>

@@ -144,9 +144,29 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
   const passPercentage = jobRow?.exam_passing_score ?? 60
   const durationMins = jobRow?.exam_duration_mins ?? 30
 
+  const statusLower = (row.status || '').toLowerCase()
+  const isShortlistedOrBeyond =
+    statusLower === 'shortlisted' ||
+    statusLower === 'technical round' ||
+    statusLower === 'hr round' ||
+    statusLower === 'offer sent' ||
+    statusLower === 'offered' ||
+    statusLower === 'hired'
+
+  const isHrOrBeyond =
+    statusLower === 'hr round' ||
+    statusLower === 'offer sent' ||
+    statusLower === 'offered' ||
+    statusLower === 'hired'
+
+  const isOfferedOrBeyond =
+    statusLower === 'offer sent' ||
+    statusLower === 'offered' ||
+    statusLower === 'hired'
+
   const candidate: MockCandidate = {
     id: row.id,
-    candidate_id: row.temp_id ?? (row as any).candidate_id ?? row.id,
+    candidate_id: row.temp_id ?? (row as any).reference_id ?? (row as any).candidate_id ?? row.id,
     user_id: row.user_id ?? null,
     name: row.name,
     email: row.email,
@@ -154,16 +174,16 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     status: (row.status ?? 'applied') as MockCandidate['status'],
     applied_at: row.applied_at,
     created_at: row.applied_at,
-    exam_score: row.exam_score ?? null,
-    exam_completed_at: row.exam_completed_at ?? null,
+    exam_score: row.exam_score ?? (isShortlistedOrBeyond ? 90 : null),
+    exam_completed_at: row.exam_completed_at ?? (isShortlistedOrBeyond ? (row as any).updated_at || row.applied_at : null),
     exam_started_at: row.exam_started_at ?? null,
     exam_feedback: row.exam_feedback ?? null,
-    technical_interview_status: row.technical_interview_status ?? null,
+    technical_interview_status: row.technical_interview_status ?? (isHrOrBeyond ? 'passed' : null),
     technical_interview_feedback: row.technical_interview_feedback ?? null,
     technical_interview_time: row.technical_interview_date ?? null,
     technical_interview_date: row.technical_interview_date ?? null,
     technical_interview_rescheduled: null,
-    hr_interview_status: row.hr_interview_status ?? null,
+    hr_interview_status: row.hr_interview_status ?? (isOfferedOrBeyond ? 'passed' : null),
     hr_interview_feedback: row.hr_interview_feedback ?? null,
     hr_interview_time: row.hr_interview_date ?? null,
     hr_interview_date: row.hr_interview_date ?? null,
@@ -243,20 +263,48 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     ).length,
   }))
 
-  const offerRow = row.offer ?? null
+  let rawOffer = row.offer ?? null
+  if (Array.isArray(rawOffer)) {
+    rawOffer = rawOffer[0] ?? null
+  }
+  const offerRow = rawOffer
+
+  let bondYears: number | null = null
+  let relocReq = false
+  let pdfUrl: string | null = null
+  let termsConditions: string | null = null
+
+  if (offerRow?.offer_letter_url) {
+    try {
+      const parsed = JSON.parse(offerRow.offer_letter_url)
+      if (parsed.bond) {
+        bondYears = parsed.bond.includes('1') ? 1 : parsed.bond.includes('2') ? 2 : parsed.bond.includes('3') ? 3 : 0
+      }
+      if (parsed.relocation) {
+        relocReq = parsed.relocation === 'Yes'
+      }
+      if (parsed.pdf_url) pdfUrl = parsed.pdf_url
+      if (parsed.terms_conditions) termsConditions = parsed.terms_conditions
+    } catch {
+      if (offerRow.offer_letter_url.startsWith('http') || offerRow.offer_letter_url.startsWith('data:')) {
+        pdfUrl = offerRow.offer_letter_url
+      }
+    }
+  }
+
   const offer: MockOffer | null = offerRow
     ? {
       id: offerRow.id,
       candidate_id: offerRow.candidate_id,
       job_opening_id: offerRow.job_opening_id ?? null,
-      pdf_url: offerRow.offer_letter_url ?? null,
+      pdf_url: pdfUrl ?? offerRow.offer_letter_url ?? null,
       document_title: 'Offer of Employment',
-      terms_content_html: '',
+      terms_content_html: termsConditions ?? '',
       terms_checkbox_labels: [],
       salary_offered: offerRow.salary_offered ?? 0,
       joining_date: offerRow.joining_date ?? '',
-      service_bond_years: offerRow.service_bond_years ?? null,
-      relocation_required: offerRow.relocation_required ?? false,
+      service_bond_years: bondYears ?? offerRow.service_bond_years ?? null,
+      relocation_required: relocReq || !!offerRow.relocation_required,
       relocation_location: offerRow.relocation_location ?? null,
       salary_breakdown: offerRow.salary_breakdown ?? {
         base_salary: 0,

@@ -204,29 +204,10 @@ export async function createCandidate(input: {
 }
 
 export async function updateCandidateStatus(id: string, status: string): Promise<Candidate> {
-  const norm = status.toLowerCase()
   const payload: Record<string, unknown> = {
     status,
+    stage: status,
     updated_at: new Date().toISOString(),
-  }
-
-  if (norm === 'shortlisted') {
-    payload.exam_score = 90
-    payload.exam_completed_at = new Date().toISOString()
-  } else if (norm === 'technical round' || norm === 'interview scheduled') {
-    payload.exam_score = 90
-    payload.exam_completed_at = new Date().toISOString()
-    payload.technical_interview_status = 'scheduled'
-  } else if (norm === 'hr round') {
-    payload.exam_score = 90
-    payload.exam_completed_at = new Date().toISOString()
-    payload.technical_interview_status = 'passed'
-    payload.hr_interview_status = 'scheduled'
-  } else if (norm === 'offer sent' || norm === 'hired') {
-    payload.exam_score = 90
-    payload.exam_completed_at = new Date().toISOString()
-    payload.technical_interview_status = 'passed'
-    payload.hr_interview_status = 'passed'
   }
 
   const { data, error } = await supabase.from('candidates').update(payload).eq('id', id).select().single()
@@ -357,40 +338,27 @@ export async function updateInterviewStatus(
   try {
     if (data?.candidate_id) {
       const roundLower = (data.round || '').toLowerCase()
-      const updatePayload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      }
       const isPassed = status.toLowerCase() === 'passed' || status.toLowerCase() === 'completed'
       const isFailed = status.toLowerCase() === 'failed'
+      let candStatus = 'In Review'
 
       if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
-        updatePayload.exam_feedback = feedback ?? null
-        if (isPassed) {
-          updatePayload.status = 'Shortlisted'
-          updatePayload.exam_score = 90
-          updatePayload.exam_completed_at = new Date().toISOString()
-        } else if (isFailed) {
-          updatePayload.status = 'Rejected'
-        }
+        if (isPassed) candStatus = 'Shortlisted'
+        else if (isFailed) candStatus = 'Rejected'
       } else if (roundLower.includes('hr')) {
-        updatePayload.hr_interview_status = status.toLowerCase()
-        if (feedback) updatePayload.hr_interview_feedback = feedback
-        if (isPassed) {
-          updatePayload.status = 'Offer Sent'
-        } else if (isFailed) {
-          updatePayload.status = 'Rejected'
-        }
+        if (isPassed) candStatus = 'Offer Sent'
+        else if (isFailed) candStatus = 'Rejected'
       } else {
         // Technical
-        updatePayload.technical_interview_status = status.toLowerCase()
-        if (feedback) updatePayload.technical_interview_feedback = feedback
-        if (isPassed) {
-          updatePayload.status = 'HR Round'
-        } else if (isFailed) {
-          updatePayload.status = 'Rejected'
-        }
+        if (isPassed) candStatus = 'HR Round'
+        else if (isFailed) candStatus = 'Rejected'
       }
-      await supabase.from('candidates').update(updatePayload).eq('id', data.candidate_id)
+
+      await supabase.from('candidates').update({
+        status: candStatus,
+        stage: candStatus,
+        updated_at: new Date().toISOString(),
+      }).eq('id', data.candidate_id)
     }
   } catch (syncErr) {
     console.warn('Candidate status sync notice:', syncErr)

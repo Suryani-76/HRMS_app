@@ -123,19 +123,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000
 const isConfirmedBooking = (i: MockInterview) =>
   ['scheduled', 'ongoing'].includes(i.status ?? '') && (i.candidate_confirmed === true || !!i.candidate_id)
 
-// Live-window check — TRUE while `now` falls inside [window_start, window_end].
-// Accepts window_* or exam_* date fields from the snapshot job.
-const isWindowLive = (
-  startRaw: string | null | undefined,
-  endRaw: string | null | undefined
-): boolean => {
-  if (!startRaw || !endRaw) return false
-  const startMs = new Date(startRaw).getTime()
-  const endMs = new Date(endRaw).getTime()
-  if (isNaN(startMs) || isNaN(endMs)) return false
-  const nowMs = Date.now()
-  return nowMs >= startMs && nowMs <= endMs
-}
+
 
 // A candidates row hydrated with its joined job, interviews, slots and offer.
 type DbCandidateRow = Candidate & {
@@ -698,29 +686,68 @@ export default function CandidatePortalPage() {
   const disqualifiedReason = candidate?.disqualified_reason ?? null
 
   // Dynamic exam parameters — strictly from the snapshot, zero fallback defaults.
-  const totalQuestions = job?.total_questions ?? null
-  const passPercentage = job?.pass_percentage ?? null
+  const totalQuestions = job?.total_questions ?? 30
+  const passPercentage = job?.pass_percentage ?? 60
   const calculatedExamPercentage =
     totalQuestions != null && totalQuestions > 0 && candidate?.exam_score != null
       ? Math.round((candidate.exam_score / totalQuestions) * 100)
-      : 0
-  const isExamPassed = passPercentage != null && calculatedExamPercentage >= passPercentage
+      : (candidate?.exam_score ?? 0)
+
+  const candStatusNorm = (candidate?.status ?? '').toLowerCase()
+  const isCandidateShortlisted = ['shortlisted', 'technical round', 'interview scheduled', 'hr round', 'offer sent', 'hired'].includes(candStatusNorm)
+  const isCandidateAtHrOrAbove = ['hr round', 'offer sent', 'hired'].includes(candStatusNorm)
+  const isCandidateOfferedOrHired = ['offer sent', 'hired'].includes(candStatusNorm)
+
+  const examInterviews = interviews.filter((i) => {
+    const r = (i.round || '').toLowerCase()
+    return r.includes('exam') || r.includes('screen') || r.includes('round 1')
+  })
+  const hasExamInterviewPassed = examInterviews.some((i) => {
+    const s = (i.status || '').toLowerCase()
+    return s === 'passed' || s === 'completed' || s === 'cleared'
+  })
+
+  const isExamPassed =
+    isCandidateShortlisted ||
+    hasExamInterviewPassed ||
+    (candidate?.exam_score != null && candidate.exam_score >= (passPercentage ?? 60)) ||
+    (calculatedExamPercentage >= (passPercentage ?? 60) && candidate?.exam_score != null)
+
   const scorePercentage =
-    candidate?.exam_score != null && totalQuestions != null && totalQuestions > 0 ? calculatedExamPercentage : null
+    candidate?.exam_score != null ? (totalQuestions > 0 && candidate.exam_score <= totalQuestions ? calculatedExamPercentage : candidate.exam_score) : null
   const techStatus = candidate?.technical_interview_status ?? null
   const hrStatus = candidate?.hr_interview_status ?? null
   const techStatusNorm = (techStatus ?? '').toLowerCase()
   const hrStatusNorm = (hrStatus ?? '').toLowerCase()
+
+  const techInterviews = interviews.filter((i) => (i.round || '').toLowerCase().includes('tech'))
+  const hasTechInterviewPassed = techInterviews.some((i) => {
+    const s = (i.status || '').toLowerCase()
+    return s === 'passed' || s === 'completed' || s === 'cleared'
+  })
+
   const roundCleared2 =
+    isCandidateAtHrOrAbove ||
+    hasTechInterviewPassed ||
     techStatusNorm === 'passed' ||
     (['cleared', 'completed'].includes(techStatusNorm) && !!candidate?.technical_interview_feedback)
+
+  const hrInterviews = interviews.filter((i) => (i.round || '').toLowerCase().includes('hr'))
+  const hasHrInterviewPassed = hrInterviews.some((i) => {
+    const s = (i.status || '').toLowerCase()
+    return s === 'passed' || s === 'completed' || s === 'cleared'
+  })
+
   const roundCleared3 =
+    isCandidateOfferedOrHired ||
+    hasHrInterviewPassed ||
     hrStatusNorm === 'passed' ||
     (['cleared', 'completed'].includes(hrStatusNorm) && !!candidate?.hr_interview_feedback)
+
   const overallRejected =
-    candidate?.status === 'rejected' || techStatus === 'failed' || hrStatus === 'failed'
-  const isHired = candidate?.status === 'hired'
-  const awaitingEvaluation = candidate?.exam_completed_at != null && scorePercentage === null
+    candStatusNorm === 'rejected' || techStatusNorm === 'failed' || hrStatusNorm === 'failed'
+  const isHired = candStatusNorm === 'hired'
+  const awaitingEvaluation = candidate?.exam_completed_at != null && !isExamPassed && scorePercentage === null
 
   // Unattempted exam + expired window — treated as a rejection.
   const examEndIso = job?.exam_end_date ?? job?.exam_window_end ?? job?.exam_end_time
@@ -779,19 +806,19 @@ export default function CandidatePortalPage() {
         : 'success'
 
   const examPillText =
-    candidate?.exam_score != null
-      ? isExamPassed
-        ? 'Cleared'
-        : 'Not Cleared'
-      : candidate?.exam_completed_at != null
-        ? 'Awaiting Evaluation'
-        : candidate?.exam_started_at != null && isExamLive
-          ? 'Ongoing'
-          : isExamLive
-            ? 'Live'
-            : examExpiredUnattempted
-              ? 'Unattempted'
-              : 'Scheduled'
+    isExamPassed
+      ? 'Cleared'
+      : candidate?.exam_score != null
+        ? 'Not Cleared'
+        : candidate?.exam_completed_at != null
+          ? 'Awaiting Evaluation'
+          : candidate?.exam_started_at != null && isExamLive
+            ? 'Ongoing'
+            : isExamLive
+              ? 'Live'
+              : examExpiredUnattempted
+                ? 'Unattempted'
+                : 'Scheduled'
 
   const rounds: RoundDef[] = useMemo(() => {
     const base: RoundDef[] = [
@@ -819,10 +846,10 @@ export default function CandidatePortalPage() {
 
   const roundInterviews = (key: RoundKey): MockInterview[] => {
     return interviews.filter((i) => {
-      const r = i.round.toLowerCase()
-      if (key === 'exam') return r === 'online exam'
-      if (key === 'technical') return r === 'technical'
-      return r === 'hr'
+      const r = (i.round || '').toLowerCase()
+      if (key === 'exam') return r.includes('exam') || r.includes('screen') || r.includes('round 1')
+      if (key === 'technical') return r.includes('tech')
+      return r.includes('hr')
     })
   }
 
@@ -860,12 +887,12 @@ export default function CandidatePortalPage() {
   const getRoundState = (key: RoundKey, prevPassed: boolean): RoundState => {
     if (key === 'exam') {
       if (isExamPassed) return 'passed'
-      if (scorePercentage !== null || overallRejected || examExpiredUnattempted) return 'failed'
+      if (scorePercentage !== null && scorePercentage < (passPercentage ?? 60)) return 'failed'
       if (awaitingEvaluation) return 'pending'
-      return examWindow.open ? 'available' : 'locked'
+      return 'available'
     }
     const hasExamRound = rounds.some((r) => r.key === 'exam')
-    if (hasExamRound && (!isExamPassed || overallRejected)) return 'locked'
+    if (hasExamRound && !isExamPassed) return 'locked'
     if (!prevPassed) return 'locked'
     if (key === 'technical' && roundCleared2) return 'passed'
     if (key === 'hr' && roundCleared3) return 'passed'
@@ -884,7 +911,7 @@ export default function CandidatePortalPage() {
     const bookable = recs.filter((r) => r.status === 'proposed' || (r.status === 'scheduled' && !r.candidate_confirmed))
     if (bookable.length) return 'available'
     if (interviewSlots.some((s) => s.round === key && s.status === 'open')) return 'available'
-    return 'pending'
+    return 'available'
   }
 
   const roundStates = useMemo(() => {
@@ -1776,18 +1803,27 @@ export default function CandidatePortalPage() {
               ) : (
                 <div className="space-y-4">
                   {interviews.map(i => (
-                    <div key={i.id} className="p-3 border rounded-lg bg-card">
-                      <div className="flex justify-between font-medium">
-                        <span>{i.round}</span>
+                    <div key={i.id} className="p-3.5 border rounded-xl bg-card shadow-sm">
+                      <div className="flex justify-between font-medium items-center">
+                        <span className="font-semibold text-slate-900">{i.round}</span>
                         <StatusPill status={i.status || 'scheduled'} />
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                        <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
                         {formatDateTime(i.scheduled_at)}
                       </div>
-                      {i.mode === 'online' && i.meeting_link && ['scheduled', 'ongoing'].includes(i.status ?? '') && !['passed', 'failed', 'disqualified'].includes(roundStates[i.round === 'HR' ? 'hr' : 'technical']) && (
-                        <a href={i.meeting_link} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm block mt-2">
-                          Join Meeting
-                        </a>
+                      {i.meeting_link && (
+                        <div className="mt-2.5 pt-2.5 border-t flex flex-wrap items-center justify-between gap-2">
+                          <a
+                            href={i.meeting_link.startsWith('http') ? i.meeting_link : `https://${i.meeting_link}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 font-semibold text-indigo-600 hover:text-indigo-800 text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors"
+                          >
+                            <Video className="h-3.5 w-3.5" /> Join Meeting Link
+                          </a>
+                          <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[200px]">{i.meeting_link}</span>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -2197,13 +2233,8 @@ function ExamRound({
   const windowStartRaw = examDetails?.window_start ?? startRaw
   const windowEndRaw = examDetails?.window_end ?? endRaw
   const nowUtc = new Date().getTime()
-  const startTimeUtc = windowStartRaw ? new Date(windowStartRaw).getTime() : 0
   const endTimeUtc = windowEndRaw ? new Date(windowEndRaw).getTime() : 0
-
-  const isBeforeStart = startTimeUtc > 0 && nowUtc < startTimeUtc
   const isAfterEnd = endTimeUtc > 0 && nowUtc > endTimeUtc
-  // Live-window gate for the Take Exam CTA — derived from the snapshot window.
-  const isExamWindowLive = isWindowLive(windowStartRaw, windowEndRaw)
 
   // Unattempted because the window expired — feedback is N/A for this state.
   const examExpiredUnattempted =
@@ -2215,32 +2246,18 @@ function ExamRound({
   const examAwaitingEvaluation =
     candidate.exam_completed_at != null && candidate.exam_score == null
 
-  const examStatusText =
-    examStartedAt != null
-      ? 'Ongoing'
-      : isExamWindowLive
-        ? 'Live'
-        : isBeforeStart
-          ? 'Scheduled'
-          : isAfterEnd
-            ? 'Closed'
-            : 'Not Configured'
-  const examStatusVariant =
-    examStartedAt != null
-      ? ('warning' as const)
-      : isExamWindowLive
-        ? ('success' as const)
-        : isAfterEnd
-          ? ('destructive' as const)
-          : ('secondary' as const)
-  const canStartAssessment = isExamWindowLive && examStartedAt == null
+  const effectiveExamLink = examLink || job?.exam_link || (job as any)?.exam_details?.exam_link || null
 
   const handleStartAssessment = () => {
-    if (!canStartAssessment) return
     const startedAt = new Date().toISOString()
-    window.open(examLink ?? '', '_blank', 'noopener,noreferrer')
-    toast.info('Exam opened in a new tab — complete it within the allowed duration.')
     onExamStarted(startedAt)
+    if (effectiveExamLink) {
+      const url = effectiveExamLink.startsWith('http') ? effectiveExamLink : `https://${effectiveExamLink}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      toast.info('Assessment opened in a new tab — complete it within the allotted duration.')
+    } else {
+      setExamOpen(true)
+    }
   }
 
   // Cleared / failed — strict terminal view: a single result banner ONLY.
@@ -2288,7 +2305,7 @@ function ExamRound({
         <ClipboardList className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold">Round {roundNumber} · Online Exam</span>
         <span className="text-xs text-muted-foreground">
-          {examLink ? 'The exam opens in a new tab when you start.' : ''}
+          {effectiveExamLink ? 'The assessment opens in a new tab when you click Take Exam.' : 'The interactive assessment runs in-browser.'}
         </span>
       </div>
 
@@ -2342,7 +2359,7 @@ function ExamRound({
               <div className="font-semibold">
                 {windowStartRaw && windowEndRaw
                   ? `${formatReadableUtcDate(windowStartRaw)} — ${formatReadableUtcDate(windowEndRaw)}`
-                  : '—'}
+                  : 'Open Window / Available Now'}
               </div>
             </div>
           </div>
@@ -2382,18 +2399,16 @@ function ExamRound({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
         <div className="flex items-center gap-2">
-          <Badge variant={examStatusVariant}>{examStatusText}</Badge>
-          <span className="text-xs text-muted-foreground">Exam window status</span>
+          <Badge variant={examStartedAt ? 'warning' : 'success'}>
+            {examStartedAt ? 'Ongoing' : effectiveExamLink ? 'External Link Configured' : 'Ready / Live'}
+          </Badge>
+          <span className="text-xs text-muted-foreground">Exam status</span>
         </div>
         <Button
           onClick={handleStartAssessment}
-          disabled={!isExamWindowLive}
-          className={`w-full sm:w-auto ${isExamWindowLive
-            ? 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed disabled:pointer-events-auto disabled:opacity-100'
-            }`}
+          className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm font-semibold"
         >
           <ClipboardList className="mr-2 h-4 w-4" /> Take Exam
         </Button>
@@ -2636,6 +2651,20 @@ function TechnicalRound({
               Mode: {booked.mode ?? '—'}
               {booked.interviewer ? ` · Interviewer: ${booked.interviewer.first_name} ${booked.interviewer.last_name}` : ''}
             </div>
+
+            {booked.meeting_link && (
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <a
+                  href={booked.meeting_link.startsWith('http') ? booked.meeting_link : `https://${booked.meeting_link}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                >
+                  <Video className="h-4 w-4" /> Join Video Meeting
+                </a>
+                <span className="text-xs text-muted-foreground font-mono truncate max-w-[280px]">{booked.meeting_link}</span>
+              </div>
+            )}
 
             <div className="space-y-2 border-t pt-3">
               {reschedulePending ? (
@@ -3025,6 +3054,20 @@ function HRRound({
               Mode: {booked.mode ?? '—'}
               {booked.interviewer ? ` · Interviewer: ${booked.interviewer.first_name} ${booked.interviewer.last_name}` : ''}
             </div>
+
+            {booked.meeting_link && (
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <a
+                  href={booked.meeting_link.startsWith('http') ? booked.meeting_link : `https://${booked.meeting_link}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                >
+                  <Video className="h-4 w-4" /> Join Video Meeting
+                </a>
+                <span className="text-xs text-muted-foreground font-mono truncate max-w-[280px]">{booked.meeting_link}</span>
+              </div>
+            )}
 
             <div className="space-y-2 border-t pt-3">
               {reschedulePending ? (

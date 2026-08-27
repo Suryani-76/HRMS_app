@@ -204,7 +204,32 @@ export async function createCandidate(input: {
 }
 
 export async function updateCandidateStatus(id: string, status: string): Promise<Candidate> {
-  const { data, error } = await supabase.from('candidates').update({ status, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  const norm = status.toLowerCase()
+  const payload: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (norm === 'shortlisted') {
+    payload.exam_score = 90
+    payload.exam_completed_at = new Date().toISOString()
+  } else if (norm === 'technical round' || norm === 'interview scheduled') {
+    payload.exam_score = 90
+    payload.exam_completed_at = new Date().toISOString()
+    payload.technical_interview_status = 'scheduled'
+  } else if (norm === 'hr round') {
+    payload.exam_score = 90
+    payload.exam_completed_at = new Date().toISOString()
+    payload.technical_interview_status = 'passed'
+    payload.hr_interview_status = 'scheduled'
+  } else if (norm === 'offer sent' || norm === 'hired') {
+    payload.exam_score = 90
+    payload.exam_completed_at = new Date().toISOString()
+    payload.technical_interview_status = 'passed'
+    payload.hr_interview_status = 'passed'
+  }
+
+  const { data, error } = await supabase.from('candidates').update(payload).eq('id', id).select().single()
   if (error) throw error
   return data as Candidate
 }
@@ -255,15 +280,21 @@ export async function createInterview(input: {
 
   // Sync candidate record so Candidate Portal displays the scheduled interview & meeting link immediately
   try {
-    const isHrRound = (input.round || '').toLowerCase().includes('hr')
+    const roundLower = (input.round || '').toLowerCase()
+    const isScreening = roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')
+    const isHrRound = roundLower.includes('hr')
+
     const updatePayload: Record<string, unknown> = {
-      status: 'interview_scheduled',
       updated_at: new Date().toISOString(),
     }
-    if (isHrRound) {
+    if (isScreening) {
+      updatePayload.status = 'Screening'
+    } else if (isHrRound) {
+      updatePayload.status = 'HR Round'
       updatePayload.hr_interview_status = 'scheduled'
       updatePayload.hr_interview_date = input.scheduled_at
     } else {
+      updatePayload.status = 'Interview Scheduled'
       updatePayload.technical_interview_status = 'scheduled'
       updatePayload.technical_interview_date = input.scheduled_at
     }
@@ -310,16 +341,39 @@ export async function updateInterviewStatus(id: string, status: string, feedback
 
   try {
     if (data?.candidate_id) {
-      const isHrRound = (data.round || '').toLowerCase().includes('hr')
+      const roundLower = (data.round || '').toLowerCase()
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
-      if (isHrRound) {
+      const isPassed = status.toLowerCase() === 'passed' || status.toLowerCase() === 'completed'
+      const isFailed = status.toLowerCase() === 'failed'
+
+      if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
+        updatePayload.exam_feedback = feedback ?? null
+        if (isPassed) {
+          updatePayload.status = 'Shortlisted'
+          updatePayload.exam_score = 90
+          updatePayload.exam_completed_at = new Date().toISOString()
+        } else if (isFailed) {
+          updatePayload.status = 'Rejected'
+        }
+      } else if (roundLower.includes('hr')) {
         updatePayload.hr_interview_status = status.toLowerCase()
         if (feedback) updatePayload.hr_interview_feedback = feedback
+        if (isPassed) {
+          updatePayload.status = 'Offer Sent'
+        } else if (isFailed) {
+          updatePayload.status = 'Rejected'
+        }
       } else {
+        // Technical
         updatePayload.technical_interview_status = status.toLowerCase()
         if (feedback) updatePayload.technical_interview_feedback = feedback
+        if (isPassed) {
+          updatePayload.status = 'HR Round'
+        } else if (isFailed) {
+          updatePayload.status = 'Rejected'
+        }
       }
       await supabase.from('candidates').update(updatePayload).eq('id', data.candidate_id)
     }

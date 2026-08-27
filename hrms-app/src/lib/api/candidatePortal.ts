@@ -222,6 +222,13 @@ const toPortalJob = (row: JobOpening): PortalJobOpening => ({
   },
 })
 
+const normalizePortalRound = (r?: string | null): 'Online Exam' | 'Technical' | 'HR' => {
+  const norm = (r ?? '').toLowerCase()
+  if (norm.includes('hr')) return 'HR'
+  if (norm.includes('screen') || norm.includes('exam') || norm.includes('round 1')) return 'Online Exam'
+  return 'Technical'
+}
+
 const toPortalInterview = (row: Interview): PortalInterview => ({
   id: row.id,
   candidate_id: row.candidate_id,
@@ -229,10 +236,10 @@ const toPortalInterview = (row: Interview): PortalInterview => ({
   interviewer: row.interviewer
     ? { first_name: row.interviewer.first_name, last_name: row.interviewer.last_name }
     : null,
-  round: row.round === 'HR' ? 'HR' : 'Technical',
+  round: normalizePortalRound(row.round) as any,
   scheduled_at: row.scheduled_at ?? null,
   mode: row.mode ?? 'online',
-  meeting_link: row.meeting_link ?? null,
+  meeting_link: row.meeting_link ?? (row as any).exam_link ?? null,
   status: row.status ?? null,
   candidate_confirmed: row.candidate_confirmed ?? false,
   attended_at: row.attended_at ?? null,

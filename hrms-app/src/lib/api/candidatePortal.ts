@@ -462,12 +462,31 @@ export async function fetchCandidatePortal(candidateId: string): Promise<PortalD
   const offersRaw = offersRes.data ?? []
   if (offersRes.error) throw offersRes.error
 
-  // Map all interviews to technical / hr portal shapes
-  const interviews = (interviewsRaw as Interview[]).map((i: Interview) => {
-    let roundType: 'Technical' | 'HR' = 'Technical'
-    if (i.round?.toLowerCase().includes('hr')) roundType = 'HR'
-    return toPortalInterview({ ...i, round: roundType })
+  // Map all interviews preserving round, links, feedback and rating
+  const interviews = (interviewsRaw as Interview[]).map(toPortalInterview)
+
+  const portalCand = toPortalCandidate(candidate)
+  const examIv = interviews.find((i) => {
+    const r = (i.round || '').toLowerCase()
+    return r.includes('screen') || r.includes('exam') || r.includes('round 1')
   })
+  const techIv = interviews.find((i) => (i.round || '').toLowerCase().includes('tech'))
+  const hrIv = interviews.find((i) => (i.round || '').toLowerCase().includes('hr'))
+
+  if (examIv) {
+    if (examIv.feedback) portalCand.exam_feedback = examIv.feedback
+    if (examIv.status === 'passed') {
+      portalCand.exam_score = portalCand.exam_score ?? (examIv.rating ? examIv.rating * 20 : 90)
+    }
+  }
+  if (techIv) {
+    if (techIv.feedback) portalCand.technical_interview_feedback = techIv.feedback
+    if (techIv.status) portalCand.technical_interview_status = techIv.status
+  }
+  if (hrIv) {
+    if (hrIv.feedback) portalCand.hr_interview_feedback = hrIv.feedback
+    if (hrIv.status) portalCand.hr_interview_status = hrIv.status
+  }
 
   const bookedCounts: Record<string, number> = {}
   for (const i of interviews) {
@@ -477,7 +496,7 @@ export async function fetchCandidatePortal(candidateId: string): Promise<PortalD
   }
 
   return {
-    candidate: toPortalCandidate(candidate),
+    candidate: portalCand,
     job: jobRow ? toPortalJob(jobRow) : null,
     interviews,
     slots: (slotsRaw as InterviewSlot[]).map((s: InterviewSlot) => toPortalSlot(s, bookedCounts[s.id] ?? 0)),

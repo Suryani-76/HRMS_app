@@ -345,23 +345,46 @@ export async function updateInterviewStatus(
       const isFailed = status.toLowerCase() === 'failed'
       let candStatus = 'In Review'
 
-      if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
-        if (isPassed) candStatus = 'Shortlisted'
-        else if (isFailed) candStatus = 'Rejected'
-      } else if (roundLower.includes('hr')) {
-        if (isPassed) candStatus = 'Offer Sent'
-        else if (isFailed) candStatus = 'Rejected'
-      } else {
-        // Technical
-        if (isPassed) candStatus = 'HR Round'
-        else if (isFailed) candStatus = 'Rejected'
+      const candUpdate: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
       }
 
-      await supabase.from('candidates').update({
-        status: candStatus,
-        stage: candStatus,
-        updated_at: new Date().toISOString(),
-      }).eq('id', data.candidate_id)
+      if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
+        if (isPassed) {
+          candStatus = 'Shortlisted'
+          candUpdate.exam_score = rating ? rating * 20 : 90
+          candUpdate.exam_feedback = combinedFeedback || 'Screening round passed successfully.'
+        } else if (isFailed) {
+          candStatus = 'Rejected'
+          candUpdate.exam_feedback = combinedFeedback || 'Screening round not cleared.'
+        }
+      } else if (roundLower.includes('hr') || roundLower.includes('round 3')) {
+        if (isPassed) {
+          candStatus = 'Offer Sent'
+          candUpdate.hr_interview_status = 'passed'
+          candUpdate.hr_interview_feedback = combinedFeedback || 'HR round cleared successfully.'
+        } else if (isFailed) {
+          candStatus = 'Rejected'
+          candUpdate.hr_interview_status = 'failed'
+          candUpdate.hr_interview_feedback = combinedFeedback || 'HR round not cleared.'
+        }
+      } else {
+        // Technical
+        if (isPassed) {
+          candStatus = 'HR Round'
+          candUpdate.technical_interview_status = 'passed'
+          candUpdate.technical_interview_feedback = combinedFeedback || 'Technical round cleared successfully.'
+        } else if (isFailed) {
+          candStatus = 'Rejected'
+          candUpdate.technical_interview_status = 'failed'
+          candUpdate.technical_interview_feedback = combinedFeedback || 'Technical round not cleared.'
+        }
+      }
+
+      candUpdate.status = candStatus
+      candUpdate.stage = candStatus
+
+      await supabase.from('candidates').update(candUpdate).eq('id', data.candidate_id)
     }
   } catch (syncErr) {
     console.warn('Candidate status sync notice:', syncErr)

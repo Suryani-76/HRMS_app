@@ -163,6 +163,61 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     statusLower === 'offered' ||
     statusLower === 'hired'
 
+  const rawInterviews = row.interviews ?? []
+  const interviews: MockInterview[] = rawInterviews.map((iv) => {
+    let rName = 'Technical Interview'
+    const rLower = (iv.round || '').toLowerCase()
+    if (rLower.includes('screen') || rLower.includes('exam') || rLower.includes('round 1')) {
+      rName = 'Screening / Online Exam'
+    } else if (rLower.includes('hr') || rLower.includes('round 3')) {
+      rName = 'HR Interview'
+    } else {
+      rName = 'Technical Interview'
+    }
+
+    return {
+      id: iv.id,
+      candidate_id: iv.candidate_id,
+      job_opening_id: iv.job_opening_id ?? null,
+      interviewer: iv.interviewer
+        ? { first_name: iv.interviewer.first_name, last_name: iv.interviewer.last_name }
+        : null,
+      round: rName,
+      scheduled_at: iv.scheduled_at ?? null,
+      mode: iv.mode ?? 'online',
+      meeting_link: iv.meeting_link ?? (iv as any).exam_link ?? null,
+      status: (iv.status ?? null) as MockInterview['status'],
+      candidate_confirmed: iv.candidate_confirmed ?? false,
+      attended_at: iv.attended_at ?? null,
+      created_at: iv.created_at,
+      updated_at: iv.created_at,
+      reschedule_requested: iv.reschedule_requested ?? null,
+      reschedule_status: (iv.reschedule_status ?? null) as MockInterview['reschedule_status'],
+      reschedule_reason: iv.reschedule_reason ?? null,
+      reschedule_preferred_time: iv.reschedule_preferred_time ?? null,
+      reschedule_admin_note: iv.reschedule_admin_note ?? null,
+      feedback: iv.feedback ?? null,
+      rating: iv.rating ?? null,
+      metrics: iv.metrics ?? null,
+      slot_key: iv.slot_key ?? null,
+    }
+  })
+
+  // Extract real round-level feedback and score from interviews
+  const examIv = interviews.find((i) => {
+    const r = i.round.toLowerCase()
+    return r.includes('screen') || r.includes('exam') || r.includes('round 1')
+  })
+  const techIv = interviews.find((i) => i.round.toLowerCase().includes('tech'))
+  const hrIv = interviews.find((i) => i.round.toLowerCase().includes('hr'))
+
+  const examFb = examIv?.feedback || row.exam_feedback || null
+  const techFb = techIv?.feedback || row.technical_interview_feedback || null
+  const hrFb = hrIv?.feedback || row.hr_interview_feedback || null
+
+  const techStat = techIv?.status || row.technical_interview_status || (isHrOrBeyond ? 'passed' : null)
+  const hrStat = hrIv?.status || row.hr_interview_status || (isOfferedOrBeyond ? 'passed' : null)
+
   const candidate: MockCandidate = {
     id: row.id,
     candidate_id: row.temp_id ?? (row as any).reference_id ?? (row as any).candidate_id ?? row.id,
@@ -173,19 +228,19 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     status: (row.status ?? 'applied') as MockCandidate['status'],
     applied_at: row.applied_at,
     created_at: row.applied_at,
-    exam_score: row.exam_score ?? (isShortlistedOrBeyond ? 90 : null),
-    exam_completed_at: row.exam_completed_at ?? (isShortlistedOrBeyond ? (row as any).updated_at || row.applied_at : null),
-    exam_started_at: row.exam_started_at ?? null,
-    exam_feedback: row.exam_feedback ?? null,
-    technical_interview_status: row.technical_interview_status ?? (isHrOrBeyond ? 'passed' : null),
-    technical_interview_feedback: row.technical_interview_feedback ?? null,
-    technical_interview_time: row.technical_interview_date ?? null,
-    technical_interview_date: row.technical_interview_date ?? null,
+    exam_score: row.exam_score ?? (examIv?.status === 'passed' ? (examIv.rating ? examIv.rating * 20 : 90) : isShortlistedOrBeyond ? 90 : null),
+    exam_completed_at: row.exam_completed_at ?? (examIv?.status === 'passed' || isShortlistedOrBeyond ? (row as any).updated_at || row.applied_at : null),
+    exam_started_at: row.exam_started_at ?? (examIv ? examIv.scheduled_at : null),
+    exam_feedback: examFb,
+    technical_interview_status: techStat,
+    technical_interview_feedback: techFb,
+    technical_interview_time: techIv?.scheduled_at ?? row.technical_interview_date ?? null,
+    technical_interview_date: techIv?.scheduled_at ?? row.technical_interview_date ?? null,
     technical_interview_rescheduled: null,
-    hr_interview_status: row.hr_interview_status ?? (isOfferedOrBeyond ? 'passed' : null),
-    hr_interview_feedback: row.hr_interview_feedback ?? null,
-    hr_interview_time: row.hr_interview_date ?? null,
-    hr_interview_date: row.hr_interview_date ?? null,
+    hr_interview_status: hrStat,
+    hr_interview_feedback: hrFb,
+    hr_interview_time: hrIv?.scheduled_at ?? row.hr_interview_date ?? null,
+    hr_interview_date: hrIv?.scheduled_at ?? row.hr_interview_date ?? null,
     hr_interview_rescheduled: null,
     malpractice_flag: row.malpractice_flag ?? false,
     cheating_detected: row.cheating_detected ?? false,
@@ -216,36 +271,9 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     total_marks: totalQuestions,
     pass_percentage: passPercentage,
     exam_duration_mins: durationMins,
-    exam_link: jobRow?.exam_link ?? '',
+    exam_link: (examIv?.meeting_link as string) || jobRow?.exam_link || '',
     exam_details: examDetails,
   }
-
-  const interviews: MockInterview[] = (row.interviews ?? []).map((iv) => ({
-    id: iv.id,
-    candidate_id: iv.candidate_id,
-    job_opening_id: iv.job_opening_id ?? null,
-    interviewer: iv.interviewer
-      ? { first_name: iv.interviewer.first_name, last_name: iv.interviewer.last_name }
-      : null,
-    round: iv.round === 'HR' ? 'HR' : 'Technical',
-    scheduled_at: iv.scheduled_at ?? null,
-    mode: iv.mode ?? 'online',
-    meeting_link: iv.meeting_link ?? null,
-    status: (iv.status ?? null) as MockInterview['status'],
-    candidate_confirmed: iv.candidate_confirmed ?? false,
-    attended_at: iv.attended_at ?? null,
-    created_at: iv.created_at,
-    updated_at: iv.created_at,
-    reschedule_requested: iv.reschedule_requested ?? null,
-    reschedule_status: (iv.reschedule_status ?? null) as MockInterview['reschedule_status'],
-    reschedule_reason: iv.reschedule_reason ?? null,
-    reschedule_preferred_time: iv.reschedule_preferred_time ?? null,
-    reschedule_admin_note: iv.reschedule_admin_note ?? null,
-    feedback: iv.feedback ?? null,
-    rating: iv.rating ?? null,
-    metrics: iv.metrics ?? null,
-    slot_key: iv.slot_key ?? null,
-  }))
 
   // Slots carry their own booked count in the snapshot — derive it from the
   // candidate's confirmed interview bookings per slot.
@@ -1872,7 +1900,10 @@ export default function CandidatePortalPage() {
                             rel="noreferrer"
                             className="inline-flex items-center gap-1.5 font-semibold text-indigo-600 hover:text-indigo-800 text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors"
                           >
-                            <Video className="h-3.5 w-3.5" /> Join Meeting Link
+                            <Video className="h-3.5 w-3.5" />
+                            {i.round.toLowerCase().includes('screen') || i.round.toLowerCase().includes('exam')
+                              ? 'Launch Assessment / Meeting Link'
+                              : 'Join Meeting Link'}
                           </a>
                           <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[200px]">{i.meeting_link}</span>
                         </div>
@@ -2681,7 +2712,9 @@ function TechnicalRound({
     const s = (i.status ?? '').toLowerCase()
     if (s === 'passed' || s === 'failed') return true
     return s === 'completed' && !!i.feedback
-  })
+  }) || interviews.find((i) => !!i.feedback || !!i.rating)
+
+  const effectiveFeedback = completed?.feedback || feedback || (interviews.find((i) => !!i.feedback)?.feedback) || null
 
   // Live countdown — re-renders every 15s so the button state flips at the
   // 2-hour and 5-minute thresholds without any user interaction.
@@ -2709,7 +2742,7 @@ function TechnicalRound({
           <div className="flex items-center gap-2 font-medium text-emerald-900">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Round Cleared
           </div>
-          <p className="mt-1 text-sm text-emerald-800">{feedback ?? 'Congratulations! You have qualified this round.'}</p>
+          <p className="mt-1 text-sm text-emerald-800">{effectiveFeedback ?? 'Congratulations! You have qualified this round.'}</p>
         </div>
         {completed && (
           <div className="rounded-lg border p-4 space-y-3">
@@ -2730,8 +2763,8 @@ function TechnicalRound({
             {showFeedback ? 'Hide Feedback' : 'View Feedback'}
           </Button>
           {showFeedback && (
-            <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-              {feedback ?? 'Feedback will be published soon.'}
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
+              {effectiveFeedback ?? 'Feedback will be published soon.'}
             </div>
           )}
         </div>
@@ -3086,7 +3119,9 @@ function HRRound({
     const s = (i.status ?? '').toLowerCase()
     if (s === 'passed' || s === 'failed') return true
     return s === 'completed' && !!i.feedback
-  })
+  }) || interviews.find((i) => !!i.feedback || !!i.rating)
+
+  const effectiveFeedback = completed?.feedback || feedback || (interviews.find((i) => !!i.feedback)?.feedback) || null
 
   const [, forceTick] = useState(0)
   useEffect(() => {
@@ -3112,7 +3147,7 @@ function HRRound({
           <div className="flex items-center gap-2 font-medium text-emerald-900">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Round Cleared
           </div>
-          <p className="mt-1 text-sm text-emerald-800">{feedback ?? 'Congratulations! You have qualified this round.'}</p>
+          <p className="mt-1 text-sm text-emerald-800">{effectiveFeedback ?? 'Congratulations! You have qualified this round.'}</p>
         </div>
         {completed && (
           <div className="rounded-lg border p-4 space-y-3">
@@ -3133,8 +3168,8 @@ function HRRound({
             {showFeedback ? 'Hide Feedback' : 'View Feedback'}
           </Button>
           {showFeedback && (
-            <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-              {feedback ?? 'Feedback will be published soon.'}
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
+              {effectiveFeedback ?? 'Feedback will be published soon.'}
             </div>
           )}
         </div>

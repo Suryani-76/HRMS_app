@@ -28,7 +28,7 @@ export interface MockInterview {
   candidate_id: string
   job_opening_id: string | null
   interviewer: MockInterviewer | null
-  round: 'Technical' | 'HR'
+  round: 'Technical' | 'HR' | 'Screening' | 'Screening / Online Exam' | 'Technical Interview' | 'HR Interview' | string
   scheduled_at: string | null
   mode: string
   meeting_link: string | null

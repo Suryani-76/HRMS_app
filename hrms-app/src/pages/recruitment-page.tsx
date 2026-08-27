@@ -1176,8 +1176,8 @@ function InterviewsTab() {
       round: round || undefined,
       scheduled_at: new Date(scheduledAt).toISOString(),
       mode: mode || undefined,
-      meeting_link: link || undefined,
-      exam_link: examLink || undefined,
+      meeting_link: (round === 'Screening' ? (examLink || link) : (link || examLink)) || undefined,
+      exam_link: (examLink || link) || undefined,
     })
     setDialog(false)
     setCandidateId(''); setJobId(''); setInterviewerId(''); setLink(''); setExamLink('')

@@ -2860,6 +2860,17 @@ function TechnicalRound({
               <span>A request to reschedule interview call has been received by our team and it will be rescheduled once the slot is available.</span>
             </div>
           )}
+          {rescheduleAccepted && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-900 shadow-xs">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div>
+                <div className="font-semibold text-emerald-950">Reschedule Request Approved</div>
+                <div className="text-xs text-emerald-800 mt-0.5">
+                  Your interview reschedule request has been approved by HR. Your updated interview is confirmed for <strong>{formatDateTime(booked.scheduled_at)}</strong>.
+                </div>
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 space-y-2">
             <div className="flex items-center gap-2 font-medium text-primary">
               <CheckCircle2 className="h-4 w-4" /> Your interview is confirmed for {formatDateTime(booked.scheduled_at)}.
@@ -2917,7 +2928,7 @@ function TechnicalRound({
                 </>
               ) : rescheduleAccepted ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-emerald-800 font-medium">
                     Your interview has been rescheduled to {formatDateTime(booked.scheduled_at)}.
                   </p>
                   <div className="flex flex-wrap items-center gap-3">
@@ -3265,6 +3276,17 @@ function HRRound({
               <span>A request to reschedule interview call has been received by our team and it will be rescheduled once the slot is available.</span>
             </div>
           )}
+          {rescheduleAccepted && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-900 shadow-xs">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div>
+                <div className="font-semibold text-emerald-950">Reschedule Request Approved</div>
+                <div className="text-xs text-emerald-800 mt-0.5">
+                  Your interview reschedule request has been approved by HR. Your updated interview is confirmed for <strong>{formatDateTime(booked.scheduled_at)}</strong>.
+                </div>
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 space-y-2">
             <div className="flex items-center gap-2 font-medium text-primary">
               <CheckCircle2 className="h-4 w-4" /> Your interview is confirmed for {formatDateTime(booked.scheduled_at)}.
@@ -3322,7 +3344,7 @@ function HRRound({
                 </>
               ) : rescheduleAccepted ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-emerald-800 font-medium">
                     Your interview has been rescheduled to {formatDateTime(booked.scheduled_at)}.
                   </p>
                   <div className="flex flex-wrap items-center gap-3">

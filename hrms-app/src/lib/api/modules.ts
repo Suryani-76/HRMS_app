@@ -299,17 +299,13 @@ export async function createInterview(input: {
     }
     if (isScreening) {
       updatePayload.status = 'Screening'
+      updatePayload.stage = 'Screening'
     } else if (isHrRound) {
       updatePayload.status = 'HR Round'
-      updatePayload.hr_interview_status = 'scheduled'
-      updatePayload.hr_interview_date = input.scheduled_at
+      updatePayload.stage = 'HR Round'
     } else {
       updatePayload.status = 'Interview Scheduled'
-      updatePayload.technical_interview_status = 'scheduled'
-      updatePayload.technical_interview_date = input.scheduled_at
-    }
-    if (input.meeting_link) {
-      updatePayload.meeting_link = input.meeting_link
+      updatePayload.stage = 'Interview Scheduled'
     }
     await supabase.from('candidates').update(updatePayload).eq('id', input.candidate_id)
 
@@ -446,7 +442,6 @@ export async function rescheduleInterview(input: {
     reschedule_requested: false,
     reschedule_status: isDecline ? 'rejected' : 'accepted',
     feedback: finalFb,
-    updated_at: new Date().toISOString(),
   }
 
   if (!isDecline) {
@@ -466,22 +461,22 @@ export async function rescheduleInterview(input: {
     .single()
   if (error) throw error
 
-  // Sync candidate record if scheduled_at changed
+  // Sync candidate record notes & timestamp
   try {
     if (data?.candidate_id) {
-      const roundLower = (data.round || '').toLowerCase()
-      const isHr = roundLower.includes('hr')
-      const candPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-      if (!isDecline) {
-        if (isHr) {
-          candPatch.hr_interview_date = input.scheduled_at
-        } else if (!roundLower.includes('screen') && !roundLower.includes('exam')) {
-          candPatch.technical_interview_date = input.scheduled_at
-        }
-        if (input.meeting_link) candPatch.meeting_link = input.meeting_link
-      } else {
-        if (isHr) candPatch.hr_interview_status = 'failed'
-        else if (!roundLower.includes('screen') && !roundLower.includes('exam')) candPatch.technical_interview_status = 'failed'
+      const { data: candRow } = await supabase.from('candidates').select('notes').eq('id', data.candidate_id).single()
+      const noteEntry = isDecline
+        ? `[HR Declined Reschedule: ${data.round}]`
+        : `[HR Approved Reschedule: ${data.round} to ${input.scheduled_at}]`
+      const updatedNotes = candRow?.notes ? `${candRow.notes}\n${noteEntry}` : noteEntry
+      
+      const candPatch: Record<string, unknown> = { 
+        updated_at: new Date().toISOString(),
+        notes: updatedNotes,
+      }
+      if (isDecline) {
+        candPatch.status = 'Rejected'
+        candPatch.stage = 'Rejected'
       }
       await supabase.from('candidates').update(candPatch).eq('id', data.candidate_id)
     }

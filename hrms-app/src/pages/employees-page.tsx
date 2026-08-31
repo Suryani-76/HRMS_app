@@ -66,11 +66,23 @@ const COUNTRIES: { code: string; name: string; flag: string }[] = [
   { code: 'Remote', name: 'Remote / Worldwide', flag: '🌐' },
 ]
 
+function normalizeEmploymentType(type?: string | null): string {
+  if (!type) return 'full_time'
+  const clean = type.toLowerCase().replace(/[\s\-_]/g, '')
+  if (clean.includes('part')) return 'part_time'
+  if (clean.includes('intern')) return 'intern'
+  if (clean.includes('contract')) return 'contract'
+  if (clean.includes('probation')) return 'probation'
+  if (clean.includes('full')) return 'full_time'
+  return clean
+}
+
 const EMPLOYMENT_TYPES: { value: string; label: string }[] = [
   { value: 'full_time', label: 'Full Time' },
   { value: 'part_time', label: 'Part Time' },
   { value: 'contract', label: 'Contract' },
   { value: 'intern', label: 'Intern' },
+  { value: 'probation', label: 'Probation' },
 ]
 
 const STATUS_OPTIONS = ['Active', 'Inactive', 'On Leave', 'Terminated', 'Probation']
@@ -136,7 +148,11 @@ export default function EmployeesPage() {
   const filtered = useMemo(() => {
     return employees.filter((e) => {
       if (designationId !== 'all' && e.designation_id !== designationId) return false
-      if (employmentType !== 'all' && (e.employment_type || '') !== employmentType) return false
+      if (employmentType !== 'all') {
+        const normEmpType = normalizeEmploymentType(e.employment_type)
+        const normFilter = normalizeEmploymentType(employmentType)
+        if (normEmpType !== normFilter) return false
+      }
       if (countryCode !== 'all') {
         const country = COUNTRIES.find((c) => c.code === countryCode)
         if (!country) return false
@@ -454,7 +470,7 @@ export default function EmployeesPage() {
                       })()}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground capitalize">
-                      {(e.employment_type ?? 'full_time').replace(/_/g, ' ')}
+                      {(e.employment_type || 'Full-time').replace(/_/g, ' ')}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(e.joining_date)}

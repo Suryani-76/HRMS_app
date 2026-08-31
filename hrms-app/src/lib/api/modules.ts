@@ -712,11 +712,27 @@ export async function createMeetingHallBooking(input: {
 
   if (error) throw error
 
-  // Create notification for Admin
-  if (input.status === 'Pending' || !input.status) {
+  const dateStr = new Date(input.start_time).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const timeStr = `${new Date(input.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(input.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+
+  // If approved immediately (Admin direct booking) -> broadcast to all users
+  if (input.status === 'Approved') {
     try {
-      const dateStr = new Date(input.start_time).toLocaleDateString()
-      const timeStr = `${new Date(input.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(input.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      await supabase.from('notifications').insert({
+        type: 'info',
+        title: `Meeting Hall Booked: ${input.title}`,
+        message: `Meeting Hall reserved for "${input.title}" on ${dateStr} (${timeStr}).`,
+        link: '/meeting-hall',
+        is_read: false,
+      })
+    } catch {}
+  } else {
+    // Notify admin/management of pending request
+    try {
       await supabase.from('notifications').insert({
         type: 'info',
         title: `Meeting Hall Booking Request: ${input.title}`,
@@ -747,6 +763,26 @@ export async function updateMeetingHallBookingStatus(
     .single()
 
   if (error) throw error
+
+  const dateStr = data?.start_time
+    ? new Date(data.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : ''
+  const timeStr = data?.start_time && data?.end_time
+    ? `${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(data.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : ''
+
+  // Broadcast to all users if approved
+  if (status === 'Approved' && data) {
+    try {
+      await supabase.from('notifications').insert({
+        type: 'info',
+        title: `Meeting Hall Booked: ${data.title}`,
+        message: `Meeting Hall reserved for "${data.title}" on ${dateStr} (${timeStr}).`,
+        link: '/meeting-hall',
+        is_read: false,
+      })
+    } catch {}
+  }
 
   // Notify the requester
   if (data?.requested_by) {

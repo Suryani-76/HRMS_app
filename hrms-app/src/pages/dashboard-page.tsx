@@ -12,9 +12,11 @@ import {
   Briefcase,
   Cake,
   Calendar,
+  CalendarDays,
+  Megaphone,
   ChevronRight,
 } from 'lucide-react'
-import { format, isToday } from 'date-fns'
+import { format, isToday, parseISO } from 'date-fns'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -41,12 +43,129 @@ import {
   useTasks,
   useLeaveBalances,
   useMeetingHallBookings,
+  useHolidays,
 } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, timeAgo } from '@/lib/format'
 import { TodayAttendanceCard } from '@/components/dashboard/today-attendance-card'
 
 const DEPT_COLORS = ['#51459d', '#7c6fd6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6']
+
+function AnnouncementsCard() {
+  const { data: announcements = [], isLoading } = useAnnouncements()
+
+  const recentAnnouncements = useMemo(() => {
+    return announcements.slice(0, 4)
+  }, [announcements])
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-indigo-500" />
+          Announcements
+        </CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/announcements" className="flex items-center gap-1 text-xs">
+            View all <ChevronRight className="h-3 w-3" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          </div>
+        ) : recentAnnouncements.length === 0 ? (
+          <EmptyState title="No announcements" description="No company updates posted yet." icon={Megaphone} />
+        ) : (
+          <div className="space-y-3">
+            {recentAnnouncements.map((a) => (
+              <div key={a.id} className="rounded-lg border p-3 bg-card hover:bg-muted/30 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{a.title}</p>
+                  <Badge variant="secondary" className="shrink-0 text-[10px]">
+                    {timeAgo(a.published_at)}
+                  </Badge>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground leading-relaxed">{a.content}</p>
+                {a.department && (
+                  <p className="text-[11px] font-medium text-indigo-600 mt-1.5">
+                    {a.department.name}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function UpcomingHolidaysCard() {
+  const currentYear = new Date().getFullYear()
+  const { data: holidays = [], isLoading } = useHolidays(currentYear)
+
+  const upcomingHolidays = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const future = holidays.filter((h) => h.date >= todayStr)
+    return (future.length > 0 ? future : holidays).slice(0, 4)
+  }, [holidays])
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-emerald-500" />
+          Upcoming Holidays
+        </CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/holidays" className="flex items-center gap-1 text-xs">
+            Holidays <ChevronRight className="h-3 w-3" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          </div>
+        ) : upcomingHolidays.length === 0 ? (
+          <EmptyState title="No holidays" description="No upcoming holidays scheduled." icon={CalendarDays} />
+        ) : (
+          <div className="divide-y">
+            {upcomingHolidays.map((h) => {
+              const hDate = parseISO(h.date)
+              const today = isToday(hDate)
+              return (
+                <div key={h.id} className="flex items-center justify-between py-2.5 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg ${today ? 'bg-emerald-500/10 text-emerald-600 font-bold' : 'bg-muted text-muted-foreground'}`}>
+                      <span className="text-[9px] uppercase font-semibold leading-none">{format(hDate, 'MMM')}</span>
+                      <span className="text-xs font-bold leading-none mt-0.5">{format(hDate, 'd')}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">{h.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {format(hDate, 'EEEE')} {today ? '· Today' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={h.is_optional ? 'secondary' : 'success'} className="shrink-0 text-[10px]">
+                    {h.is_optional ? 'Optional' : 'Public'}
+                  </Badge>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 function ScheduledMeetingsCard() {
   const { data: bookings = [], isLoading } = useMeetingHallBookings()
@@ -55,7 +174,7 @@ function ScheduledMeetingsCard() {
     const now = new Date()
     return bookings
       .filter((b) => b.status !== 'Rejected' && new Date(b.end_time) >= now)
-      .slice(0, 5)
+      .slice(0, 4)
   }, [bookings])
 
   return (
@@ -86,7 +205,7 @@ function ScheduledMeetingsCard() {
               const endDate = new Date(b.end_time)
               const today = isToday(startDate)
               return (
-                <div key={b.id} className="flex items-center justify-between py-3 gap-3">
+                <div key={b.id} className="flex items-center justify-between py-2.5 gap-3">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${today ? 'bg-indigo-500/10 text-indigo-600 font-semibold' : 'bg-muted text-muted-foreground'}`}>
                       <Building2 className="h-4 w-4" />
@@ -99,13 +218,13 @@ function ScheduledMeetingsCard() {
                         {format(startDate, 'h:mm a')} - {format(endDate, 'h:mm a')}
                       </p>
                       {b.requester && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                           By {b.requester.first_name} {b.requester.last_name}
                         </p>
                       )}
                     </div>
                   </div>
-                  <Badge variant={b.status === 'Approved' ? 'success' : 'warning'} className="shrink-0">
+                  <Badge variant={b.status === 'Approved' ? 'success' : 'warning'} className="shrink-0 text-[10px]">
                     {b.status}
                   </Badge>
                 </div>
@@ -188,6 +307,13 @@ function ManagerDashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Announcements, Holidays & Meeting Hall Row */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <AnnouncementsCard />
+        <UpcomingHolidaysCard />
+        <ScheduledMeetingsCard />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -288,8 +414,7 @@ function ManagerDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ScheduledMeetingsCard />
+      <div>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Recent Employees</CardTitle>
@@ -298,7 +423,7 @@ function ManagerDashboard() {
             {employees.length === 0 ? (
               <EmptyState title="No employees yet" description="Add your first employee to get started." />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {employees.slice(0, 6).map((e) => (
                   <Link
                     key={e.id}
@@ -331,7 +456,6 @@ function ManagerDashboard() {
 function EmployeeDashboard() {
   const { employee } = useAuth()
   const { data: stats, isLoading } = useDashboardStats()
-  const { data: announcements = [] } = useAnnouncements()
   const { data: tasks = [] } = useTasks()
 
   if (!employee) return null
@@ -350,9 +474,15 @@ function EmployeeDashboard() {
         </Card>
       </div>
 
+      {/* Announcements, Holidays & Meeting Hall Row for Employee */}
       <div className="grid gap-6 lg:grid-cols-3">
+        <AnnouncementsCard />
+        <UpcomingHolidaysCard />
         <ScheduledMeetingsCard />
-        <Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">My Tasks</CardTitle>
             <Button asChild variant="ghost" size="sm">
@@ -382,34 +512,11 @@ function EmployeeDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Announcements</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {announcements.length === 0 ? (
-              <EmptyState title="No announcements" />
-            ) : (
-              <div className="space-y-3">
-                {announcements.slice(0, 5).map((a) => (
-                  <div key={a.id} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{a.title}</p>
-                      <Badge variant="secondary">{timeAgo(a.published_at)}</Badge>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Team Members" value={stats?.totalEmployees ?? 0} icon={Users} loading={isLoading} subtitle="Company total" />
-        <StatCard title="Present Today" value={stats?.presentToday ?? 0} icon={CalendarCheck} iconClassName="bg-success/10 text-success" loading={isLoading} />
-        <StatCard title="On Leave" value={stats?.onLeaveToday ?? 0} icon={CalendarX} iconClassName="bg-warning/10 text-warning" loading={isLoading} />
+        <div className="space-y-4">
+          <StatCard title="Team Members" value={stats?.totalEmployees ?? 0} icon={Users} loading={isLoading} subtitle="Company total" />
+          <StatCard title="Present Today" value={stats?.presentToday ?? 0} icon={CalendarCheck} iconClassName="bg-success/10 text-success" loading={isLoading} />
+          <StatCard title="On Leave" value={stats?.onLeaveToday ?? 0} icon={CalendarX} iconClassName="bg-warning/10 text-warning" loading={isLoading} />
+        </div>
       </div>
     </div>
   )

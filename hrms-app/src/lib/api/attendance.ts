@@ -292,6 +292,25 @@ export async function fetchHolidays(year?: number) {
 export async function createHoliday(input: { name: string; date: string; is_optional?: boolean }) {
   const { data, error } = await supabase.from('holidays').insert(input).select().single()
   if (error) throw error
+
+  // Create broadcast notification for all users
+  try {
+    const formattedDate = new Date(input.date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    await supabase.from('notifications').insert({
+      type: 'info',
+      title: `Upcoming Holiday: ${input.name}`,
+      message: `${input.is_optional ? 'Optional' : 'Company'} Holiday on ${formattedDate}: ${input.name}`,
+      link: '/holidays',
+      is_read: false,
+    })
+  } catch (err) {
+    console.warn('Holiday notification creation skipped:', err)
+  }
+
   return data as Holiday
 }
 

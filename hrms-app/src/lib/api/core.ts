@@ -237,6 +237,21 @@ export async function createAnnouncement(input: {
     .select()
     .single()
   if (error) throw error
+
+  // Create broadcast notification for all users
+  try {
+    const snippet = input.content.length > 120 ? input.content.slice(0, 120) + '...' : input.content
+    await supabase.from('notifications').insert({
+      type: 'info',
+      title: `New Announcement: ${input.title}`,
+      message: snippet,
+      link: '/announcements',
+      is_read: false,
+    })
+  } catch (err) {
+    console.warn('Announcement notification creation skipped:', err)
+  }
+
   return data as Announcement
 }
 
@@ -266,9 +281,9 @@ export async function fetchNotifications(limit = 30) {
     .limit(limit)
 
   if (employeeId) {
-    query = query.or(`user_id.eq.${uid},employee_id.eq.${employeeId}`)
+    query = query.or(`user_id.eq.${uid},employee_id.eq.${employeeId},user_id.is.null`)
   } else {
-    query = query.eq('user_id', uid)
+    query = query.or(`user_id.eq.${uid},user_id.is.null`)
   }
 
   const { data, error } = await query
@@ -294,8 +309,8 @@ export async function markAllNotificationsRead() {
   const employeeId = profile?.employee_id ?? null
 
   const filter = employeeId
-    ? `user_id.eq.${uid},employee_id.eq.${employeeId}`
-    : `user_id.eq.${uid}`
+    ? `user_id.eq.${uid},employee_id.eq.${employeeId},user_id.is.null`
+    : `user_id.eq.${uid},user_id.is.null`
 
   const { error } = await supabase
     .from('notifications')

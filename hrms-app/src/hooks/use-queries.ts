@@ -340,7 +340,7 @@ export function useCreateAnnouncement() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
     mutationFn: api.createAnnouncement,
-    onSuccess: () => { invalidate([queryKeys.announcements]); toast.success('Announcement published') },
+    onSuccess: () => { invalidate([queryKeys.announcements, queryKeys.notifications]); toast.success('Announcement published') },
     onError: toastError,
   })
 }
@@ -348,7 +348,7 @@ export function useDeleteAnnouncement() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
     mutationFn: api.deleteAnnouncement,
-    onSuccess: () => { invalidate([queryKeys.announcements]); toast.success('Announcement deleted') },
+    onSuccess: () => { invalidate([queryKeys.announcements, queryKeys.notifications]); toast.success('Announcement deleted') },
     onError: toastError,
   })
 }
@@ -361,7 +361,7 @@ export function useCreateHoliday() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
     mutationFn: api.createHoliday,
-    onSuccess: () => { invalidate([queryKeys.holidays]); toast.success('Holiday added') },
+    onSuccess: () => { invalidate([queryKeys.holidays, queryKeys.notifications]); toast.success('Holiday added') },
     onError: toastError,
   })
 }
@@ -549,7 +549,7 @@ export function useCreateMeetingHallBooking() {
   return useMutation({
     mutationFn: api.createMeetingHallBooking,
     onSuccess: (booking) => {
-      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats])
+      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats, queryKeys.notifications])
       if (booking.status === 'Approved') {
         toast.success('Meeting Hall booking confirmed!')
       } else {
@@ -565,7 +565,7 @@ export function useUpdateMeetingHallBookingStatus() {
     mutationFn: ({ id, status, comment }: { id: string; status: 'Approved' | 'Rejected'; comment?: string }) =>
       api.updateMeetingHallBookingStatus(id, status, comment),
     onSuccess: (booking) => {
-      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats])
+      invalidate([queryKeys.meetingHallBookings, queryKeys.dashboardStats, queryKeys.notifications])
       toast.success(`Meeting Hall request ${booking.status === 'Approved' ? 'Approved ✓' : 'Rejected ✕'}`)
     },
     onError: toastError,

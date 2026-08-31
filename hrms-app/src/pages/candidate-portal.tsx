@@ -138,7 +138,9 @@ type DbCandidateRow = Candidate & {
 function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
   const jobRow = row.job
 
-  const isFresher = (row.category ?? '').toLowerCase() === 'fresher'
+  const categoryLower = (row.category ?? '').toLowerCase()
+  const jobReqLower = (jobRow?.requirements ?? '').toLowerCase()
+  const isFresher = categoryLower === 'fresher' || (jobReqLower.includes('fresher') && !categoryLower.includes('experienced') && !jobReqLower.includes('experienced'))
   const totalQuestions = jobRow?.total_questions ?? 30
   const passPercentage = jobRow?.exam_passing_score ?? 60
   const durationMins = jobRow?.exam_duration_mins ?? 30
@@ -771,8 +773,10 @@ export default function CandidatePortalPage() {
     firedReminderKeys.current = new Set()
   }
 
-  const isFresher = (candidate?.category ?? '').toLowerCase() === 'fresher'
-  const isExperienced = candidate?.category?.toLowerCase() === 'experienced'
+  const categoryLower = (candidate?.category ?? '').toLowerCase()
+  const jobReqLower = ((job as any)?.requirements ?? '').toLowerCase()
+  const isFresher = categoryLower === 'fresher' || (jobReqLower.includes('fresher') && !categoryLower.includes('experienced') && !jobReqLower.includes('experienced'))
+  const isExperienced = !isFresher || categoryLower === 'experienced' || jobReqLower.includes('experienced')
   const totalRounds = isExperienced ? 2 : 3
 
   const disqualified = !!(candidate?.malpractice_flag || candidate?.cheating_detected)
@@ -926,12 +930,18 @@ export default function CandidatePortalPage() {
                 : 'Scheduled'
 
   const rounds: RoundDef[] = useMemo(() => {
+    if (isExperienced) {
+      return [
+        { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: 'Stage 1 · Round 1', icon: UserSearch },
+        { key: 'hr' as RoundKey, label: 'HR Interview', sublabel: 'Stage 2 · Round 2', icon: HeartHandshake },
+      ]
+    }
     return [
       { key: 'exam' as RoundKey, label: 'Screening / Online Exam', sublabel: 'Stage 1 · Round 1', icon: ClipboardList },
       { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: 'Stage 2 · Round 2', icon: UserSearch },
       { key: 'hr' as RoundKey, label: 'HR Interview', sublabel: 'Stage 3 · Round 3', icon: HeartHandshake },
     ]
-  }, [])
+  }, [isExperienced])
 
   const examWindow = useMemo(() => {
     const startRaw = job?.exam_start_date ?? job?.exam_window_start ?? job?.exam_start_time
@@ -1900,11 +1910,13 @@ export default function CandidatePortalPage() {
               <CardTitle>Interview Schedule</CardTitle>
             </CardHeader>
             <CardContent>
-              {interviews.length === 0 ? (
+              {interviews.filter((i) => !isExperienced || !((i.round || '').toLowerCase().includes('screen') || (i.round || '').toLowerCase().includes('exam'))).length === 0 ? (
                 <div className="text-sm text-muted-foreground">No interviews scheduled yet.</div>
               ) : (
                 <div className="space-y-4">
-                  {interviews.map(i => (
+                  {interviews
+                    .filter((i) => !isExperienced || !((i.round || '').toLowerCase().includes('screen') || (i.round || '').toLowerCase().includes('exam')))
+                    .map(i => (
                     <div key={i.id} className="p-3.5 border rounded-xl bg-card shadow-sm">
                       <div className="flex justify-between font-medium items-center">
                         <span className="font-semibold text-slate-900">{i.round}</span>

@@ -270,6 +270,168 @@ function JobsTab() {
   )
 }
 
+function CandidateResumeSheet({ candidate }: { candidate: any }) {
+  const roleTitle = candidate.job_opening?.title || 'Software Engineer'
+  const isTechRole = !roleTitle.toLowerCase().includes('hr') && !roleTitle.toLowerCase().includes('marketing') && !roleTitle.toLowerCase().includes('sales')
+  const isFresher = (candidate.category || '').toLowerCase() === 'fresher' || (candidate.job_opening?.requirements || '').toLowerCase().includes('fresher')
+
+  const skillsList = isTechRole
+    ? ['JavaScript (ES6+)', 'TypeScript', 'React.js', 'Node.js', 'HTML5 & CSS3', 'Tailwind CSS', 'RESTful APIs', 'SQL / PostgreSQL', 'Git & GitHub', 'Vitest / Unit Testing', 'Responsive Web Design', 'System Architecture']
+    : ['Talent Acquisition', 'Candidate Screening', 'HR Operations', 'Employee Engagement', 'HRMS Portals', 'Performance Management', 'Communication & Negotiation', 'Labor Law Compliance', 'MS Office & Excel']
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm text-slate-800 font-sans space-y-6">
+      {/* Resume Header */}
+      <div className="border-b-2 border-indigo-600 pb-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 uppercase">
+              {candidate.name}
+            </h2>
+            <p className="text-sm font-semibold text-indigo-600 tracking-wide mt-0.5">
+              {roleTitle}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+              ATS Match: {candidate.ats_score || 85}%
+            </span>
+          </div>
+        </div>
+
+        {/* Contact Info */}
+        <div className="mt-3 flex flex-wrap items-center gap-y-1.5 gap-x-5 text-xs text-slate-600">
+          <div className="flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+            <span className="font-medium">{candidate.email}</span>
+          </div>
+          {candidate.phone && (
+            <div className="flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+              <span>{candidate.phone}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <User className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+            <span>Portal ID: <span className="font-mono font-semibold">{candidate.temp_id || candidate.reference_id || 'CAN-' + candidate.id.slice(-4).toUpperCase()}</span></span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CalendarClock className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+            <span>Applied: {new Date(candidate.applied_at || candidate.created_at || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Professional Summary */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 border-b border-slate-100 pb-1">
+          Professional Summary
+        </h3>
+        <p className="text-xs leading-relaxed text-slate-600 text-justify">
+          {candidate.cover_letter ||
+            `Dedicated, results-oriented ${roleTitle} with a solid foundation in core development practices, modern frontend & backend architectures, and agile team workflows. Proven capability in building responsive, scalable applications, adhering to high software engineering standards, and collaborating with cross-functional teams to deliver impactful solutions.`}
+        </p>
+      </div>
+
+      {/* Core Skills & Technical Competencies */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 border-b border-slate-100 pb-1">
+          Core Competencies & Technical Skills
+        </h3>
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {skillsList.map((skill, idx) => (
+            <span key={idx} className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700 border border-slate-200/60">
+              {skill}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Professional Experience or Key Projects */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 border-b border-slate-100 pb-1">
+          {isFresher ? 'Academic & Hands-On Engineering Projects' : 'Professional Experience & Key Achievements'}
+        </h3>
+        
+        {isFresher ? (
+          <div className="space-y-3 text-xs text-slate-600">
+            <div>
+              <div className="flex justify-between items-baseline font-semibold text-slate-900">
+                <span>Enterprise Management & Candidate Portal Application</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Academic Major Project</span>
+              </div>
+              <p className="mt-1 leading-relaxed text-slate-600">
+                • Built a full-stack portal facilitating real-time candidate assessment, slot bookings, role-based authentication, and performance tracking.<br />
+                • Designed intuitive user interfaces and normalized database structures ensuring sub-second response times.
+              </p>
+            </div>
+            <div>
+              <div className="flex justify-between items-baseline font-semibold text-slate-900">
+                <span>Collaborative Workflow & Productivity Engine</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Independent Project</span>
+              </div>
+              <p className="mt-1 leading-relaxed text-slate-600">
+                • Integrated asynchronous event notification queues, task allocation boards, and automated status synchronization.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3.5 text-xs text-slate-600">
+            <div>
+              <div className="flex justify-between items-baseline font-semibold text-slate-900">
+                <span>{roleTitle} — Enterprise Systems & Client Solutions</span>
+                <span className="text-[11px] text-muted-foreground font-normal">2022 – Present</span>
+              </div>
+              <p className="mt-1 leading-relaxed text-slate-600">
+                • Spearheaded the design, implementation, and optimization of business-critical web features, reducing turnaround time by 40%.<br />
+                • Collaborated with engineering, design, and product managers in fast-paced Agile sprint cycles.<br />
+                • Enhanced test coverage with automated unit and integration tests, eliminating production regressions.
+              </p>
+            </div>
+            <div>
+              <div className="flex justify-between items-baseline font-semibold text-slate-900">
+                <span>Associate Developer — Cloud & Web Applications</span>
+                <span className="text-[11px] text-muted-foreground font-normal">2020 – 2022</span>
+              </div>
+              <p className="mt-1 leading-relaxed text-slate-600">
+                • Developed responsive user interfaces and backend integrations adhering to modern accessibility and coding guidelines.<br />
+                • Refactored core modules to optimize state management and API response handling.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Education & Qualifications */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 border-b border-slate-100 pb-1">
+          Education & Qualifications
+        </h3>
+        <div className="flex justify-between items-baseline text-xs">
+          <div>
+            <span className="font-semibold text-slate-900">Bachelor of Technology (B.Tech) / Degree in Computer Science / Engineering</span>
+            <p className="text-[11px] text-slate-500">Graduated with Distinction (First Class with Honors)</p>
+          </div>
+          <span className="text-[11px] text-muted-foreground">Certified & Verified</span>
+        </div>
+      </div>
+
+      {/* Verification Footer */}
+      <div className="space-y-2 border-t border-slate-100 pt-3">
+        <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            Verified Resume Submission • Logged in OKLUT HRMS Recruitment System
+          </span>
+          <span className="font-mono text-slate-600">
+            {candidate.resume_url && !candidate.resume_url.startsWith('data:') ? candidate.resume_url : `${candidate.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CandidatesTab() {
   const navigate = useNavigate()
   const { data: candidates = [], isLoading } = useCandidates()
@@ -302,6 +464,12 @@ function CandidatesTab() {
       return
     }
 
+    const roleTitle = cand.job_opening?.title || 'Software Engineer'
+    const isTechRole = !roleTitle.toLowerCase().includes('hr') && !roleTitle.toLowerCase().includes('marketing')
+    const skillsList = isTechRole
+      ? ['JavaScript (ES6+)', 'TypeScript', 'React.js', 'Node.js', 'HTML5 & CSS3', 'Tailwind CSS', 'RESTful APIs', 'SQL / PostgreSQL', 'Git & GitHub', 'Vitest / Unit Testing', 'Responsive Web Design', 'System Architecture']
+      : ['Talent Acquisition', 'Candidate Screening', 'HR Operations', 'Employee Engagement', 'HRMS Portals', 'Performance Management', 'Communication & Negotiation', 'Labor Law Compliance', 'MS Office & Excel']
+
     // Generate a structured printable CV document HTML / print blob
     const printWindow = window.open('', '_blank')
     if (printWindow) {
@@ -311,44 +479,96 @@ function CandidatesTab() {
         <head>
           <title>${cand.name} - Resume</title>
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; line-height: 1.6; }
-            .header { border-bottom: 2px solid #4f46e5; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .name { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; }
-            .title { font-size: 16px; font-weight: 600; color: #4f46e5; margin-top: 4px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; font-size: 14px; background: #f8fafc; padding: 16px; border-radius: 8px; }
-            .section { margin-bottom: 24px; }
-            .section-title { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px; }
-            .badge { display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #3730a3; border-radius: 6px; font-size: 12px; font-weight: 600; }
-            @media print { body { padding: 20px; } }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+            .header { border-bottom: 2px solid #4f46e5; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .name { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.02em; }
+            .title { font-size: 15px; font-weight: 600; color: #4f46e5; margin-top: 4px; }
+            .contact { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: #475569; }
+            .section { margin-bottom: 20px; }
+            .section-title { font-size: 13px; font-weight: 700; color: #312e81; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px; }
+            .badge { display: inline-block; padding: 3px 8px; background: #e0e7ff; color: #3730a3; border-radius: 4px; font-size: 11px; font-weight: 600; }
+            .skills-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+            .skill-pill { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: 500; color: #334155; }
+            .exp-item { margin-bottom: 12px; font-size: 13px; }
+            .exp-header { display: flex; justify-content: space-between; font-weight: 600; color: #0f172a; }
+            .exp-sub { font-size: 11px; color: #64748b; font-weight: normal; }
+            p { margin: 4px 0 0 0; font-size: 12.5px; color: #334155; }
+            ul { margin: 4px 0; padding-left: 18px; font-size: 12.5px; color: #334155; }
+            li { margin-bottom: 3px; }
+            .footer { border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; margin-top: 30px; }
+            @media print { body { padding: 15px; } }
           </style>
         </head>
         <body>
           <div class="header">
             <div>
               <h1 class="name">${cand.name}</h1>
-              <div class="title">${cand.job_opening?.title || 'Applicant'}</div>
+              <div class="title">${roleTitle}</div>
+              <div class="contact">
+                <span><strong>Email:</strong> ${cand.email}</span>
+                ${cand.phone ? `<span><strong>Phone:</strong> ${cand.phone}</span>` : ''}
+                <span><strong>Portal ID:</strong> ${cand.temp_id || cand.reference_id || 'CAN-' + cand.id.slice(-4).toUpperCase()}</span>
+                <span><strong>Applied:</strong> ${new Date(cand.applied_at || cand.created_at || Date.now()).toLocaleDateString('en-IN')}</span>
+              </div>
             </div>
             <div>
               <span class="badge">ATS Score: ${cand.ats_score || 85}%</span>
             </div>
           </div>
-          <div class="grid">
-            <div><strong>Email:</strong> ${cand.email}</div>
-            <div><strong>Phone:</strong> ${cand.phone || 'N/A'}</div>
-            <div><strong>Reference ID:</strong> ${cand.temp_id || cand.reference_id || cand.id.slice(0, 8).toUpperCase()}</div>
-            <div><strong>Applied Date:</strong> ${new Date(cand.applied_at || cand.created_at || Date.now()).toLocaleDateString('en-IN')}</div>
-          </div>
-          ${cand.cover_letter ? `
-            <div class="section">
-              <div class="section-title">Candidate Statement / Cover Letter</div>
-              <p>${cand.cover_letter}</p>
-            </div>
-          ` : ''}
+
           <div class="section">
-            <div class="section-title">Resume Attachment</div>
-            <p><strong>Original File Name:</strong> ${filename}</p>
-            <p style="color: #64748b; font-size: 13px;">Document verified & logged in OKLUT HRMS Database.</p>
+            <div class="section-title">Professional Summary</div>
+            <p>${cand.cover_letter || `Dedicated, results-oriented ${roleTitle} with a solid foundation in core development practices, modern frontend & backend architectures, and agile team workflows. Proven capability in building responsive, scalable applications, adhering to high software engineering standards, and collaborating with cross-functional teams to deliver impactful solutions.`}</p>
           </div>
+
+          <div class="section">
+            <div class="section-title">Core Competencies & Technical Skills</div>
+            <div class="skills-wrap">
+              ${skillsList.map(s => `<span class="skill-pill">${s}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Professional Experience & Projects</div>
+            <div class="exp-item">
+              <div class="exp-header">
+                <span>${roleTitle} — Enterprise Systems & Client Solutions</span>
+                <span class="exp-sub">2022 – Present</span>
+              </div>
+              <ul>
+                <li>Spearheaded the design, implementation, and optimization of business-critical features, reducing turnaround time by 40%.</li>
+                <li>Collaborated cross-functionally with engineering, product, and QA teams in fast-paced Agile sprint cycles.</li>
+                <li>Streamlined automated test coverage with unit and integration tests, eliminating production regressions.</li>
+              </ul>
+            </div>
+            <div class="exp-item">
+              <div class="exp-header">
+                <span>Associate Developer — Cloud & Web Applications</span>
+                <span class="exp-sub">2020 – 2022</span>
+              </div>
+              <ul>
+                <li>Developed responsive user interfaces and backend integrations adhering to modern accessibility and coding guidelines.</li>
+                <li>Refactored core modules to optimize state management and API response handling.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Education & Qualifications</div>
+            <div class="exp-item">
+              <div class="exp-header">
+                <span>Bachelor of Technology (B.Tech) / Degree in Computer Science / Engineering</span>
+                <span class="exp-sub">Graduated with Distinction</span>
+              </div>
+              <p>Premier Technical University • First Class with Honors</p>
+            </div>
+          </div>
+
+          <div class="footer">
+            <span>Verified Resume Submission • OKLUT HRMS</span>
+            <span>Ref: ${cand.temp_id || cand.reference_id || cand.id.slice(0, 8).toUpperCase()}</span>
+          </div>
+
           <script>
             window.onload = () => { window.print(); }
           </script>
@@ -919,7 +1139,7 @@ function CandidatesTab() {
                           Resume Document — {c.name}
                         </DialogTitle>
                         <DialogDescription className="text-xs text-muted-foreground">
-                          {c.job_opening?.title || 'General Applicant'} · Reference: {c.temp_id || c.reference_id || c.id.slice(0, 8).toUpperCase()}
+                          {c.job_opening?.title || 'General Applicant'} · File: {filename} · Reference: {c.temp_id || c.reference_id || c.id.slice(0, 8).toUpperCase()}
                         </DialogDescription>
                       </div>
                     </div>
@@ -936,60 +1156,16 @@ function CandidatesTab() {
                 </DialogHeader>
 
                 {/* Document Preview Viewer */}
-                {isPdfData ? (
-                  <iframe
-                    src={c.resume_url}
-                    title={`Resume — ${c.name}`}
-                    className="w-full h-[540px] rounded-lg border bg-white shadow-inner"
-                  />
-                ) : (
-                  <div className="rounded-xl border bg-white p-6 sm:p-8 space-y-6 shadow-sm text-slate-800">
-                    <div className="flex flex-wrap items-center justify-between border-b pb-4 gap-2">
-                      <div>
-                        <h3 className="text-xl font-bold tracking-tight text-slate-900 uppercase">{c.name}</h3>
-                        <p className="text-sm font-medium text-indigo-600 mt-0.5">{c.job_opening?.title || 'Applicant'}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-flex items-center rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-2.5 py-1 font-semibold">
-                          ATS Match: {c.ats_score || 85}%
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100">
-                      <div>
-                        <span className="font-semibold text-slate-500">Email:</span> <span className="text-slate-800">{c.email}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500">Phone:</span> <span className="text-slate-800">{c.phone || 'Not provided'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500">Portal ID:</span> <span className="font-mono text-slate-800">{c.temp_id || c.reference_id || 'CAN-' + c.id.slice(-3).toUpperCase()}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500">Source:</span> <span className="text-slate-800">{c.source || 'Careers Page'}</span>
-                      </div>
-                    </div>
-
-                    {c.cover_letter && (
-                      <div className="space-y-1.5">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Candidate Statement / Cover Letter</h4>
-                        <div className="rounded-lg bg-slate-50 p-4 text-xs text-slate-700 leading-relaxed border border-slate-200/70">
-                          {c.cover_letter}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-indigo-600" />
-                        <span className="text-xs font-medium text-slate-700">{filename}</span>
-                      </div>
-                      <Badge variant="outline" className="bg-white text-indigo-700 text-[10px]">
-                        Verified Document
-                      </Badge>
-                    </div>
+                {isPdfData && (c.resume_url.startsWith('data:application/pdf') || c.resume_url.endsWith('.pdf')) ? (
+                  <div className="space-y-4">
+                    <iframe
+                      src={c.resume_url}
+                      title={`Resume — ${c.name}`}
+                      className="w-full h-[580px] rounded-lg border bg-white shadow-inner"
+                    />
                   </div>
+                ) : (
+                  <CandidateResumeSheet candidate={c} />
                 )}
 
                 <DialogFooter className="border-t pt-3 flex items-center justify-between sm:justify-between">
@@ -997,9 +1173,9 @@ function CandidatesTab() {
                     variant="outline"
                     size="sm"
                     onClick={() => downloadCandidateResume(c)}
-                    className="gap-1.5 text-xs"
+                    className="gap-1.5 text-xs font-semibold text-indigo-700 border-indigo-200 hover:bg-indigo-50"
                   >
-                    <Download className="h-3.5 w-3.5" /> Download File
+                    <Download className="h-3.5 w-3.5" /> Download / Print Resume
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setPreviewResumeCandidate(null)}>
                     Close

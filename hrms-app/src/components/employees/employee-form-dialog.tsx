@@ -415,11 +415,15 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
                 <p className="text-xs text-muted-foreground">Must be unique — used as the login key.</p>
               </div>
               <div className="space-y-2">
-                <Label>Personal Phone <span className="text-destructive">*</span></Label>
+                <Label>Personal Phone <span className="text-destructive">*</span> <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
                 <Input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   value={form.phone}
-                  onChange={(e) => set('phone', e.target.value)}
-                  placeholder="+91 98765 43210"
+                  onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="e.g. 9876543210"
                   required
                 />
                 <p className="text-xs text-muted-foreground">Must be unique — distinguishes employees with identical names.</p>
@@ -501,12 +505,16 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ec_phone">Emergency Contact Number *</Label>
+                <Label htmlFor="ec_phone">Emergency Contact Number * <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
                 <Input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   id="ec_phone"
                   value={form.emergency_contact_phone}
-                  onChange={(e) => set('emergency_contact_phone', e.target.value)}
-                  placeholder="+91 98765 00000"
+                  onChange={(e) => set('emergency_contact_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="e.g. 9876500000"
                 />
               </div>
             </div>

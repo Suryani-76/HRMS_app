@@ -589,13 +589,17 @@ export default function InsuranceEnrollmentPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="em_phone">Emergency Contact Phone *</Label>
+                    <Label htmlFor="em_phone">Emergency Contact Phone * <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
                     <Input
                       id="em_phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
                       required
                       value={emergencyPhone}
-                      onChange={(e) => setEmergencyPhone(e.target.value)}
-                      placeholder="+91 98765 00000"
+                      onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="e.g. 9876500000"
                     />
                   </div>
                 </div>

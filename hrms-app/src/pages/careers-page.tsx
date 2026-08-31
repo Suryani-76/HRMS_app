@@ -361,8 +361,17 @@ export default function CareersPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <Label className="text-slate-700 font-medium">Phone Number</Label>
-                <Input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600" placeholder="+91 98765 43210" />
+                <Label className="text-slate-700 font-medium">Phone Number <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
+                <Input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className="h-12 bg-slate-50 border-slate-200 focus-visible:ring-indigo-600 font-mono"
+                  placeholder="e.g. 9876543210"
+                />
               </div>
               <div className="space-y-3">
                 <Label className="text-slate-700 font-medium">

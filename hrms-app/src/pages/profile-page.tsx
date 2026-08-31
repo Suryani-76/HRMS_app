@@ -293,7 +293,18 @@ export default function ProfilePage() {
             <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
               <h4 className="text-sm font-semibold text-slate-900">Personal Info</h4>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Personal Phone</Label><Input value={form.phone ?? ''} onChange={(e) => setField('phone', e.target.value)} /></div>
+                <div className="space-y-2">
+                  <Label>Personal Phone <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    value={form.phone ?? ''}
+                    onChange={(e) => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="e.g. 9876543210"
+                  />
+                </div>
                 <div className="space-y-2"><Label>Date of birth</Label><Input type="date" value={form.date_of_birth ?? ''} onChange={(e) => setField('date_of_birth', e.target.value)} /></div>
                 <div className="space-y-2"><Label>Marital status</Label><Input value={form.marital_status ?? ''} onChange={(e) => setField('marital_status', e.target.value)} /></div>
                 <div className="space-y-2"><Label>Blood group</Label><Input value={form.blood_group ?? ''} onChange={(e) => setField('blood_group', e.target.value)} /></div>
@@ -320,8 +331,16 @@ export default function ProfilePage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Emergency Phone</Label>
-                  <Input value={form.emergency_contact_phone ?? ''} onChange={(e) => setField('emergency_contact_phone', e.target.value)} placeholder="+91 98765 00000" />
+                  <Label>Emergency Phone <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    value={form.emergency_contact_phone ?? ''}
+                    onChange={(e) => setField('emergency_contact_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="e.g. 9876500000"
+                  />
                 </div>
               </div>
             </div>

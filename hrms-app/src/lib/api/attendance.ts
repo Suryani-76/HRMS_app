@@ -215,27 +215,7 @@ export async function reviewLeave(id: string, status: 'approved' | 'rejected', a
 
   if (error) throw error
 
-  // Update leave balance used days in Supabase if approved
-  if (status === 'approved' && data) {
-    try {
-      const year = new Date(data.start_date).getFullYear()
-      const { data: existingBal } = await supabase
-        .from('leave_balances')
-        .select('*')
-        .eq('employee_id', data.employee_id)
-        .eq('leave_type_id', data.leave_type_id)
-        .eq('year', year)
-        .maybeSingle()
-
-      if (existingBal) {
-        await supabase
-          .from('leave_balances')
-          .update({ used: Number(existingBal.used || 0) + Number(data.days || 0) })
-          .eq('id', existingBal.id)
-      }
-    } catch {}
-  }
-
+  // Note: Database trigger trg_leave_status_changed automatically updates leave_balances.used when status is approved
   // Send notification to the applicant
   if (data?.employee_id) {
     try {

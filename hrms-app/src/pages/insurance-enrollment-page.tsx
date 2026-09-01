@@ -199,6 +199,19 @@ export default function InsuranceEnrollmentPage() {
       return
     }
 
+    const cleanAcc = bankAccount.replace(/\D/g, '').slice(0, 18)
+    if (cleanAcc.length < 9 || cleanAcc.length > 18) {
+      toast.error('Bank Account Number must be between 9 and 18 digits.')
+      return
+    }
+
+    const cleanIfsc = bankIfsc.toUpperCase().trim().slice(0, 11)
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/
+    if (!ifscRegex.test(cleanIfsc)) {
+      toast.error('Invalid IFSC Code. Must be exactly 11 characters (4 letters, 5th character "0", followed by 6 letters/digits, e.g. SBIN0001234).')
+      return
+    }
+
     setIsSubmitting(true)
 
     const payload = {
@@ -225,8 +238,8 @@ export default function InsuranceEnrollmentPage() {
       permanent_address: sameAsCurrent ? currentAddress : permanentAddress,
       // Bank & Insurance
       existing_insurance_details: existingInsurance,
-      bank_account: bankAccount,
-      bank_ifsc: bankIfsc,
+      bank_account: cleanAcc,
+      bank_ifsc: cleanIfsc,
       declaration_signature: signature,
       declaration_signed: true,
       declaration_date: new Date().toISOString().slice(0, 10),
@@ -672,24 +685,36 @@ export default function InsuranceEnrollmentPage() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bank_acc">Account Number *</Label>
+                    <Label htmlFor="bank_acc">
+                      Account Number * <span className="text-xs text-muted-foreground font-normal">(9–18 digits)</span>
+                    </Label>
                     <Input
                       id="bank_acc"
+                      type="text"
+                      inputMode="numeric"
                       required
+                      minLength={9}
+                      maxLength={18}
                       value={bankAccount}
-                      onChange={(e) => setBankAccount(e.target.value)}
+                      onChange={(e) => setBankAccount(e.target.value.replace(/\D/g, '').slice(0, 18))}
                       placeholder="e.g. 123456789012"
                     />
+                    <p className="text-[11px] text-muted-foreground">9 to 18 digits (most commonly 11–16 digits).</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bank_ifsc">IFSC Code *</Label>
+                    <Label htmlFor="bank_ifsc">
+                      IFSC Code * <span className="text-xs text-muted-foreground font-normal">(11 characters)</span>
+                    </Label>
                     <Input
                       id="bank_ifsc"
+                      type="text"
                       required
+                      maxLength={11}
                       value={bankIfsc}
-                      onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                      placeholder="e.g. HDFC0001234"
+                      onChange={(e) => setBankIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))}
+                      placeholder="e.g. SBIN0001234"
                     />
+                    <p className="text-[11px] text-muted-foreground">4 letters (Bank code) + 0 + 6 branch characters (e.g. SBIN0001234).</p>
                   </div>
                 </div>
               </div>

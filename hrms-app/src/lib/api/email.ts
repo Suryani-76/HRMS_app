@@ -135,6 +135,45 @@ export async function sendCandidateApplicationEmail(payload: CandidateApplicatio
     const htmlContent = generateCandidateApplicationHtml(payload)
     const subject = `Thank you for applying for ${payload.jobTitle} — Ref #${payload.referenceId}`
 
+    // 0. Direct local dev server SMTP dispatch if available
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: payload.candidateEmail,
+          subject,
+          html: htmlContent,
+          refId: payload.referenceId,
+        }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) {
+          console.log(`[Email] Directly delivered to ${payload.candidateEmail} via dev server SMTP`)
+          // Also record in audit log
+          try {
+            await supabase.from('audit_logs').insert({
+              action: 'EMAIL_SENT',
+              entity_type: 'candidate_application',
+              details: {
+                to: payload.candidateEmail,
+                name: payload.candidateName,
+                job: payload.jobTitle,
+                refId: payload.referenceId,
+                subject,
+                from: DEFAULT_SENDER_EMAIL,
+                sent_at: new Date().toISOString(),
+              },
+            })
+          } catch {}
+          return { success: true, message: `Confirmation email sent to ${payload.candidateEmail}` }
+        }
+      }
+    } catch {
+      /* local endpoint fallback */
+    }
+
     // 1. Record pending email event in audit logs with HTML payload for background SMTP delivery
     try {
       await supabase.from('audit_logs').insert({

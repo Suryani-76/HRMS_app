@@ -11,34 +11,68 @@ export async function fetchTodayAttendance(employeeId?: string) {
   return (data ?? []) as Attendance[]
 }
 
+function getMonthDateRange(monthStr: string): { start: string; end: string } {
+  const [y, m] = monthStr.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return {
+    start: `${monthStr}-01`,
+    end: `${monthStr}-${String(lastDay).padStart(2, '0')}`,
+  }
+}
+
 export async function fetchAttendanceMonth(employeeId: string, month: string) {
+  const { start, end } = getMonthDateRange(month)
   const { data, error } = await supabase
     .from('attendance')
     .select('*, employee:employees(first_name, last_name, employee_code)')
     .eq('employee_id', employeeId)
-    .gte('date', `${month}-01`)
-    .lte('date', `${month}-31`)
+    .gte('date', start)
+    .lte('date', end)
     .order('date')
   if (error) throw error
   return (data ?? []) as Attendance[]
 }
 
 export async function fetchAttendanceLog(options?: { month?: string; employeeId?: string; status?: string }) {
-  let query = supabase
-    .from('attendance')
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
-    .order('date', { ascending: false })
-    .limit(500)
+  try {
+    let query = supabase
+      .from('attendance')
+      .select('*, employee:employees(id, first_name, last_name, employee_code, department_id, department:departments!department_id(name))')
+      .order('date', { ascending: false })
+      .limit(500)
 
-  if (options?.month) {
-    query = query.gte('date', `${options.month}-01`).lte('date', `${options.month}-31`)
+    if (options?.month) {
+      const { start, end } = getMonthDateRange(options.month)
+      query = query.gte('date', start).lte('date', end)
+    }
+    if (options?.employeeId && options.employeeId !== 'all') query = query.eq('employee_id', options.employeeId)
+    if (options?.status && options.status !== 'all') query = query.eq('status', options.status)
+
+    const { data, error } = await query
+    if (!error && data) {
+      return data as Attendance[]
+    }
+    if (error) {
+      console.warn('fetchAttendanceLog error with join, falling back:', error.message)
+      let fallbackQuery = supabase
+        .from('attendance')
+        .select('*, employee:employees(id, first_name, last_name, employee_code, department_id)')
+        .order('date', { ascending: false })
+        .limit(500)
+      if (options?.month) {
+        const { start, end } = getMonthDateRange(options.month)
+        fallbackQuery = fallbackQuery.gte('date', start).lte('date', end)
+      }
+      if (options?.employeeId && options.employeeId !== 'all') fallbackQuery = fallbackQuery.eq('employee_id', options.employeeId)
+      if (options?.status && options.status !== 'all') fallbackQuery = fallbackQuery.eq('status', options.status)
+      const res = await fallbackQuery
+      return (res.data ?? []) as Attendance[]
+    }
+    return (data ?? []) as Attendance[]
+  } catch (err) {
+    console.error('fetchAttendanceLog exception:', err)
+    return []
   }
-  if (options?.employeeId) query = query.eq('employee_id', options.employeeId)
-  if (options?.status) query = query.eq('status', options.status)
-
-  const { data, error } = await query
-  if (error) throw error
-  return (data ?? []) as Attendance[]
 }
 
 export async function checkIn(employeeId: string) {

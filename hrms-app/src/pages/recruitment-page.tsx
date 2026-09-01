@@ -592,6 +592,12 @@ function CandidatesTab() {
     e.preventDefault()
     if (!name.trim() || !email.trim()) return
 
+    const cleanPhone = phone.replace(/\D/g, '').slice(0, 10)
+    if (phone.trim() && cleanPhone.length !== 10) {
+      toast.error('Phone number must be exactly 10 digits.')
+      return
+    }
+
     const ats_score = Math.floor(Math.random() * 35) + 65
     const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
     const birthDate = dob || '2000-01-01'
@@ -600,7 +606,7 @@ function CandidatesTab() {
       await create.mutateAsync({
         name: name.trim(),
         email: email.trim(),
-        phone: phone || undefined,
+        phone: cleanPhone || undefined,
         date_of_birth: birthDate,
         dob: birthDate,
         job_opening_id: jobId || undefined,
@@ -1206,7 +1212,13 @@ function CandidatesTab() {
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  maxLength={10}
+                  placeholder="9876543210"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

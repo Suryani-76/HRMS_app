@@ -23,8 +23,10 @@ export async function fetchPayroll(period?: string) {
 
 export async function generatePayroll(period: string) {
   const profiles = await fetchPayrollProfiles()
+  const [y, m] = period.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
   const periodStart = `${period}-01`
-  const periodEnd = `${period}-31`
+  const periodEnd = `${period}-${String(lastDay).padStart(2, '0')}`
 
   const { data: attendance } = await supabase
     .from('attendance')
@@ -38,8 +40,7 @@ export async function generatePayroll(period: string) {
     .eq('status', 'approved')
     .gte('start_date', periodStart)
     .lte('start_date', periodEnd)
-  const today = new Date()
-  const totalDays = new Date(today.getFullYear(), today.getMonth(), 0).getDate()
+  const totalDays = lastDay
 
   const rows = profiles.map((p) => {
     const empAttendance = (attendance ?? []).filter((a) => a.employee_id === p.employee_id)

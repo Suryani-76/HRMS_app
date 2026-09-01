@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { Download, FileText, FolderOpen, Trash2, Upload, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,24 +43,39 @@ export default function DocumentsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !ownerId) return
+    if (!name.trim() || !ownerId) {
+      toast.error('Please provide a document name and select an employee.')
+      return
+    }
+    if (!file) {
+      toast.error('Please select a file to upload. Documents require an attachment.')
+      return
+    }
+
     let fileUrl: string | undefined
     let fileSize: number | undefined
 
-    if (file) {
+    try {
       const { supabase } = await import('@/lib/supabase')
       const path = `documents/${ownerId}/${Date.now()}-${file.name}`
       const { data, error } = await supabase.storage.from('documents').upload(path, file)
-      if (!error && data) {
+      if (error) {
+        toast.error('Failed to upload file to storage: ' + error.message)
+        return
+      }
+      if (data) {
         const { data: pubUrl } = supabase.storage.from('documents').getPublicUrl(path)
         fileUrl = pubUrl.publicUrl
         fileSize = file.size
       }
-    }
 
-    await upload.mutateAsync({ employee_id: ownerId, name: name.trim(), doc_type: docType || undefined, file_url: fileUrl, file_size: fileSize })
-    setDialog(false)
-    setName(''); setDocType(''); setOwnerId(''); setFile(null)
+      await upload.mutateAsync({ employee_id: ownerId, name: name.trim(), doc_type: docType || undefined, file_url: fileUrl, file_size: fileSize })
+      setDialog(false)
+      setName(''); setDocType(''); setOwnerId(''); setFile(null)
+      toast.success('Document uploaded successfully.')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to upload document')
+    }
   }
 
   const visible = isManager ? documents : myDocs
@@ -170,8 +186,8 @@ export default function DocumentsPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>File (optional)</Label>
-              <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <Label>File *</Label>
+              <Input type="file" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>

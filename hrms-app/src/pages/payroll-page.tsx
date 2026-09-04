@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2, Banknote, Plus, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { Loader2, Banknote, Plus, RefreshCw, CheckCircle2, Download, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,9 @@ import { supabase } from '@/lib/supabase'
 import { queryKeys } from '@/lib/queryKeys'
 import { usePayroll, usePayrollProfiles, useGeneratePayroll, useUpdatePayrollStatus } from '@/hooks/use-queries'
 import { formatCurrency, currentPayPeriod, monthName } from '@/lib/format'
-import type { PayrollProfile } from '@/lib/database.types'
+import { downloadPayslipPdf } from '@/lib/payslip-pdf'
+import { PayslipDocumentSheet } from '@/components/payroll/payslip-document-sheet'
+import type { Payroll, PayrollProfile } from '@/lib/database.types'
 
 function ProfileEditor({
   profile,
@@ -109,6 +111,7 @@ export default function PayrollPage() {
   const updateStatus = useUpdatePayrollStatus()
   const [editing, setEditing] = useState<PayrollProfile | null>(null)
   const [confirmGenerate, setConfirmGenerate] = useState(false)
+  const [selectedPayslip, setSelectedPayslip] = useState<Payroll | null>(null)
 
   const periodPayroll = useMemo(() => payroll.filter((p) => p.pay_period === period), [payroll, period])
   const totals = useMemo(() => {
@@ -191,9 +194,27 @@ export default function PayrollPage() {
                     <td className="px-4 py-2.5"><StatusPill status={p.status ?? 'draft'} /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          title="View / Download Payslip"
+                          onClick={() => setSelectedPayslip(p)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-sky-600"
+                          title="Download PDF"
+                          onClick={() => downloadPayslipPdf(p)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                         {p.status !== 'paid' && (
                           <Button size="sm" variant="success" onClick={() => updateStatus.mutate({ id: p.id, status: 'paid' })} disabled={updateStatus.isPending}>
-                            <CheckCircle2 className="h-4 w-4" /> Mark paid
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Mark paid
                           </Button>
                         )}
                       </div>
@@ -205,6 +226,12 @@ export default function PayrollPage() {
           </div>
         </div>
       )}
+
+      <PayslipDocumentSheet
+        payroll={selectedPayslip}
+        open={!!selectedPayslip}
+        onOpenChange={(o) => !o && setSelectedPayslip(null)}
+      />
 
       <div className="mt-8">
         <h2 className="mb-3 text-sm font-semibold">Payroll Profiles</h2>

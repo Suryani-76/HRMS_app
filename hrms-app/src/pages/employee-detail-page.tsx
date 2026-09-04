@@ -32,6 +32,9 @@ import {
 import { useAuth } from '@/features/auth/auth-context'
 import { initials } from '@/lib/utils'
 import { formatDate, formatCurrency, formatHours, currentPayPeriod, monthName } from '@/lib/format'
+import { downloadPayslipPdf } from '@/lib/payslip-pdf'
+import { PayslipDocumentSheet } from '@/components/payroll/payslip-document-sheet'
+import type { Payroll } from '@/lib/database.types'
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -41,6 +44,7 @@ export default function EmployeeDetailPage() {
   const deleteEmployee = useDeleteEmployee()
   const [editOpen, setEditOpen] = useState(false)
   const [month, setMonth] = useState(currentPayPeriod())
+  const [selectedPayslip, setSelectedPayslip] = useState<Payroll | null>(null)
 
   const { data: attendance = [], isLoading: attendanceLoading } = useAttendanceMonth(id ?? '', month)
   const { data: payroll = [] } = usePayroll()
@@ -338,6 +342,7 @@ export default function EmployeeDetailPage() {
                         <th className="px-4 py-3">Net</th>
                         <th className="px-4 py-3">Days</th>
                         <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -349,6 +354,26 @@ export default function EmployeeDetailPage() {
                           <td className="px-4 py-2.5 font-semibold">{formatCurrency(p.net_salary)}</td>
                           <td className="px-4 py-2.5">{p.present_days}/{p.total_days}</td>
                           <td className="px-4 py-2.5"><StatusPill status={p.status ?? 'draft'} /></td>
+                          <td className="px-4 py-2.5 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1"
+                                onClick={() => setSelectedPayslip(p)}
+                              >
+                                View Payslip
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1 text-sky-600 hover:text-sky-700"
+                                onClick={() => downloadPayslipPdf(p)}
+                              >
+                                <Download className="h-3.5 w-3.5" /> PDF
+                              </Button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -357,6 +382,12 @@ export default function EmployeeDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <PayslipDocumentSheet
+            payroll={selectedPayslip}
+            open={!!selectedPayslip}
+            onOpenChange={(o) => !o && setSelectedPayslip(null)}
+          />
         </TabsContent>
 
         <TabsContent value="documents" className="mt-4">

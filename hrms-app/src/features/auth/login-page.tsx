@@ -63,7 +63,9 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#00135A] via-transparent to-transparent opacity-80" />
         
         <div className="relative z-10 flex h-full flex-col justify-end p-12 lg:p-16 xl:p-24 text-white">
-          <Logo size="xl" className="mb-8" />
+          <div className="mb-8 inline-flex items-center rounded-2xl bg-white p-3.5 shadow-2xl w-fit">
+            <Logo size="lg" />
+          </div>
           <h2 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl max-w-2xl leading-tight">
             Empower your workforce with OKLUT
           </h2>
@@ -76,8 +78,8 @@ export function LoginPage() {
       {/* Right side: login form */}
       <div className="flex w-full flex-col justify-center px-4 py-12 sm:px-6 lg:w-1/2 lg:px-20 xl:w-1/3 xl:px-24 bg-white shadow-2xl z-10">
         <div className="mx-auto w-full max-w-sm lg:w-96 space-y-8">
-          <div className="lg:hidden mb-12 flex justify-center">
-             <Logo size="lg" />
+          <div className="mb-6 flex justify-center">
+            <Logo size="lg" />
           </div>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Welcome back</h1>

@@ -619,7 +619,7 @@ function CandidatesTab() {
       })
 
       const job = jobs.find((j) => j.id === jobId)
-      sendCandidateApplicationEmail({
+      await sendCandidateApplicationEmail({
         candidateName: name.trim(),
         candidateEmail: email.trim(),
         jobTitle: job?.title || 'Open Position',

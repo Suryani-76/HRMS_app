@@ -15,53 +15,56 @@ function smtpDevPlugin(): Plugin {
   function sendEmailTls({ to, subject, html }: { to: string; subject: string; html: string }) {
     return new Promise((resolve, reject) => {
       const socket = tls.connect(SMTP_CONFIG.port, SMTP_CONFIG.host, { rejectUnauthorized: false }, () => {
-        console.log(`[Vite-SMTP] Connected to ${SMTP_CONFIG.host}:${SMTP_CONFIG.port}`)
+        console.log(`[Vite-SMTP] Connected to ${SMTP_CONFIG.host}:${SMTP_CONFIG.port} for ${to}`)
       })
 
       let step = 0
-      let buffer = ''
       socket.setEncoding('utf8')
 
       socket.on('data', (data: string) => {
-        buffer += data
-        const lines = buffer.split('\r\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          if (!line) continue
-          if (line.startsWith('220') && step === 0) {
-            step = 1; socket.write('EHLO localhost\r\n')
-          } else if (line.startsWith('250') && step === 1) {
-            step = 2; socket.write('AUTH LOGIN\r\n')
-          } else if (line.startsWith('334') && step === 2) {
-            step = 3; socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
-          } else if (line.startsWith('334') && step === 3) {
-            step = 4; socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
-          } else if (line.startsWith('235') && step === 4) {
-            step = 5; socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
-          } else if (line.startsWith('250') && step === 5) {
-            step = 6; socket.write(`RCPT TO:<${to}>\r\n`)
-          } else if (line.startsWith('250') && step === 6) {
-            step = 7; socket.write('DATA\r\n')
-          } else if (line.startsWith('354') && step === 7) {
-            step = 8
-            const message = [
-              `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
-              `To: <${to}>`,
-              `Subject: ${subject}`,
-              `MIME-Version: 1.0`,
-              `Content-Type: text/html; charset=utf-8`,
-              ``,
-              html,
-              `\r\n.\r\n`
-            ].join('\r\n')
-            socket.write(message)
-          } else if (line.startsWith('250') && step === 8) {
-            step = 9; socket.write('QUIT\r\n')
-          } else if (line.startsWith('221') && step === 9) {
-            socket.end(); resolve({ success: true })
-          } else if (line.startsWith('5') || line.startsWith('4')) {
-            socket.end(); reject(new Error('SMTP Error: ' + line.trim()))
-          }
+        if (data.startsWith('220') && step === 0) {
+          step = 1
+          socket.write('EHLO localhost\r\n')
+        } else if (data.startsWith('250') && step === 1) {
+          step = 2
+          socket.write('AUTH LOGIN\r\n')
+        } else if (data.startsWith('334') && step === 2) {
+          step = 3
+          socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
+        } else if (data.startsWith('334') && step === 3) {
+          step = 4
+          socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
+        } else if (data.startsWith('235') && step === 4) {
+          step = 5
+          socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
+        } else if (data.startsWith('250') && step === 5) {
+          step = 6
+          socket.write(`RCPT TO:<${to}>\r\n`)
+        } else if (data.startsWith('250') && step === 6) {
+          step = 7
+          socket.write('DATA\r\n')
+        } else if (data.startsWith('354') && step === 7) {
+          step = 8
+          const message = [
+            `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
+            `To: <${to}>`,
+            `Subject: ${subject}`,
+            `MIME-Version: 1.0`,
+            `Content-Type: text/html; charset=utf-8`,
+            ``,
+            html,
+            `\r\n.\r\n`
+          ].join('\r\n')
+          socket.write(message)
+        } else if (data.startsWith('250') && step === 8) {
+          step = 9
+          socket.write('QUIT\r\n')
+        } else if (data.startsWith('221') && step === 9) {
+          socket.end()
+          resolve({ success: true })
+        } else if (data.startsWith('5') || data.startsWith('4')) {
+          socket.end()
+          reject(new Error('SMTP Error: ' + data.trim()))
         }
       })
 
@@ -73,36 +76,94 @@ function smtpDevPlugin(): Plugin {
   return {
     name: 'vite-plugin-smtp-mailer',
     configureServer(server) {
-      server.middlewares.use('/api/send-email', (req, res) => {
-        if (req.method === 'POST') {
-          let body = ''
-          req.on('data', (chunk) => { body += chunk })
-          req.on('end', async () => {
-            try {
-              const { to, subject, html, refId } = JSON.parse(body || '{}')
-              if (!to || !subject || !html) {
-                res.statusCode = 400
+      // 1. Handle HTTP POST requests to /api/send-email
+      server.middlewares.use((req, res, next) => {
+        const url = req.url || ''
+        if (url === '/api/send-email' || url.startsWith('/api/send-email') || url.endsWith('/api/send-email') || url.includes('/api/send-email')) {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 200
+            res.end()
+            return
+          }
+
+          if (req.method === 'POST') {
+            let body = ''
+            req.on('data', (chunk) => { body += chunk })
+            req.on('end', async () => {
+              try {
+                const { to, subject, html, refId } = JSON.parse(body || '{}')
+                if (!to || !subject || !html) {
+                  res.statusCode = 400
+                  res.setHeader('Content-Type', 'application/json')
+                  res.end(JSON.stringify({ success: false, message: 'Missing to, subject, or html' }))
+                  return
+                }
+                console.log(`[Vite-SMTP] Dispatching candidate email to: ${to} (Ref: ${refId || 'N/A'})...`)
+                await sendEmailTls({ to, subject, html })
+                console.log(`✅ [Vite-SMTP] Candidate email delivered to ${to}`)
                 res.setHeader('Content-Type', 'application/json')
-                res.end(JSON.stringify({ success: false, message: 'Missing to, subject, or html' }))
-                return
+                res.end(JSON.stringify({ success: true, message: `Email delivered to ${to}` }))
+              } catch (err: any) {
+                console.error(`❌ [Vite-SMTP] Delivery error:`, err?.message)
+                res.statusCode = 500
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({ success: false, message: err?.message || 'SMTP delivery failed' }))
               }
-              console.log(`[Vite-SMTP] Dispatching candidate email to: ${to} (Ref: ${refId || 'N/A'})...`)
-              await sendEmailTls({ to, subject, html })
-              console.log(`✅ [Vite-SMTP] Candidate email delivered to ${to}`)
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ success: true, message: `Email delivered to ${to}` }))
-            } catch (err: any) {
-              console.error(`❌ [Vite-SMTP] Delivery error:`, err?.message)
-              res.statusCode = 500
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ success: false, message: err?.message || 'SMTP delivery failed' }))
+            })
+            return
+          }
+        }
+        next()
+      })
+
+      // 2. Background queue poller for pending emails in Supabase audit_logs
+      const pollPending = async () => {
+        try {
+          const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://qwygpcovmlobcmwcptvz.supabase.co'
+          const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_gAOufq0KVS9ugonSUIC8cA_i5DAtaII'
+          const res = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.EMAIL_PENDING&select=id,details,created_at&order=created_at.asc&limit=10`, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
             }
           })
-        } else {
-          res.statusCode = 405
-          res.end('Method Not Allowed')
-        }
-      })
+          if (res.ok) {
+            const list = await res.json()
+            if (Array.isArray(list) && list.length > 0) {
+              for (const item of list) {
+                const { to, subject, html, refId } = item.details || {}
+                if (!to || !subject || !html) continue
+                try {
+                  console.log(`[Vite-SMTP Background] Delivering pending candidate email to: ${to} (Ref: ${refId || 'N/A'})...`)
+                  await sendEmailTls({ to, subject, html })
+                  await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`,
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({ action: 'EMAIL_SENT' })
+                  })
+                  console.log(`✅ [Vite-SMTP Background] Delivered and marked EMAIL_SENT for: ${to}`)
+                } catch (err: any) {
+                  console.error(`❌ [Vite-SMTP Background] Failed to deliver to ${to}:`, err?.message)
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      if (!process.env.VITEST) {
+        setTimeout(pollPending, 2000)
+        setInterval(pollPending, 5000)
+      }
     },
   }
 }

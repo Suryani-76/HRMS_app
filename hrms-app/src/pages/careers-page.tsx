@@ -133,7 +133,7 @@ export default function CareersPage() {
     } catch {}
 
     // Dispatch confirmation email to candidate with Reference ID and Date of Birth password
-    sendCandidateApplicationEmail({
+    await sendCandidateApplicationEmail({
       candidateName: name.trim(),
       candidateEmail: email.trim(),
       jobTitle: selectedJob.title,

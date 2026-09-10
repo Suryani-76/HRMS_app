@@ -583,7 +583,7 @@ function PortalFooter() {
         <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <a href="#" className="text-purple-100 transition-colors hover:text-white">Privacy Policy</a>
           <a href="#" className="text-purple-100 transition-colors hover:text-white">Contact Us</a>
-          <a href="https://suryani-76.github.io/HRMS_app/careers" className="text-purple-100 transition-colors hover:text-white">Explore Careers</a>
+          <a href="/careers" className="text-purple-100 transition-colors hover:text-white">Explore Careers</a>
         </nav>
         <p className="text-purple-200">© 2026 Oklut Inc. All rights reserved.</p>
       </div>

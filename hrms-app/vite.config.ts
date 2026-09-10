@@ -170,7 +170,7 @@ function smtpDevPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), smtpDevPlugin()],
-  base: process.env.NODE_ENV === 'production' ? '/HRMS_app/' : '/',
+  base: '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

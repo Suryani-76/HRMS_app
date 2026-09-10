@@ -56,7 +56,8 @@ export function ForgotPasswordPage() {
 
     // 2. Also dispatch via our dedicated SMTP Daemon to guarantee delivery with direct production link
     try {
-      const resetLink = `https://suryani-76.github.io/HRMS_app/reset-password?email=${encodeURIComponent(cleanEmail)}`
+      const origin = typeof window !== 'undefined' && window.location.origin.includes('oklut.com') ? window.location.origin : 'https://hrm.oklut.com'
+      const resetLink = `${origin}/reset-password?email=${encodeURIComponent(cleanEmail)}`
       await supabase.from('audit_logs').insert({
         action: 'EMAIL_PENDING',
         details: {

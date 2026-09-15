@@ -6,7 +6,8 @@
     <script>
       // Single Page Apps for GitHub Pages
       // MIT License https://github.com/rafgraph/spa-github-pages
-      var pathSegmentsToKeep = 1;
+      // Set to 0 because hrm.oklut.com is a custom domain at the root path
+      var pathSegmentsToKeep = 0;
       var l = window.location;
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +

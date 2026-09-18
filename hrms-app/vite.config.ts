@@ -19,52 +19,51 @@ function smtpDevPlugin(): Plugin {
       })
 
       let step = 0
+      let buffer = ''
       socket.setEncoding('utf8')
 
       socket.on('data', (data: string) => {
-        if (data.startsWith('220') && step === 0) {
-          step = 1
-          socket.write('EHLO localhost\r\n')
-        } else if (data.startsWith('250') && step === 1) {
-          step = 2
-          socket.write('AUTH LOGIN\r\n')
-        } else if (data.startsWith('334') && step === 2) {
-          step = 3
-          socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
-        } else if (data.startsWith('334') && step === 3) {
-          step = 4
-          socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
-        } else if (data.startsWith('235') && step === 4) {
-          step = 5
-          socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
-        } else if (data.startsWith('250') && step === 5) {
-          step = 6
-          socket.write(`RCPT TO:<${to}>\r\n`)
-        } else if (data.startsWith('250') && step === 6) {
-          step = 7
-          socket.write('DATA\r\n')
-        } else if (data.startsWith('354') && step === 7) {
-          step = 8
-          const message = [
-            `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
-            `To: <${to}>`,
-            `Subject: ${subject}`,
-            `MIME-Version: 1.0`,
-            `Content-Type: text/html; charset=utf-8`,
-            ``,
-            html,
-            `\r\n.\r\n`
-          ].join('\r\n')
-          socket.write(message)
-        } else if (data.startsWith('250') && step === 8) {
-          step = 9
-          socket.write('QUIT\r\n')
-        } else if (data.startsWith('221') && step === 9) {
-          socket.end()
-          resolve({ success: true })
-        } else if (data.startsWith('5') || data.startsWith('4')) {
-          socket.end()
-          reject(new Error('SMTP Error: ' + data.trim()))
+        buffer += data
+        const lines = buffer.split('\r\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line) continue
+          if (line.startsWith('220') && step === 0) {
+            step = 1; socket.write('EHLO localhost\r\n')
+          } else if (line.startsWith('250') && step === 1) {
+            step = 2; socket.write('AUTH LOGIN\r\n')
+          } else if (line.startsWith('334') && step === 2) {
+            step = 3; socket.write(Buffer.from(SMTP_CONFIG.user).toString('base64') + '\r\n')
+          } else if (line.startsWith('334') && step === 3) {
+            step = 4; socket.write(Buffer.from(SMTP_CONFIG.pass).toString('base64') + '\r\n')
+          } else if (line.startsWith('235') && step === 4) {
+            step = 5; socket.write(`MAIL FROM:<${SMTP_CONFIG.user}>\r\n`)
+          } else if (line.startsWith('250') && step === 5) {
+            step = 6; socket.write(`RCPT TO:<${to}>\r\n`)
+          } else if (line.startsWith('250') && step === 6) {
+            step = 7; socket.write('DATA\r\n')
+          } else if (line.startsWith('354') && step === 7) {
+            step = 8
+            const message = [
+              `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
+              `To: <${to}>`,
+              `Subject: ${subject}`,
+              `MIME-Version: 1.0`,
+              `Content-Type: text/html; charset=utf-8`,
+              ``,
+              html,
+              `\r\n.\r\n`
+            ].join('\r\n')
+            socket.write(message)
+          } else if (line.startsWith('250') && step === 8) {
+            step = 9; socket.write('QUIT\r\n')
+          } else if (line.startsWith('221') && step === 9) {
+            socket.end()
+            resolve({ success: true })
+          } else if (line.startsWith('5') || line.startsWith('4')) {
+            socket.end()
+            reject(new Error('SMTP Error: ' + line.trim()))
+          }
         }
       })
 
@@ -138,6 +137,17 @@ function smtpDevPlugin(): Plugin {
                 const { to, subject, html, refId } = item.details || {}
                 if (!to || !subject || !html) continue
                 try {
+                  // Mark in-progress first to prevent duplicate delivery
+                  await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`,
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({ action: 'EMAIL_IN_PROGRESS' })
+                  })
                   console.log(`[Vite-SMTP Background] Delivering pending candidate email to: ${to} (Ref: ${refId || 'N/A'})...`)
                   await sendEmailTls({ to, subject, html })
                   await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
@@ -153,6 +163,16 @@ function smtpDevPlugin(): Plugin {
                   console.log(`✅ [Vite-SMTP Background] Delivered and marked EMAIL_SENT for: ${to}`)
                 } catch (err: any) {
                   console.error(`❌ [Vite-SMTP Background] Failed to deliver to ${to}:`, err?.message)
+                  await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`,
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({ action: 'EMAIL_FAILED' })
+                  })
                 }
               }
             }
@@ -161,8 +181,8 @@ function smtpDevPlugin(): Plugin {
       }
 
       if (!process.env.VITEST) {
-        setTimeout(pollPending, 2000)
-        setInterval(pollPending, 5000)
+        setTimeout(pollPending, 1000)
+        setInterval(pollPending, 4000)
       }
     },
   }

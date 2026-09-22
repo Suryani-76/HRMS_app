@@ -142,7 +142,11 @@ function JobsTab() {
                   <div className="flex items-center gap-1 text-red-600/80"><CalendarClock className="h-3 w-3" /> Last Date: {new Date(j.description.match(/\[Last Date: (.*?)\]/)![1]).toLocaleDateString()}</div>
                 )}
               </div>
-              {j.description && <p className="line-clamp-3 flex-1 text-sm text-muted-foreground">{j.description.replace(/\[Last Date: .*?\]\n?/, '')}</p>}
+              {j.description && (
+                <p className="flex-1 text-sm text-muted-foreground whitespace-pre-line break-words mt-1 leading-relaxed">
+                  {j.description.replace(/\[Last Date: .*?\]\n?/, '')}
+                </p>
+              )}
               <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm">
                 <span className="font-medium">{j.openings_count} opening{j.openings_count > 1 ? 's' : ''}</span>
                 {isManager && (

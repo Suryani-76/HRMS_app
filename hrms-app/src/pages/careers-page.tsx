@@ -297,9 +297,11 @@ export default function CareersPage() {
                         </span>
                       </div>
                       
-                      <p className="text-slate-600 line-clamp-2 mb-4 leading-relaxed">
-                        {cleanDesc}
-                      </p>
+                      {cleanDesc && (
+                        <p className="text-slate-600 whitespace-pre-line break-words mb-4 leading-relaxed">
+                          {cleanDesc}
+                        </p>
+                      )}
 
                       <div className="flex flex-wrap items-center gap-6 text-[13px] font-medium text-slate-400">
                         <div className="flex items-center gap-1.5">

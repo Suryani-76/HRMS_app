@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   Briefcase, MapPin, Building, ArrowRight, UploadCloud,
-  Heart, Zap, CalendarClock, Globe, CheckCircle2
+  Heart, Zap, CalendarClock, Globe, CheckCircle2, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,7 @@ export default function CareersPage() {
   const [jobs, setJobs] = useState<JobOpening[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null)
+  const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({})
   
   // Form State
   const [name, setName] = useState('')
@@ -297,11 +298,60 @@ export default function CareersPage() {
                         </span>
                       </div>
                       
-                      {cleanDesc && (
-                        <p className="text-slate-600 whitespace-pre-line break-words mb-4 leading-relaxed">
-                          {cleanDesc}
-                        </p>
-                      )}
+                      {(() => {
+                        const isExpanded = !!expandedJobIds[job.id]
+                        const hasReq = !!job.requirements && job.requirements.trim().length > 0
+                        const isLong = (cleanDesc?.length || 0) > 150 || cleanDesc?.includes('\n') || hasReq
+
+                        return (
+                          <div className="mb-4">
+                            {!isExpanded ? (
+                              <div>
+                                {cleanDesc && (
+                                  <p className="text-slate-600 line-clamp-3 leading-relaxed">
+                                    {cleanDesc}
+                                  </p>
+                                )}
+                                {isLong && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedJobIds((prev) => ({ ...prev, [job.id]: true }))}
+                                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                  >
+                                    View more <ChevronDown className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-3 mt-1">
+                                {cleanDesc && (
+                                  <div>
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Description</span>
+                                    <p className="text-slate-600 whitespace-pre-line break-words mt-1 leading-relaxed">
+                                      {cleanDesc}
+                                    </p>
+                                  </div>
+                                )}
+                                {hasReq && (
+                                  <div className="pt-2 border-t border-slate-100">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Requirements</span>
+                                    <p className="text-slate-600 whitespace-pre-line break-words mt-1 leading-relaxed">
+                                      {job.requirements}
+                                    </p>
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedJobIds((prev) => ({ ...prev, [job.id]: false }))}
+                                  className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer pt-1"
+                                >
+                                  View less <ChevronUp className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
 
                       <div className="flex flex-wrap items-center gap-6 text-[13px] font-medium text-slate-400">
                         <div className="flex items-center gap-1.5">

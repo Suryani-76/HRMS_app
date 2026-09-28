@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock } from 'lucide-react'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,6 +68,7 @@ function JobsTab() {
   const [requirements, setRequirements] = useState('')
   const [status, setStatus] = useState('Open')
   const [lastDate, setLastDate] = useState('')
+  const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({})
 
   const openDialog = (j?: { id: string; title: string; department_id?: string | null; location?: string | null; openings_count: number; employment_type?: string | null; description?: string | null; requirements?: string | null; status?: string | null }) => {
     setEditing(j ? { id: j.id } : null)
@@ -142,11 +143,61 @@ function JobsTab() {
                   <div className="flex items-center gap-1 text-red-600/80"><CalendarClock className="h-3 w-3" /> Last Date: {new Date(j.description.match(/\[Last Date: (.*?)\]/)![1]).toLocaleDateString()}</div>
                 )}
               </div>
-              {j.description && (
-                <p className="flex-1 text-sm text-muted-foreground whitespace-pre-line break-words mt-1 leading-relaxed">
-                  {j.description.replace(/\[Last Date: .*?\]\n?/, '')}
-                </p>
-              )}
+              {(() => {
+                const cleanDesc = j.description ? j.description.replace(/\[Last Date: .*?\]\n?/, '').trim() : ''
+                const isExpanded = !!expandedJobIds[j.id]
+                const hasReq = !!j.requirements && j.requirements.trim().length > 0
+                const isLong = cleanDesc.length > 140 || cleanDesc.includes('\n') || hasReq
+
+                return (
+                  <div className="flex-1 flex flex-col justify-start">
+                    {!isExpanded ? (
+                      <div>
+                        {cleanDesc && (
+                          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                            {cleanDesc}
+                          </p>
+                        )}
+                        {isLong && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedJobIds((prev) => ({ ...prev, [j.id]: true }))}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                          >
+                            View more <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 mt-1 text-sm">
+                        {cleanDesc && (
+                          <div>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Description</span>
+                            <p className="text-muted-foreground whitespace-pre-line break-words mt-1 leading-relaxed">
+                              {cleanDesc}
+                            </p>
+                          </div>
+                        )}
+                        {hasReq && (
+                          <div className="pt-2 border-t border-border/50">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Requirements</span>
+                            <p className="text-muted-foreground whitespace-pre-line break-words mt-1 leading-relaxed">
+                              {j.requirements}
+                            </p>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedJobIds((prev) => ({ ...prev, [j.id]: false }))}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer pt-1"
+                        >
+                          View less <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
               <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm">
                 <span className="font-medium">{j.openings_count} opening{j.openings_count > 1 ? 's' : ''}</span>
                 {isManager && (

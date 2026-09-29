@@ -20,6 +20,7 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
   const isCheckedIn = Boolean(record?.check_in)
   const isCheckedOut = Boolean(record?.check_out)
   const onBreak = Boolean(record?.break_in) && !Boolean(record?.break_out)
+  const isOnShift = isCheckedIn && !isCheckedOut
 
   const busy = checkIn.isPending || checkOut.isPending || setBreak.isPending
 
@@ -60,18 +61,28 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-xs text-muted-foreground">Worked</p>
-                <p className="mt-1 text-lg font-semibold">{formatHours(record?.working_hours ?? hoursBetween(record?.check_in, null))}</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {record?.working_hours
+                    ? formatHours(record.working_hours)
+                    : record?.check_in
+                    ? formatHours(hoursBetween(record.check_in, new Date().toISOString()))
+                    : '0h 0m'}
+                </p>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => checkIn.mutate(employeeId)} disabled={isCheckedIn || busy} className="flex-1">
-                <LogIn className="mr-2 h-4 w-4" /> Check In
+              <Button
+                onClick={() => checkIn.mutate(employeeId)}
+                disabled={isOnShift || busy}
+                className="flex-1"
+              >
+                <LogIn className="mr-2 h-4 w-4" /> {isCheckedOut ? 'Check In Again' : 'Check In'}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setBreak.mutate({ employeeId, action: onBreak ? 'out' : 'in' })}
-                disabled={!isCheckedIn || isCheckedOut || busy}
+                disabled={!isOnShift || busy}
                 className="flex-1"
               >
                 <Coffee className="mr-2 h-4 w-4" /> {onBreak ? 'End Break' : 'Start Break'}
@@ -79,7 +90,7 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
               <Button
                 variant="secondary"
                 onClick={() => checkOut.mutate(employeeId)}
-                disabled={!isCheckedIn || isCheckedOut || busy}
+                disabled={!isOnShift || busy}
                 className="flex-1"
               >
                 <LogOut className="mr-2 h-4 w-4" /> Check Out

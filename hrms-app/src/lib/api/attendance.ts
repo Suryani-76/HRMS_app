@@ -2,9 +2,19 @@ import { supabase } from '@/lib/supabase'
 import type { Attendance, LeaveType, LeaveRequest, LeaveBalance, Holiday } from '@/lib/database.types'
 
 // ---------- Attendance ----------
+function getTodayDateString(): string {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export async function fetchTodayAttendance(employeeId?: string) {
-  const today = new Date().toISOString().slice(0, 10)
-  let query = supabase.from('attendance').select('*').eq('date', today)
+  const localToday = getTodayDateString()
+  const utcToday = new Date().toISOString().slice(0, 10)
+  const dates = Array.from(new Set([localToday, utcToday]))
+  let query = supabase.from('attendance').select('*').in('date', dates)
   if (employeeId) query = query.eq('employee_id', employeeId)
   const { data, error } = await query
   if (error) throw error
@@ -77,12 +87,42 @@ export async function fetchAttendanceLog(options?: { month?: string; employeeId?
 
 export async function checkIn(employeeId: string) {
   const now = new Date().toISOString()
-  const today = now.slice(0, 10)
+  const localToday = getTodayDateString()
+  const utcToday = now.slice(0, 10)
   const hour = new Date().getHours()
   const status = hour >= 10 ? 'late' : 'present'
+
+  // Look for any existing record for today (matching local date or UTC date)
+  const { data: existingRecords } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .in('date', Array.from(new Set([localToday, utcToday])))
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const existing = existingRecords?.[0]
+
+  if (existing) {
+    // If the employee had checked out or needs re-check in, re-open the shift
+    const { data, error } = await supabase
+      .from('attendance')
+      .update({
+        check_out: null,
+        working_hours: 0,
+        status: existing.status || status,
+        updated_at: now,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+    if (error) throw error
+    return data as Attendance
+  }
+
   const { data, error } = await supabase
     .from('attendance')
-    .insert({ employee_id: employeeId, date: today, check_in: now, status })
+    .insert({ employee_id: employeeId, date: localToday, check_in: now, status })
     .select()
     .single()
   if (error) throw error
@@ -91,13 +131,18 @@ export async function checkIn(employeeId: string) {
 
 export async function checkOut(employeeId: string) {
   const now = new Date().toISOString()
-  const today = now.slice(0, 10)
-  const { data: existing } = await supabase
+  const localToday = getTodayDateString()
+  const utcToday = now.slice(0, 10)
+
+  const { data: existingRecords } = await supabase
     .from('attendance')
     .select('*')
     .eq('employee_id', employeeId)
-    .eq('date', today)
-    .single()
+    .in('date', Array.from(new Set([localToday, utcToday])))
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const existing = existingRecords?.[0]
   if (!existing) throw new Error('No check-in found for today')
 
   const working = Math.max(0, (new Date(now).getTime() - new Date(existing.check_in).getTime()) / 36e5)
@@ -114,13 +159,18 @@ export async function checkOut(employeeId: string) {
 
 export async function setBreak(employeeId: string, action: 'in' | 'out') {
   const now = new Date().toISOString()
-  const today = now.slice(0, 10)
-  const { data: existing } = await supabase
+  const localToday = getTodayDateString()
+  const utcToday = now.slice(0, 10)
+
+  const { data: existingRecords } = await supabase
     .from('attendance')
     .select('*')
     .eq('employee_id', employeeId)
-    .eq('date', today)
-    .single()
+    .in('date', Array.from(new Set([localToday, utcToday])))
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const existing = existingRecords?.[0]
   if (!existing) throw new Error('No check-in found for today')
 
   const update: Partial<Attendance> = action === 'in' ? { break_in: now } : { break_out: now }

@@ -108,6 +108,7 @@ export async function checkIn(employeeId: string) {
     const { data, error } = await supabase
       .from('attendance')
       .update({
+        check_in: existing.check_in || now,
         check_out: null,
         working_hours: 0,
         status: existing.status || status,

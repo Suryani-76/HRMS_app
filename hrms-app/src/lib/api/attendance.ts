@@ -111,7 +111,7 @@ export async function checkIn(employeeId: string) {
         check_in: existing.check_in || now,
         check_out: null,
         working_hours: 0,
-        status: existing.status || status,
+        status: (!existing.status || existing.status === 'absent') ? status : existing.status,
         updated_at: now,
       })
       .eq('id', existing.id)

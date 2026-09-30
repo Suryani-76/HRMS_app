@@ -62,7 +62,7 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-xs text-muted-foreground">Worked</p>
                 <p className="mt-1 text-lg font-semibold">
-                  {record?.working_hours
+                  {record?.check_out != null
                     ? formatHours(record.working_hours)
                     : record?.check_in
                     ? formatHours(hoursBetween(record.check_in, new Date().toISOString()))

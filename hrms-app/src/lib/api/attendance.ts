@@ -146,11 +146,32 @@ export async function checkOut(employeeId: string) {
   const existing = existingRecords?.[0]
   if (!existing) throw new Error('No check-in found for today')
 
-  const working = Math.max(0, (new Date(now).getTime() - new Date(existing.check_in).getTime()) / 36e5)
+  const nowTime = new Date(now).getTime()
+  const checkInTime = new Date(existing.check_in || existing.created_at).getTime()
+  let workingDiff = (nowTime - checkInTime) / 36e5
+
+  // If check_in had a future timestamp due to timezone/clock skew, fallback to created_at
+  if (workingDiff < 0 && existing.created_at) {
+    const createdTime = new Date(existing.created_at).getTime()
+    workingDiff = (nowTime - createdTime) / 36e5
+  }
+
+  const working = Math.max(0, workingDiff)
   const overtime = Math.max(0, working - 9)
+
+  const updatePayload: Record<string, unknown> = {
+    check_out: now,
+    working_hours: Number(working.toFixed(2)),
+    overtime_hours: Number(overtime.toFixed(2)),
+  }
+  // Auto-close break if open
+  if (existing.break_in && !existing.break_out) {
+    updatePayload.break_out = now
+  }
+
   const { data, error } = await supabase
     .from('attendance')
-    .update({ check_out: now, working_hours: Number(working.toFixed(2)), overtime_hours: Number(overtime.toFixed(2)) })
+    .update(updatePayload)
     .eq('id', existing.id)
     .select()
     .single()

@@ -65,12 +65,14 @@ function ApplyLeaveDialog({
   onOpenChange,
   employeeId,
   isHrOrManager,
+  isHr,
   isAdmin,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   employeeId?: string
   isHrOrManager?: boolean
+  isHr?: boolean
   isAdmin?: boolean
 }) {
   const { data: types = [] } = useLeaveTypes()
@@ -96,6 +98,7 @@ function ApplyLeaveDialog({
       reason,
       status: isAdmin ? 'approved' : 'pending',
       isAdmin,
+      isHr,
     })
 
     if (isAdmin) {
@@ -566,6 +569,7 @@ export default function LeavePage() {
           onOpenChange={setApplyOpen}
           employeeId={effectiveEmployeeId}
           isHrOrManager={isHrOrManager}
+          isHr={user?.role?.name?.toUpperCase() === 'HR'}
           isAdmin={false}
         />
       )}

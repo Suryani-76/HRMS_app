@@ -248,6 +248,7 @@ export async function applyLeave(input: {
   reason?: string
   status?: 'pending' | 'approved' | 'rejected'
   isAdmin?: boolean
+  isHr?: boolean
 }) {
   let validEmpId = input.employee_id
   if (!validEmpId || validEmpId === '00000000-0000-0000-0000-000000000010') {
@@ -286,17 +287,73 @@ export async function applyLeave(input: {
 
   if (error) throw error
 
-  // Notify admins for pending requests
+  // Notify admins and HRs for pending requests:
+  // - When an employee applies: visible ONLY to HR's and Admin portal (never to regular employees)
+  // - When an HR applies: visible ONLY to Admin portal
   if (finalStatus === 'pending' && data) {
     try {
-      await supabase.from('notifications').insert({
-        type: 'info',
-        title: `New Leave Request`,
-        message: `Employee requested ${input.days} day(s) of leave (${input.start_date} to ${input.end_date}). Reason: ${input.reason || 'None'}`,
-        link: '/leave',
-        is_read: false,
-      })
-    } catch {}
+      let isApplicantHR = Boolean(input.isHr)
+      if (!isApplicantHR) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const userEmail = sessionData?.session?.user?.email
+        const userId = sessionData?.session?.user?.id
+
+        const getRoleName = (r: unknown): string => {
+          if (!r) return ''
+          if (Array.isArray(r)) return (r[0] as { name?: string })?.name || ''
+          return (r as { name?: string })?.name || ''
+        }
+
+        if (userId || userEmail) {
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('id, role:roles!inner(name)')
+            .or(`id.eq.${userId || ''},email.ilike.${userEmail || ''}`)
+            .maybeSingle()
+          if (getRoleName(userProfile?.role).toUpperCase() === 'HR') {
+            isApplicantHR = true
+          }
+        }
+
+        if (!isApplicantHR && validEmpId) {
+          const { data: empUser } = await supabase
+            .from('users')
+            .select('id, role:roles!inner(name)')
+            .eq('employee_id', validEmpId)
+            .maybeSingle()
+          if (getRoleName(empUser?.role).toUpperCase() === 'HR') {
+            isApplicantHR = true
+          }
+        }
+      }
+
+      // If HR applied: target only Admin. If Employee applied: target Admin and HR.
+      const targetRoleNames = isApplicantHR ? ['Admin'] : ['Admin', 'HR']
+
+      const { data: recipients } = await supabase
+        .from('users')
+        .select('id, role:roles!inner(name)')
+        .in('role.name', targetRoleNames)
+
+      const empData = (data as any)?.employee
+      const empName = empData
+        ? `${empData.first_name || ''} ${empData.last_name || ''}`.trim()
+        : 'Employee'
+
+      if (recipients && recipients.length > 0) {
+        const notifRows = recipients.map((r) => ({
+          user_id: r.id,
+          type: 'info' as const,
+          title: `New Leave Request`,
+          message: `${empName || 'Employee'} requested ${input.days} day(s) of leave (${input.start_date} to ${input.end_date}). Reason: ${input.reason || 'None'}`,
+          link: '/leave',
+          is_read: false,
+        }))
+        await supabase.from('notifications').insert(notifRows)
+      }
+    } catch (e) {
+      console.error('Failed to dispatch leave notification:', e)
+    }
   }
 
   return data as LeaveRequest

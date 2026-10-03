@@ -267,13 +267,14 @@ export async function fetchNotifications(limit = 30) {
   const uid = session.session?.user.id
   if (!uid) return []
 
-  // Resolve employee_id for this user so we can match employee-addressed notifications
+  // Resolve employee_id and role for this user so we can match employee-addressed notifications
   const { data: profile } = await supabase
     .from('users')
-    .select('employee_id')
+    .select('employee_id, role:roles(name)')
     .eq('id', uid)
     .single()
   const employeeId = profile?.employee_id ?? null
+  const roleName = ((profile as any)?.role?.name ?? '').toUpperCase()
 
   let query = supabase
     .from('notifications')
@@ -289,7 +290,25 @@ export async function fetchNotifications(limit = 30) {
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as Notification[]
+  let items = (data ?? []) as Notification[]
+
+  // Security & visibility filtering:
+  // - When an employee applies for leave, the notification is visible ONLY to HR's and Admin portal (never to regular employees).
+  // - When an HR applies for leave, the notification is visible ONLY to Admin portal.
+  if (roleName !== 'ADMIN' && roleName !== 'HR') {
+    // Regular employees must NOT see leave request notifications
+    items = items.filter((n) => !n.title?.toLowerCase().includes('new leave request'))
+  } else if (roleName === 'HR') {
+    // HR only sees leave request notifications explicitly addressed to them (user_id === uid)
+    items = items.filter((n) => {
+      if (n.title?.toLowerCase().includes('new leave request')) {
+        return n.user_id === uid
+      }
+      return true
+    })
+  }
+
+  return items
 }
 
 export async function markNotificationRead(id: string) {

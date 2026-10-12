@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Megaphone,
   ChevronRight,
+  MessageSquareWarning,
 } from 'lucide-react'
 import { format, isToday, parseISO } from 'date-fns'
 import {
@@ -557,6 +558,14 @@ export default function DashboardPage() {
       <PageHeader
         title={`${greeting} 👋`}
         description="Here's what's happening across the organization today."
+        actions={
+          <Button asChild variant="outline" size="sm" className="gap-2 shadow-xs border-amber-200/80 bg-amber-50/50 hover:bg-amber-100/60 text-amber-900">
+            <Link to="/complaints">
+              <MessageSquareWarning className="h-4 w-4 text-amber-600" />
+              Complaint Box
+            </Link>
+          </Button>
+        }
       />
       {!loading && (isManager ? <ManagerDashboard /> : <EmployeeDashboard />)}
     </div>

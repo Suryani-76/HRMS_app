@@ -1,8 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp } from 'lucide-react'
-import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp, Paperclip } from 'lucide-react'
+import {
+  sendCandidateApplicationEmail,
+  DEFAULT_CANDIDATE_PORTAL_URL,
+  broadcastJobOpeningToEmployees,
+  generateJobCode,
+  generateReferralCode,
+} from '@/lib/api/email'
+import {
+  CandidateDocumentsAdminViewer,
+} from '@/components/shared/candidate-verification-docs'
+import {
+  getCandidateVerificationDocs,
+} from '@/lib/api/candidatePortal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -69,6 +81,8 @@ function JobsTab() {
   const [status, setStatus] = useState('Open')
   const [lastDate, setLastDate] = useState('')
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({})
+  const [broadcastingJobId, setBroadcastingJobId] = useState<string | null>(null)
+  const [uploadingJd, setUploadingJd] = useState(false)
 
   const openDialog = (j?: { id: string; title: string; department_id?: string | null; location?: string | null; openings_count: number; employment_type?: string | null; description?: string | null; requirements?: string | null; status?: string | null }) => {
     setEditing(j ? { id: j.id } : null)
@@ -86,6 +100,92 @@ function JobsTab() {
     setDialog(true)
   }
 
+  const handleJobFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingJd(true)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const content = String(event.target?.result || '')
+        if (!content) return
+
+        if (file.name.endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(content)
+            if (parsed.title) setTitle(parsed.title)
+            if (parsed.department_id) setDept(parsed.department_id)
+            if (parsed.location) setLocation(parsed.location)
+            if (parsed.openings_count) setCount(String(parsed.openings_count))
+            if (parsed.employment_type) setType(parsed.employment_type)
+            if (parsed.description) setDescription(parsed.description)
+            if (parsed.requirements) setRequirements(parsed.requirements)
+            toast.success(`Job description specifications loaded from ${file.name}!`)
+            return
+          } catch {}
+        }
+
+        const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+        if (lines.length > 0) {
+          const titleLine = lines.find((l) => /^(job\s*title|title|role|position):/i.test(l)) || lines[0]
+          const cleanTitle = titleLine.replace(/^(job\s*title|title|role|position):/i, '').trim()
+          if (cleanTitle) setTitle(cleanTitle.slice(0, 80))
+
+          const locLine = lines.find((l) => /^(location|workplace|city):/i.test(l))
+          if (locLine) setLocation(locLine.replace(/^(location|workplace|city):/i, '').trim())
+
+          const typeLine = lines.find((l) => /^(type|employment\s*type):/i.test(l))
+          if (typeLine) {
+            const t = typeLine.replace(/^(type|employment\s*type):/i, '').trim()
+            if (/part/i.test(t)) setType('Part-time')
+            else if (/contract/i.test(t)) setType('Contract')
+            else if (/intern/i.test(t)) setType('Internship')
+            else setType('Full-time')
+          }
+
+          const countLine = lines.find((l) => /^(openings|positions|vacancies|count):/i.test(l))
+          if (countLine) {
+            const num = countLine.replace(/\D/g, '')
+            if (num) setCount(num)
+          }
+
+          const reqIdx = lines.findIndex((l) => /^(requirements|qualifications|skills):/i.test(l))
+          if (reqIdx !== -1) {
+            setRequirements(lines.slice(reqIdx + 1, reqIdx + 8).join('\n'))
+          }
+
+          setDescription(content.slice(0, 1000))
+          toast.success(`Job document "${file.name}" uploaded & parsed! Details filled into form.`)
+        }
+      } catch (err: any) {
+        toast.error('Could not parse uploaded file: ' + err.message)
+      } finally {
+        setUploadingJd(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleManualBroadcast = async (job: any) => {
+    try {
+      setBroadcastingJobId(job.id)
+      const res = await broadcastJobOpeningToEmployees(job, job.department?.name)
+      if (res.success) {
+        toast.success(
+          `Office emails dispatched to ${res.count} employees with Job Code: ${res.jobCode} and Referral Code: ${res.referralCode}!`,
+          { duration: 7000 }
+        )
+      } else {
+        toast.error(res.message)
+      }
+    } catch (err: any) {
+      toast.error('Failed to dispatch broadcast emails: ' + err.message)
+    } finally {
+      setBroadcastingJobId(null)
+    }
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
@@ -100,8 +200,30 @@ function JobsTab() {
       status,
       published: status === 'Open',
     }
-    if (editing) await update.mutateAsync({ id: editing.id, patch: payload })
-    else await create.mutateAsync(payload)
+
+    if (editing) {
+      await update.mutateAsync({ id: editing.id, patch: payload })
+      toast.success('Job opening updated successfully.')
+    } else {
+      const created = await create.mutateAsync(payload)
+      const deptObj = departments.find((d) => d.id === dept)
+
+      // When a job opening is uploaded/created, broadcast details + job code + referral code to every employee's office email
+      try {
+        const res = await broadcastJobOpeningToEmployees(
+          created || { ...payload, id: 'job-' + Date.now() },
+          deptObj?.name
+        )
+        if (res.success) {
+          toast.success(
+            `Job opening created! Office email sent to ${res.count} employees with Job Code: ${res.jobCode} and Referral Code: ${res.referralCode}.`,
+            { duration: 7000 }
+          )
+        }
+      } catch (err: any) {
+        console.warn('Job opening broadcast error:', err)
+      }
+    }
     setDialog(false)
   }
 
@@ -132,9 +254,12 @@ function JobsTab() {
                 </div>
                 <StatusPill status={j.status ?? (j.published ? 'Open' : 'closed')} />
               </div>
-              <div className="mb-3">
-                <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">
-                  Referral Code: REF-{j.title.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase()}{j.id.slice(-4).toUpperCase()}
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/20">
+                  Job Code: {generateJobCode(j)}
+                </span>
+                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-700/20">
+                  Referral Code: {generateReferralCode(j)}
                 </span>
               </div>
               <div className="mb-3 flex flex-col gap-1 text-[11px] font-medium text-muted-foreground">
@@ -198,34 +323,71 @@ function JobsTab() {
                   </div>
                 )
               })()}
-              <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm">
-                <span className="font-medium">{j.openings_count} opening{j.openings_count > 1 ? 's' : ''}</span>
-                {isManager && (
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog(j)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete opening?</AlertDialogTitle>
-                          <AlertDialogDescription>Remove the {j.title} opening and its pipeline?</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => del.mutate(j.id)} className="bg-destructive text-destructive-foreground">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                )}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-500 flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                    <span>{j.openings_count} {j.openings_count > 1 ? 'openings' : 'opening'}</span>
+                  </span>
+                  {isManager && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
+                        onClick={() => openDialog(j)}
+                        title="Edit opening"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md"
+                            title="Delete opening"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete opening?</AlertDialogTitle>
+                            <AlertDialogDescription>Remove the {j.title} opening and its pipeline?</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => del.mutate(j.id)} className="bg-destructive text-destructive-foreground">
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 transition-all flex items-center justify-center gap-1.5 rounded-lg shadow-2xs"
+                  onClick={() => handleManualBroadcast(j)}
+                  disabled={broadcastingJobId === j.id}
+                  title="Send opening details, job code, and referral code to all employees' office emails"
+                >
+                  {broadcastingJobId === j.id ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+                      <span>Dispatching Emails...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Email All Employees</span>
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           ))}
@@ -233,11 +395,88 @@ function JobsTab() {
       )}
 
       <Dialog open={dialog} onOpenChange={setDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Opening' : 'New Job Opening'}</DialogTitle>
-            <DialogDescription>Create or update a job opening.</DialogDescription>
+            <DialogTitle>{editing ? 'Edit Opening' : 'Upload & Create Job Opening'}</DialogTitle>
+            <DialogDescription>
+              {editing
+                ? 'Update opening details.'
+                : 'Create or upload a job opening. An email with Job Code & Referral Code will be sent to every employee\'s office mail.'}
+            </DialogDescription>
           </DialogHeader>
+
+          {!editing && (
+            <div className="space-y-3 pt-1">
+              {/* Workforce Email Broadcast Banner */}
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 flex items-start gap-2.5 shadow-sm">
+                <Mail className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-indigo-900 flex items-center gap-1.5">
+                    Office Email Broadcast to All Employees Active
+                  </span>
+                  <p className="text-[11px] text-indigo-800 leading-relaxed">
+                    When this job opening is uploaded, its details along with the unique <strong>Job Code</strong> and <strong>Referral Code</strong> will be automatically emailed to every employee's official office inbox.
+                  </p>
+                </div>
+              </div>
+
+              {/* Upload Job Description Document Dropzone */}
+              <div className="rounded-xl border-2 border-dashed border-indigo-200 p-3.5 bg-slate-50/70 hover:bg-indigo-50/30 hover:border-indigo-400 transition-colors">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-left flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                      <Upload className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Upload Job Description File
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Select a TXT, JSON, MD, or JD document to auto-populate opening details.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-xs font-semibold transition-all shrink-0">
+                    {uploadingJd ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    <span>{uploadingJd ? 'Parsing...' : 'Upload JD File'}</span>
+                    <input
+                      type="file"
+                      accept=".txt,.json,.md,.doc,.docx"
+                      className="hidden"
+                      onChange={handleJobFileUpload}
+                      disabled={uploadingJd}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Live Preview of Generated Codes */}
+              <div className="grid grid-cols-2 gap-3 p-2.5 rounded-xl bg-slate-100 border text-xs">
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                    Generated Job Code
+                  </span>
+                  <p className="font-mono font-bold text-indigo-700 text-xs mt-0.5">
+                    {generateJobCode({ title: title || 'Job Title' })}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                    Generated Referral Code
+                  </span>
+                  <p className="font-mono font-bold text-emerald-700 text-xs mt-0.5">
+                    {generateReferralCode({ title: title || 'Job Title' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Title *</Label>
@@ -819,6 +1058,33 @@ function CandidatesTab() {
                         <p className="text-[11px] text-muted-foreground">
                           {c.source ? c.source.split('(')[0].trim() : 'Website Application'}
                         </p>
+                        {(() => {
+                          const docSub = getCandidateVerificationDocs(
+                            c.id,
+                            c.email,
+                            (c.category || '').toLowerCase() === 'experienced',
+                            (c as any).notes
+                          )
+                          const upCount = docSub.documents.filter((d) => !!d.fileName).length
+                          if (upCount === 0) return null
+                          return (
+                            <div className="mt-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCandidate(c)}
+                                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold border transition-colors ${
+                                  docSub.status === 'verified'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                                }`}
+                                title="View candidate softcopy verification documents"
+                              >
+                                <Paperclip className="h-2.5 w-2.5" />
+                                {docSub.status === 'verified' ? 'Docs Verified ✓' : `Softcopies: ${upCount} Uploaded`}
+                              </button>
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* Portal Credentials */}
@@ -1122,6 +1388,14 @@ function CandidatesTab() {
                       </Button>
                     </div>
                   </div>
+                </div>
+
+                {/* Pre-Offer Verification Documents Section */}
+                <div className="space-y-1.5 border-t pt-4">
+                  <CandidateDocumentsAdminViewer
+                    candidate={c}
+                    isExperienced={(c.category || '').toLowerCase() === 'experienced'}
+                  />
                 </div>
 
                 {/* Quick Stage Progression */}
@@ -1912,6 +2186,7 @@ function OffersTab() {
   const updateStatus = useUpdateOfferStatus()
 
   const [dialog, setDialog] = useState(false)
+  const [docsCandidate, setDocsCandidate] = useState<any | null>(null)
   const [candidateId, setCandidateId] = useState('')
   const [jobId, setJobId] = useState('')
   const [salary, setSalary] = useState('')
@@ -1994,7 +2269,43 @@ function OffersTab() {
 
                   return (
                     <tr key={o.id} className="border-b last:border-0 hover:bg-muted/10">
-                      <td className="px-4 py-2.5 font-medium">{o.candidate?.name}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        <div>{o.candidate?.name}</div>
+                        {(() => {
+                          if (!o.candidate) return null
+                          const candDocSub = getCandidateVerificationDocs(
+                            o.candidate.id,
+                            o.candidate.email,
+                            false,
+                            (o.candidate as any).notes
+                          )
+                          const upCount = candDocSub.documents.filter((d) => !!d.fileName).length
+                          if (upCount === 0) {
+                            return (
+                              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                                Softcopies: Pending
+                              </span>
+                            )
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setDocsCandidate(o.candidate)}
+                              className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold border mt-0.5 transition-colors ${
+                                candDocSub.status === 'verified'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                              }`}
+                              title="Click to view candidate softcopy verification documents"
+                            >
+                              <Paperclip className="h-2.5 w-2.5" />
+                              {candDocSub.status === 'verified'
+                                ? 'Docs Verified ✓'
+                                : `Softcopies: ${upCount} Attached`}
+                            </button>
+                          )
+                        })()}
+                      </td>
                       <td className="px-4 py-2.5">{o.job_opening?.title ?? '—'}</td>
                       <td className="px-4 py-2.5">
                         {o.salary_offered ? formatCurrency(o.salary_offered, true) : '—'}
@@ -2232,9 +2543,28 @@ function OffersTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Candidate Verification Documents Modal */}
+      <Dialog open={!!docsCandidate} onOpenChange={(open) => !open && setDocsCandidate(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pre-Offer Verification Documents</DialogTitle>
+            <DialogDescription>
+              Review softcopies submitted by {docsCandidate?.name} prior to offer acceptance.
+            </DialogDescription>
+          </DialogHeader>
+          {docsCandidate && (
+            <CandidateDocumentsAdminViewer
+              candidate={docsCandidate}
+              isExperienced={(docsCandidate.category || '').toLowerCase() === 'experienced'}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
 
 
 

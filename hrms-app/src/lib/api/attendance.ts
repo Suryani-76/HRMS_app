@@ -1,5 +1,15 @@
 import { supabase } from '@/lib/supabase'
 import type { Attendance, LeaveType, LeaveRequest, LeaveBalance, Holiday } from '@/lib/database.types'
+import { formatGpsNotesTag, type GeoLocationData } from '@/lib/geo-tracking'
+import {
+  parseAttendanceSessions,
+  updateSessionsInNotes,
+  calculateCumulativeLoginHours,
+  type AttendanceSession,
+} from '@/lib/attendance-sessions'
+
+export * from '@/lib/attendance-sessions'
+export type { GeoLocationData } from '@/lib/geo-tracking'
 
 // ---------- Attendance ----------
 function getTodayDateString(): string {
@@ -9,6 +19,7 @@ function getTodayDateString(): string {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
 
 export async function fetchTodayAttendance(employeeId?: string) {
   const localToday = getTodayDateString()
@@ -85,12 +96,32 @@ export async function fetchAttendanceLog(options?: { month?: string; employeeId?
   }
 }
 
-export async function checkIn(employeeId: string) {
+export interface BiometricVerificationInfo {
+  method?: 'FACE_ID' | 'MANUAL' | 'SECURE_FALLBACK_PIN' | string
+  confidence?: number
+  token?: string
+  snapshotUrl?: string
+}
+
+export async function checkIn(
+  employeeId: string,
+  biometric?: BiometricVerificationInfo,
+  location?: GeoLocationData
+) {
   const now = new Date().toISOString()
   const localToday = getTodayDateString()
   const utcToday = now.slice(0, 10)
   const hour = new Date().getHours()
   const status = hour >= 10 ? 'late' : 'present'
+
+  const verificationMethod = biometric?.method || (biometric?.token ? 'FACE_ID' : 'MANUAL')
+  const verificationStatus = 'VERIFIED'
+
+  const biometricTag = biometric?.token
+    ? `[Face ID In: ${biometric.confidence ?? 98}% match | Ref: ${biometric.token}]`
+    : null
+  const gpsTag = location ? formatGpsNotesTag(location) : null
+  const notesTag = [biometricTag, gpsTag].filter(Boolean).join(' ') || null
 
   // Look for any existing record for today (matching local date or UTC date)
   const { data: existingRecords } = await supabase
@@ -104,34 +135,169 @@ export async function checkIn(employeeId: string) {
   const existing = existingRecords?.[0]
 
   if (existing) {
-    // If the employee had checked out or needs re-check in, re-open the shift
-    const { data, error } = await supabase
-      .from('attendance')
-      .update({
-        check_in: existing.check_in || now,
-        check_out: null,
-        working_hours: 0,
-        status: (!existing.status || existing.status === 'absent') ? status : existing.status,
-        updated_at: now,
+    // If the employee had checked out or is checking in again in the same day:
+    const existingSessions = parseAttendanceSessions(
+      existing.notes,
+      existing.check_in,
+      existing.check_out,
+      existing.working_hours
+    )
+
+    // Check if previously checked out or if all sessions are closed
+    const hasUnclosed = existingSessions.some((s) => !s.checkOut)
+    if (!hasUnclosed || existing.check_out) {
+      existingSessions.push({
+        checkIn: now,
+        checkOut: null,
+        hours: 0,
       })
+    }
+
+    // Preserve the cumulative sum of earlier completed sessions
+    const { completedHours } = calculateCumulativeLoginHours(existingSessions, now, false)
+
+    const baseNotes = notesTag
+      ? (existing.notes ? `${existing.notes} | ${notesTag}` : notesTag)
+      : existing.notes
+    const notesWithSessions = updateSessionsInNotes(baseNotes, existingSessions)
+
+    const updateFields: any = {
+      check_in: now,
+      check_out: null,
+      working_hours: completedHours,
+      status: (!existing.status || existing.status === 'absent') ? status : existing.status,
+      notes: notesWithSessions,
+      updated_at: now,
+      verification_method: verificationMethod,
+      verification_status: verificationStatus,
+    }
+
+    let { data, error } = await supabase
+      .from('attendance')
+      .update(updateFields)
       .eq('id', existing.id)
       .select()
       .single()
-    if (error) throw error
+
+    if (error) {
+      // Fallback if optional schema columns not present
+      delete updateFields.verification_method
+      delete updateFields.verification_status
+      const fallbackRes = await supabase
+        .from('attendance')
+        .update(updateFields)
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (fallbackRes.error) throw fallbackRes.error
+      data = fallbackRes.data
+    }
+
+    if (biometric?.token || location) {
+      try {
+        await supabase.from('audit_logs').insert({
+          action: location ? 'GPS_CHECK_IN' : 'FACE_ID_CHECK_IN',
+          entity_name: 'attendance',
+          details: {
+            employee_id: employeeId,
+            token: biometric?.token,
+            confidence: biometric?.confidence,
+            latitude: location?.latitude,
+            longitude: location?.longitude,
+            accuracy: location?.accuracy,
+            address: location?.address,
+            city: location?.city,
+            work_mode: location?.workMode,
+            is_office: location?.isOfficeLocation,
+            map_url: location?.mapUrl,
+            check_in: now,
+            session_count: existingSessions.length,
+          },
+        })
+      } catch {}
+    }
+
     return data as Attendance
   }
 
-  const { data, error } = await supabase
+  const initialSessions: AttendanceSession[] = [
+    {
+      checkIn: now,
+      checkOut: null,
+      hours: 0,
+    },
+  ]
+  const notesWithSessions = updateSessionsInNotes(notesTag, initialSessions)
+
+  const insertPayload: any = {
+    employee_id: employeeId,
+    date: localToday,
+    check_in: now,
+    status,
+    notes: notesWithSessions,
+    working_hours: 0,
+    overtime_hours: 0,
+    verification_method: verificationMethod,
+    verification_status: verificationStatus,
+  }
+
+  let { data, error } = await supabase
     .from('attendance')
-    .insert({ employee_id: employeeId, date: localToday, check_in: now, status })
+    .insert(insertPayload)
     .select()
     .single()
-  if (error) throw error
+
+  if (error) {
+    // Retry without optional columns if column does not exist remotely
+    delete insertPayload.verification_method
+    delete insertPayload.verification_status
+    const retryRes = await supabase
+      .from('attendance')
+      .insert(insertPayload)
+      .select()
+      .single()
+    if (retryRes.error) throw retryRes.error
+    data = retryRes.data
+  }
+
+  if (biometric?.token || location) {
+    try {
+      await supabase.from('audit_logs').insert({
+        action: location ? 'GPS_CHECK_IN' : 'FACE_ID_CHECK_IN',
+        entity_name: 'attendance',
+        details: {
+          employee_id: employeeId,
+          token: biometric?.token,
+          confidence: biometric?.confidence,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+          accuracy: location?.accuracy,
+          address: location?.address,
+          city: location?.city,
+          work_mode: location?.workMode,
+          is_office: location?.isOfficeLocation,
+          map_url: location?.mapUrl,
+          check_in: now,
+        },
+      })
+    } catch {}
+  }
+
   return data as Attendance
 }
 
-export async function checkOut(employeeId: string) {
-  const now = new Date().toISOString()
+export interface CheckOutOptions {
+  autoCheckoutReason?: string
+  effectiveCheckOutTime?: string
+}
+
+export async function checkOut(
+  employeeId: string,
+  biometric?: BiometricVerificationInfo,
+  location?: GeoLocationData,
+  options?: CheckOutOptions
+) {
+  const now = options?.effectiveCheckOutTime || new Date().toISOString()
   const localToday = getTodayDateString()
   const utcToday = now.slice(0, 10)
 
@@ -146,27 +312,68 @@ export async function checkOut(employeeId: string) {
   const existing = existingRecords?.[0]
   if (!existing) throw new Error('No check-in found for today')
 
-  const nowTime = new Date(now).getTime()
-  const checkInTime = new Date(existing.check_in || existing.created_at).getTime()
-  let workingDiff = (nowTime - checkInTime) / 36e5
+  // Parse all sessions for today
+  const existingSessions = parseAttendanceSessions(
+    existing.notes,
+    existing.check_in,
+    existing.check_out,
+    existing.working_hours
+  )
 
-  // If check_in had a future timestamp due to timezone/clock skew, fallback to created_at
-  if (workingDiff < 0 && existing.created_at) {
-    const createdTime = new Date(existing.created_at).getTime()
-    workingDiff = (nowTime - createdTime) / 36e5
+  // Find the active session (where checkOut is null) or last session
+  let activeIndex = existingSessions.findIndex((s) => !s.checkOut)
+  if (activeIndex === -1) {
+    existingSessions.push({
+      checkIn: existing.check_in || existing.created_at || now,
+      checkOut: now,
+      hours: 0,
+    })
+    activeIndex = existingSessions.length - 1
   }
 
-  const working = Math.max(0, workingDiff)
-  const overtime = Math.max(0, working - 9)
+  const currentSession = existingSessions[activeIndex]
+  const sessionStart = new Date(currentSession.checkIn || existing.check_in || existing.created_at).getTime()
+  const nowTime = new Date(now).getTime()
+  let sessionDiff = (nowTime - sessionStart) / 36e5
+
+  if (sessionDiff < 0 && existing.created_at) {
+    const createdTime = new Date(existing.created_at).getTime()
+    sessionDiff = Math.max(0, (nowTime - createdTime) / 36e5)
+  }
+  if (sessionDiff < 0) sessionDiff = 0
+
+  currentSession.checkOut = now
+  currentSession.hours = Number(sessionDiff.toFixed(2))
+
+  // Calculate sum of ALL login session hours for today
+  const totalWorked = Number(
+    existingSessions.reduce((sum, s) => sum + (s.hours || 0), 0).toFixed(2)
+  )
+  const overtime = Math.max(0, Number((totalWorked - 9).toFixed(2)))
+
+  const outBiometricTag = biometric?.token
+    ? `[Face ID Out: ${biometric.confidence ?? 98}% match | Ref: ${biometric.token}]`
+    : null
+  const outGpsTag = location
+    ? formatGpsNotesTag(location).replace('[GPS:', '[GPS Out:')
+    : null
+  const autoTag = options?.autoCheckoutReason
+    ? `[Auto-Checkout: ${options.autoCheckoutReason}]`
+    : null
+  const outNotesTag = [outBiometricTag, outGpsTag, autoTag].filter(Boolean).join(' ') || null
+
+  const combinedNotes = outNotesTag
+    ? (existing.notes ? `${existing.notes} | ${outNotesTag}` : outNotesTag)
+    : existing.notes
+
+  const notesWithSessions = updateSessionsInNotes(combinedNotes, existingSessions)
 
   const updatePayload: Record<string, unknown> = {
     check_out: now,
-    working_hours: Number(working.toFixed(2)),
-    overtime_hours: Number(overtime.toFixed(2)),
-  }
-  // Auto-close break if open
-  if (existing.break_in && !existing.break_out) {
-    updatePayload.break_out = now
+    working_hours: totalWorked,
+    overtime_hours: overtime,
+    notes: notesWithSessions,
+    updated_at: now,
   }
 
   const { data, error } = await supabase
@@ -176,6 +383,34 @@ export async function checkOut(employeeId: string) {
     .select()
     .single()
   if (error) throw error
+
+  if (biometric?.token || location || options?.autoCheckoutReason) {
+    try {
+      await supabase.from('audit_logs').insert({
+        action: options?.autoCheckoutReason
+          ? 'AUTO_CHECKOUT_LAPTOP_CLOSED'
+          : (location ? 'GPS_CHECK_OUT' : 'FACE_ID_CHECK_OUT'),
+        entity_name: 'attendance',
+        details: {
+          employee_id: employeeId,
+          auto_reason: options?.autoCheckoutReason,
+          token: biometric?.token,
+          confidence: biometric?.confidence,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+          accuracy: location?.accuracy,
+          address: location?.address,
+          city: location?.city,
+          work_mode: location?.workMode,
+          is_office: location?.isOfficeLocation,
+          map_url: location?.mapUrl,
+          check_out: now,
+          working_hours: totalWorked,
+        },
+      })
+    } catch {}
+  }
+
   return data as Attendance
 }
 

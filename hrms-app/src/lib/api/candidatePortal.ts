@@ -9,6 +9,11 @@
 import { supabase } from '@/lib/supabase'
 import { submitExamAttempt } from '@/lib/api/examService'
 import type { Candidate, Interview, InterviewSlot, JobOpening, Offer } from '@/lib/database.types'
+import {
+  sendInterviewScheduledAlertEmail,
+  sendOfferLetterReleasedAlertEmail,
+  sendCandidateStatusAlertEmail,
+} from '@/lib/api/email'
 
 // ---------------------------------------------------------------------------
 // Portal types — DB column names mapped to the expected component props.
@@ -144,6 +149,102 @@ export interface PortalData {
   interviews: PortalInterview[]
   slots: PortalInterviewSlot[]
   offer: PortalOffer | null
+}
+
+// ---------------------------------------------------------------------------
+// Pre-Offer Softcopy Verification Documents
+// ---------------------------------------------------------------------------
+
+export type VerificationDocCategory =
+  | 'id_proof'
+  | 'pan_card'
+  | 'education'
+  | 'experience'
+  | 'payslips'
+  | 'photo'
+  | 'other'
+
+export interface CandidateVerificationDoc {
+  id: string
+  docType: VerificationDocCategory
+  title: string
+  description: string
+  required: boolean
+  fileName?: string
+  fileSize?: string
+  fileType?: string
+  fileData?: string // Base64 data URL or document URL
+  uploadedAt?: string
+  status: 'pending' | 'verified' | 'rejected'
+  rejectionReason?: string
+  adminNotes?: string
+  verifiedAt?: string
+  verifiedBy?: string
+}
+
+export interface CandidateDocSubmission {
+  candidateId: string
+  submittedAt?: string
+  status: 'draft' | 'submitted' | 'under_review' | 'verified' | 'rejected'
+  offerReleased?: boolean
+  offerReleasedAt?: string
+  offerReleasedBy?: string
+  documents: CandidateVerificationDoc[]
+  overallNotes?: string
+  termsAgreedAt?: string
+}
+
+export const DEFAULT_REQUIRED_DOCUMENTS: Array<{
+  docType: VerificationDocCategory
+  title: string
+  description: string
+  required: boolean
+}> = [
+  {
+    docType: 'id_proof',
+    title: 'Government Photo ID Proof',
+    description: 'Aadhaar Card, Passport, Voter ID, or Driving License (Softcopy/PDF).',
+    required: true,
+  },
+  {
+    docType: 'pan_card',
+    title: 'PAN Card Copy',
+    description: 'Permanent Account Number (PAN) Card softcopy for statutory verification and payroll registration.',
+    required: true,
+  },
+  {
+    docType: 'education',
+    title: 'Highest Educational Degree / Certificate',
+    description: 'Graduation / Post-Graduation Degree Certificate or Consolidated Marksheets.',
+    required: true,
+  },
+  {
+    docType: 'experience',
+    title: 'Previous Experience / Relieving Letter',
+    description: 'Relieving letter or Service certificate from previous employer (or College Bonafide/ID for Freshers).',
+    required: true,
+  },
+  {
+    docType: 'payslips',
+    title: 'Recent Payslips / Bank Statement',
+    description: 'Last 3 consecutive months salary slips or bank statements showing salary credits (Optional for Freshers).',
+    required: false,
+  },
+  {
+    docType: 'photo',
+    title: 'Passport Size Photograph',
+    description: 'Recent clear passport size color photograph with plain background (JPG/PNG).',
+    required: true,
+  },
+]
+
+export function createDefaultCandidateDocuments(isExperienced: boolean = false): CandidateVerificationDoc[] {
+  return DEFAULT_REQUIRED_DOCUMENTS.map((doc, idx) => ({
+    ...doc,
+    id: `doc-${doc.docType}-${idx + 1}`,
+    required: doc.docType === 'payslips' ? isExperienced : doc.required,
+    status: 'pending',
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -587,6 +688,31 @@ export async function bookInterviewSlot(input: {
     .update({ ...candPatch, updated_at: now })
     .eq('id', input.candidateId)
   if (candErr) throw candErr
+
+  // Forward interview scheduled alert email to candidate
+  try {
+    const { data: cand } = await supabase
+      .from('candidates')
+      .select('name, email, reference_id, date_of_birth, job_opening:job_openings(title)')
+      .eq('id', input.candidateId)
+      .maybeSingle()
+
+    if (cand?.email) {
+      sendInterviewScheduledAlertEmail({
+        candidateName: cand.name,
+        candidateEmail: cand.email,
+        referenceId: cand.reference_id || input.candidateId.slice(0, 8).toUpperCase(),
+        dateOfBirth: cand.date_of_birth,
+        jobTitle: (cand.job_opening as any)?.title || 'Open Position',
+        roundName: roundLabel(input.round),
+        scheduledAt: input.scheduledAt,
+        mode: 'online',
+        meetingLink: input.meetingLink || undefined,
+      }).catch((e) => console.warn('Candidate slot booking email notice:', e))
+    }
+  } catch (slotMailErr) {
+    console.warn('Slot booking confirmation email notice:', slotMailErr)
+  }
 }
 
 export async function cancelInterviewSlot(input: {
@@ -747,11 +873,17 @@ export async function attendInterview(input: { interviewId: string }) {
 }
 
 export async function startExam(input: { candidateId: string }) {
-  const { error } = await supabase
-    .from('candidates')
-    .update({ exam_started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', input.candidateId)
-  if (error) throw error
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.candidateId)
+    if (isUuid) {
+      await supabase
+        .from('candidates')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', input.candidateId)
+    }
+  } catch (err) {
+    console.warn('startExam notice:', err)
+  }
 }
 
 export async function submitExam(input: { candidateId: string; jobOpeningId: string | null }) {
@@ -805,7 +937,7 @@ export async function respondToOffer(input: {
 }
 
 export async function disqualifyCandidate(input: { candidateId: string; reason: string }) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('candidates')
     .update({
       status: 'rejected',
@@ -814,7 +946,23 @@ export async function disqualifyCandidate(input: { candidateId: string; reason: 
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.candidateId)
+    .select('*, job_opening:job_openings(title)')
+    .single()
   if (error) throw error
+
+  try {
+    if (data?.email) {
+      sendCandidateStatusAlertEmail({
+        candidateName: data.name || 'Candidate',
+        candidateEmail: data.email,
+        jobTitle: (data.job_opening as any)?.title || 'Open Position',
+        referenceId: data.reference_id || input.candidateId.slice(0, 8).toUpperCase(),
+        dateOfBirth: data.date_of_birth,
+        status: 'Rejected',
+        reason: input.reason,
+      }).catch((e) => console.warn('Disqualification email alert notice:', e))
+    }
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -843,3 +991,399 @@ export function buildFallbackOffer(candidate: PortalCandidate, job: PortalJobOpe
     created_at: now,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Candidate Document Verification API Layer
+// ---------------------------------------------------------------------------
+
+const CANDIDATE_DOCS_KEY_PREFIX = 'hrms_candidate_docs_'
+
+export function getCandidateVerificationDocs(
+  candidateId: string,
+  email?: string,
+  isExperienced: boolean = false,
+  candidateNotes?: string | null
+): CandidateDocSubmission {
+  if (!candidateId) {
+    return {
+      candidateId: '',
+      status: 'draft',
+      offerReleased: false,
+      documents: createDefaultCandidateDocuments(isExperienced),
+    }
+  }
+
+  const hasOfferReleasedNote = !!(candidateNotes && candidateNotes.includes('[OFFER_RELEASED: true]'))
+
+  // 1. Try localStorage by candidateId
+  try {
+    const rawById = localStorage.getItem(`${CANDIDATE_DOCS_KEY_PREFIX}${candidateId}`)
+    if (rawById) {
+      const parsed = JSON.parse(rawById)
+      if (parsed && Array.isArray(parsed.documents)) {
+        if (hasOfferReleasedNote) parsed.offerReleased = true
+        return parsed
+      }
+    }
+  } catch (e) {
+    console.warn('localStorage read error for candidateId:', e)
+  }
+
+  // 2. Try localStorage by email
+  if (email) {
+    try {
+      const rawByEmail = localStorage.getItem(`${CANDIDATE_DOCS_KEY_PREFIX}${email.toLowerCase()}`)
+      if (rawByEmail) {
+        const parsed = JSON.parse(rawByEmail)
+        if (parsed && Array.isArray(parsed.documents)) {
+          if (hasOfferReleasedNote) parsed.offerReleased = true
+          return parsed
+        }
+      }
+    } catch (e) {
+      console.warn('localStorage read error for email:', e)
+    }
+  }
+
+  // 3. Try parsing from candidate notes if provided
+  if (candidateNotes && candidateNotes.includes('[VERIFICATION_DOCS:')) {
+    try {
+      const match = candidateNotes.match(/\[VERIFICATION_DOCS:\s*(\{.*?\})\]/s)
+      if (match && match[1]) {
+        const parsedMeta = JSON.parse(match[1])
+        if (parsedMeta && Array.isArray(parsedMeta.documents)) {
+          return {
+            candidateId,
+            submittedAt: parsedMeta.submittedAt,
+            status: parsedMeta.status || 'submitted',
+            offerReleased: parsedMeta.offerReleased || hasOfferReleasedNote,
+            offerReleasedAt: parsedMeta.offerReleasedAt,
+            offerReleasedBy: parsedMeta.offerReleasedBy,
+            documents: parsedMeta.documents,
+            overallNotes: parsedMeta.overallNotes,
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('candidate notes docs parse error:', e)
+    }
+  }
+
+  // 4. Default fresh submission template
+  return {
+    candidateId,
+    status: 'draft',
+    offerReleased: hasOfferReleasedNote,
+    documents: createDefaultCandidateDocuments(isExperienced),
+  }
+}
+
+export async function saveCandidateVerificationDocs(
+  candidateId: string,
+  submission: CandidateDocSubmission,
+  email?: string
+): Promise<void> {
+  const payload = {
+    ...submission,
+    candidateId,
+    submittedAt: submission.submittedAt || new Date().toISOString(),
+  }
+
+  // Persist locally
+  try {
+    localStorage.setItem(`${CANDIDATE_DOCS_KEY_PREFIX}${candidateId}`, JSON.stringify(payload))
+    if (email) {
+      localStorage.setItem(`${CANDIDATE_DOCS_KEY_PREFIX}${email.toLowerCase()}`, JSON.stringify(payload))
+    }
+  } catch (e) {
+    console.warn('localStorage write warning:', e)
+  }
+
+  // Dispatch update event for open pages/tabs
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('candidate-documents-updated', {
+        detail: { candidateId, email, submission: payload },
+      })
+    )
+  }
+
+  // Database-first sync: update candidates table notes with document summary
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+    if (isUuid) {
+      const { data: cand } = await supabase
+        .from('candidates')
+        .select('notes')
+        .eq('id', candidateId)
+        .maybeSingle()
+
+      const cleanNotes = (cand?.notes || '')
+        .replace(/\[VERIFICATION_DOCS:\s*\{.*?\}\]/gs, '')
+        .replace(/\[OFFER_RELEASED:\s*(true|false)\]/gi, '')
+        .trim()
+      const metaTag = `[VERIFICATION_DOCS: ${JSON.stringify({
+        status: payload.status,
+        submittedAt: payload.submittedAt,
+        offerReleased: payload.offerReleased ?? false,
+        offerReleasedAt: payload.offerReleasedAt,
+        offerReleasedBy: payload.offerReleasedBy,
+        docCount: payload.documents.filter((d) => !!d.fileName).length,
+        documents: payload.documents.map((d) => ({
+          id: d.id,
+          docType: d.docType,
+          title: d.title,
+          fileName: d.fileName,
+          fileSize: d.fileSize,
+          fileType: d.fileType,
+          uploadedAt: d.uploadedAt,
+          status: d.status,
+          adminNotes: d.adminNotes,
+        })),
+      })}]`
+
+      const offerReleaseTag = payload.offerReleased ? '\n[OFFER_RELEASED: true]' : ''
+      const updatedNotes = cleanNotes ? `${cleanNotes}\n${metaTag}${offerReleaseTag}` : `${metaTag}${offerReleaseTag}`
+      await supabase
+        .from('candidates')
+        .update({ notes: updatedNotes, updated_at: new Date().toISOString() })
+        .eq('id', candidateId)
+
+      await supabase.from('audit_logs').insert({
+        action: 'CANDIDATE_DOCS_SUBMITTED',
+        entity_name: 'candidates',
+        details: {
+          candidate_id: candidateId,
+          status: payload.status,
+          offer_released: payload.offerReleased ?? false,
+          uploaded_count: payload.documents.filter((d) => !!d.fileName).length,
+        },
+      })
+    }
+  } catch (err) {
+    console.warn('Supabase candidates notes update notice:', err)
+  }
+}
+
+export async function updateCandidateDocVerification(
+  candidateId: string,
+  docId: string,
+  status: 'verified' | 'rejected',
+  notes?: string,
+  verifiedBy?: string,
+  email?: string
+): Promise<CandidateDocSubmission> {
+  const current = getCandidateVerificationDocs(candidateId, email)
+  const now = new Date().toISOString()
+
+  const updatedDocs = current.documents.map((d) => {
+    if (d.id === docId) {
+      return {
+        ...d,
+        status,
+        adminNotes: notes || d.adminNotes,
+        verifiedAt: status === 'verified' ? now : undefined,
+        verifiedBy: verifiedBy || 'HR Admin',
+      }
+    }
+    return d
+  })
+
+  const allRequiredDone = updatedDocs
+    .filter((d) => d.required)
+    .every((d) => d.status === 'verified')
+
+  const anyRejected = updatedDocs.some((d) => d.status === 'rejected')
+
+  const overallStatus = anyRejected
+    ? 'rejected'
+    : allRequiredDone
+      ? 'verified'
+      : 'under_review'
+
+  const updatedSubmission: CandidateDocSubmission = {
+    ...current,
+    status: overallStatus,
+    documents: updatedDocs,
+  }
+
+  await saveCandidateVerificationDocs(candidateId, updatedSubmission, email)
+  return updatedSubmission
+}
+
+export async function verifyAllCandidateDocuments(
+  candidateId: string,
+  verifiedBy: string = 'HR Admin',
+  email?: string
+): Promise<CandidateDocSubmission> {
+  const current = getCandidateVerificationDocs(candidateId, email)
+  const now = new Date().toISOString()
+
+  const updatedDocs = current.documents.map((d) => {
+    if (d.fileName) {
+      return {
+        ...d,
+        status: 'verified' as const,
+        verifiedAt: now,
+        verifiedBy,
+        adminNotes: 'Verified and approved by HR.',
+      }
+    }
+    return d
+  })
+
+  const updatedSubmission: CandidateDocSubmission = {
+    ...current,
+    status: 'verified',
+    documents: updatedDocs,
+  }
+
+  await saveCandidateVerificationDocs(candidateId, updatedSubmission, email)
+  return updatedSubmission
+}
+
+export async function releaseOfferLetterForCandidate(
+  candidateId: string,
+  releasedBy: string = 'HR Admin',
+  email?: string
+): Promise<CandidateDocSubmission> {
+  const current = getCandidateVerificationDocs(candidateId, email)
+  const now = new Date().toISOString()
+
+  const updatedDocs = current.documents.map((d) => {
+    if (d.fileName && d.status !== 'verified') {
+      return {
+        ...d,
+        status: 'verified' as const,
+        verifiedAt: now,
+        verifiedBy: releasedBy,
+        adminNotes: d.adminNotes || 'Softcopy verified by HR for offer release.',
+      }
+    }
+    return d
+  })
+
+  const updatedSubmission: CandidateDocSubmission = {
+    ...current,
+    status: 'verified',
+    offerReleased: true,
+    offerReleasedAt: now,
+    offerReleasedBy: releasedBy,
+    documents: updatedDocs,
+  }
+
+  await saveCandidateVerificationDocs(candidateId, updatedSubmission, email)
+
+  // DB Sync: update candidates and offers tables
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+    if (isUuid) {
+      // Advance candidate status to 'offer sent' if not already hired
+      await supabase
+        .from('candidates')
+        .update({
+          status: 'offer sent',
+          updated_at: now,
+        })
+        .eq('id', candidateId)
+
+      // Mark offers status as 'issued'
+      await supabase
+        .from('offers')
+        .update({
+          status: 'issued',
+          updated_at: now,
+        })
+        .eq('candidate_id', candidateId)
+
+      await supabase.from('audit_logs').insert({
+        action: 'OFFER_LETTER_RELEASED_BY_HR',
+        entity_name: 'candidates',
+        details: {
+          candidate_id: candidateId,
+          released_by: releasedBy,
+          released_at: now,
+        },
+      })
+    }
+
+    // Forward offer letter released alert email to candidate
+    let candRow: any = null
+    let offerRow: any = null
+    if (isUuid) {
+      const { data: cData } = await supabase
+        .from('candidates')
+        .select('name, email, reference_id, job_opening:job_openings(title)')
+        .eq('id', candidateId)
+        .maybeSingle()
+      candRow = cData
+
+      const { data: oData } = await supabase
+        .from('offers')
+        .select('salary, joining_date, bond_terms')
+        .eq('candidate_id', candidateId)
+        .maybeSingle()
+      offerRow = oData
+    }
+
+    const candEmail = email || candRow?.email
+    if (candEmail) {
+      const candName = candRow?.name || 'Candidate'
+      const jobTitle = (candRow?.job_opening as any)?.title || 'Open Position'
+      const refId = candRow?.reference_id || candidateId.slice(0, 8).toUpperCase()
+
+      sendOfferLetterReleasedAlertEmail({
+        candidateName: candName,
+        candidateEmail: candEmail,
+        referenceId: refId,
+        jobTitle,
+        salaryOffered: offerRow?.salary || undefined,
+        joiningDate: offerRow?.joining_date || undefined,
+        releasedBy,
+      }).catch((e) => console.warn('Offer letter released email notice:', e))
+    }
+  } catch (err) {
+    console.warn('Supabase offer release sync notice:', err)
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('candidate-documents-updated', {
+        detail: { candidateId, email, submission: updatedSubmission },
+      })
+    )
+    window.dispatchEvent(
+      new CustomEvent('candidate-offer-released', {
+        detail: { candidateId, email, submission: updatedSubmission },
+      })
+    )
+  }
+
+  return updatedSubmission
+}
+
+export async function revokeOfferLetterForCandidate(
+  candidateId: string,
+  _revokedBy: string = 'HR Admin',
+  email?: string
+): Promise<CandidateDocSubmission> {
+  const current = getCandidateVerificationDocs(candidateId, email)
+  const updatedSubmission: CandidateDocSubmission = {
+    ...current,
+    offerReleased: false,
+    offerReleasedAt: undefined,
+    offerReleasedBy: undefined,
+  }
+
+  await saveCandidateVerificationDocs(candidateId, updatedSubmission, email)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('candidate-documents-updated', {
+        detail: { candidateId, email, submission: updatedSubmission },
+      })
+    )
+  }
+
+  return updatedSubmission
+}

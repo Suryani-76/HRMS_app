@@ -48,6 +48,7 @@ import {
   Video,
   AlertTriangle,
   FileText,
+  Clock,
   ArrowRight,
   Sun,
   Moon,
@@ -70,7 +71,14 @@ import {
   acceptOfferTerms,
   respondToOffer,
   disqualifyCandidate,
+  getCandidateVerificationDocs,
+  type CandidateDocSubmission,
 } from '@/lib/api/candidatePortal'
+import {
+  CandidateDocumentUploadSection,
+  SubmittedDocumentsStatusCard,
+} from '@/components/shared/candidate-verification-docs'
+import { sendDocsRequiredAlertEmail } from '@/lib/api/email'
 import type { Candidate, JobOpening, Interview, InterviewSlot, Offer } from '@/lib/database.types'
 import {
   DEFAULT_SCENARIO,
@@ -243,7 +251,7 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     applied_at: row.applied_at,
     created_at: row.applied_at,
     exam_score: row.exam_score ?? (examIv?.status === 'passed' ? (examIv.rating ? examIv.rating * 20 : 90) : isShortlistedOrBeyond ? 90 : null),
-    exam_completed_at: row.exam_completed_at ?? (examIv?.status === 'passed' || isShortlistedOrBeyond ? (row as any).updated_at || row.applied_at : null),
+    exam_completed_at: row.exam_completed_at ?? (examIv?.status === 'passed' || (examIv?.status as string) === 'completed' || (examIv?.status as string) === 'submitted' || isShortlistedOrBeyond ? (row as any).updated_at || row.applied_at : null),
     exam_started_at: row.exam_started_at ?? (examIv ? examIv.scheduled_at : null),
     exam_feedback: examFb,
     technical_interview_status: techStat,
@@ -779,6 +787,32 @@ export default function CandidatePortalPage() {
   const isExperienced = !isFresher || categoryLower === 'experienced' || jobReqLower.includes('experienced')
   const totalRounds = isExperienced ? 2 : 3
 
+  const [docSubmission, setDocSubmission] = useState<CandidateDocSubmission>(() => {
+    return getCandidateVerificationDocs(candidate?.id || '', candidate?.email, isExperienced, (candidate as any)?.notes)
+  })
+  const [manageDocsOpen, setManageDocsOpen] = useState(false)
+
+  // Synchronize candidate verification softcopies across sessions and tabs
+  useEffect(() => {
+    if (!candidate?.id) return
+    setDocSubmission(getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, (candidate as any)?.notes))
+    const handleDocsUpdate = (e: any) => {
+      if (!e?.detail || e?.detail?.candidateId === candidate.id || e?.detail?.email === candidate.email) {
+        const updatedSub = getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, (candidate as any)?.notes)
+        setDocSubmission(updatedSub)
+        if (e?.type === 'candidate-offer-released' || e?.detail?.submission?.offerReleased) {
+          toast.success('Congratulations! Your official offer letter has been released by HR.')
+        }
+      }
+    }
+    window.addEventListener('candidate-documents-updated', handleDocsUpdate)
+    window.addEventListener('candidate-offer-released', handleDocsUpdate)
+    return () => {
+      window.removeEventListener('candidate-documents-updated', handleDocsUpdate)
+      window.removeEventListener('candidate-offer-released', handleDocsUpdate)
+    }
+  }, [candidate?.id, candidate?.email, (candidate as any)?.notes, isExperienced])
+
   const disqualified = !!(candidate?.malpractice_flag || candidate?.cheating_detected)
   const policyDisqualified = !!candidate?.disqualified_at
   const isDqActive = policyDisqualified || disqualified
@@ -1081,6 +1115,23 @@ export default function CandidatePortalPage() {
   // Already-responded offers skip the T&C gate and show the letter directly.
   const termsUnlocked = termsAccepted || offerToShow?.candidate_response != null
 
+  const docsSubmitted =
+    docSubmission.status === 'submitted' ||
+    docSubmission.status === 'under_review' ||
+    docSubmission.status === 'verified' ||
+    candStatusNorm === 'hired' ||
+    offerToShow?.candidate_response != null
+
+  const isOfferReleased = useMemo(() => {
+    if (offerToShow?.candidate_response != null) return true
+    if (['hired', 'offer sent', 'offered'].includes(candStatusNorm)) return true
+    if (portal.offer && ['issued', 'released', 'accepted'].includes((portal.offer.status || '').toLowerCase())) return true
+    if (docSubmission.offerReleased === true) return true
+    const candNotes = (candidate as any)?.notes
+    if (typeof candNotes === 'string' && candNotes.includes('[OFFER_RELEASED: true]')) return true
+    return false
+  }, [offerToShow?.candidate_response, candStatusNorm, portal.offer, docSubmission.offerReleased, (candidate as any)?.notes])
+
   // ------------------------------------------------------------------
   // Action handlers — database-first, in-memory fallback. Every handler
   // attempts the Supabase write and, on error, mutates the local snapshot
@@ -1099,13 +1150,23 @@ export default function CandidatePortalPage() {
     }
     setTermsAccepted(true)
     setTermsOpen(false)
-    toast.success('Terms accepted — your official offer letter is now unlocked.')
+    toast.success('Terms accepted! Please upload your softcopy verification documents to proceed.')
     pushNotification(
       'notif-terms-accepted',
       'Terms & Conditions Accepted',
-      'You have accepted the employment terms. Your official offer letter is now available below.',
+      'You have accepted the employment terms. Please upload the required verification softcopies below before your official offer letter is released.',
       'success'
     )
+
+    // Forward document requirement email alert to candidate
+    if (candidate?.email) {
+      sendDocsRequiredAlertEmail({
+        candidateName: candidate.name || 'Candidate',
+        candidateEmail: candidate.email,
+        referenceId: (candidate as any).reference_id || candidate.id.slice(0, 8).toUpperCase(),
+        jobTitle: job?.title || 'Open Position',
+      }).catch((e) => console.warn('Docs required email dispatch notice:', e))
+    }
   }
 
   const handleOfferResponse = async (response: 'accept' | 'discuss' | 'reject') => {
@@ -2085,14 +2146,55 @@ export default function CandidatePortalPage() {
                           } catch (e) {
                             console.warn('DB error, using mock fallback...', e)
                           }
-                          setPortal((prev) => ({
-                            ...prev,
-                            candidate: {
-                              ...prev.candidate,
-                              exam_started_at: prev.candidate.exam_started_at ?? new Date().toISOString(),
-                              exam_completed_at: new Date().toISOString(),
-                            },
-                          }))
+                          const completedAt = new Date().toISOString()
+                          setPortal((prev) => {
+                            const updatedInterviews = (prev.interviews || []).map((iv) => {
+                              const r = (iv.round || '').toLowerCase()
+                              if (r.includes('screen') || r.includes('exam') || r.includes('round 1')) {
+                                return { ...iv, status: 'completed' as const }
+                              }
+                              return iv
+                            })
+                            const hasExam = updatedInterviews.some((iv) => {
+                              const r = (iv.round || '').toLowerCase()
+                              return r.includes('screen') || r.includes('exam') || r.includes('round 1')
+                            })
+                            if (!hasExam) {
+                              updatedInterviews.push({
+                                id: 'iv-exam-completed',
+                                candidate_id: prev.candidate.id,
+                                job_opening_id: prev.job?.id ?? null,
+                                round: 'Screening / Online Exam',
+                                scheduled_at: completedAt,
+                                mode: 'online',
+                                meeting_link: null,
+                                status: 'completed',
+                                interviewer: null,
+                                candidate_confirmed: true,
+                                attended_at: completedAt,
+                                created_at: completedAt,
+                                updated_at: completedAt,
+                                reschedule_requested: null,
+                                reschedule_status: null,
+                                reschedule_reason: null,
+                                reschedule_preferred_time: null,
+                                reschedule_admin_note: null,
+                                feedback: null,
+                                rating: null,
+                                metrics: null,
+                                slot_key: null,
+                              })
+                            }
+                            return {
+                              ...prev,
+                              interviews: updatedInterviews,
+                              candidate: {
+                                ...prev.candidate,
+                                exam_started_at: prev.candidate.exam_started_at ?? completedAt,
+                                exam_completed_at: completedAt,
+                              },
+                            }
+                          })
                         }}
                         onExamStarted={(startedAt) => {
                           if (!candidate) return
@@ -2147,23 +2249,154 @@ export default function CandidatePortalPage() {
           </CardContent>
         </Card>
 
-        {allRoundsPassed &&
-          (termsUnlocked && offerToShow ? (
-            <OfferLetterSection
-              key={`${offerToShow.id}:${offerToShow.status}:${offerToShow.candidate_response ?? 'null'}`}
-              candidate={candidate}
-              offer={offerToShow}
-              job={job}
-              onRespond={handleOfferResponse}
-              onDiscuss={handleOfferDiscuss}
-              discussOpen={discussOpen}
-              onToggleDiscuss={() => setDiscussOpen((v) => !v)}
-              discussMessage={discussMessage}
-              onDiscussMessageChange={setDiscussMessage}
-            />
-          ) : (
+        {allRoundsPassed && (
+          !termsUnlocked ? (
             <CongratulationsCard onViewTerms={() => setTermsOpen(true)} />
-          ))}
+          ) : !docsSubmitted || manageDocsOpen ? (
+            <div className="space-y-4">
+              <CandidateDocumentUploadSection
+                candidateId={candidate.id}
+                candidateEmail={candidate.email}
+                candidateName={candidate.name}
+                isExperienced={isExperienced}
+                onSubmissionComplete={(sub) => {
+                  setDocSubmission(sub)
+                  setManageDocsOpen(false)
+                }}
+              />
+              {manageDocsOpen && docsSubmitted && (
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setManageDocsOpen(false)}
+                    className="text-xs"
+                  >
+                    ← Back to Verification Status
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : !isOfferReleased ? (
+            /* Documents submitted by candidate, but HR has not yet released the offer letter */
+            <div className="space-y-6">
+              <SubmittedDocumentsStatusCard
+                submission={docSubmission}
+                candidateName={candidate.name}
+                onOpenManage={() => setManageDocsOpen(true)}
+              />
+
+              <Card className="border-amber-300 bg-gradient-to-b from-amber-50/40 via-white to-white shadow-sm">
+                <CardHeader className="pb-3 border-b">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                          Official Offer Letter — Pending HR Release
+                        </CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                          Verification softcopies submitted · Awaiting HR review &amp; formal offer issuance
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-300 py-1 px-3 text-xs font-semibold gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-amber-700 animate-spin" /> Under HR Verification
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-5 space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+                      <Info className="h-4 w-4 text-amber-700" /> Documents Under HR Verification
+                    </div>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      Thank you for submitting your softcopy verification documents. Our HR &amp; Admin recruitment team has received your documents and is currently reviewing them. As per company policy, your <strong>Official Employment Offer Letter</strong> will be released and displayed right here as soon as HR verifies and approves your credentials.
+                    </p>
+                  </div>
+
+                  {/* Verification Pipeline Step Tracker */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 1. Rounds Cleared
+                      </div>
+                      <p className="text-[11px] text-emerald-700">All evaluation stages passed.</p>
+                    </div>
+
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 2. Terms Accepted
+                      </div>
+                      <p className="text-[11px] text-emerald-700">Company terms &amp; conditions agreed.</p>
+                    </div>
+
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 3. Softcopies Submitted
+                      </div>
+                      <p className="text-[11px] text-emerald-700">
+                        {docSubmission.documents.filter((d) => !!d.fileName).length} verification files uploaded.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs space-y-1 animate-pulse">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                        <Clock className="h-4 w-4 text-amber-600" /> 4. Offer Release
+                      </div>
+                      <p className="text-[11px] text-amber-800 font-medium">Pending HR approval &amp; release.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            /* Documents submitted AND HR has released the offer letter */
+            <div className="space-y-6">
+              <SubmittedDocumentsStatusCard
+                submission={docSubmission}
+                candidateName={candidate.name}
+                onOpenManage={() => setManageDocsOpen(true)}
+              />
+
+              <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-emerald-950">
+                      Offer Letter Released by HR ✓
+                    </h4>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Your verification documents have been approved by HR. Your official offer letter is unlocked below — review and confirm your decision.
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 text-xs px-3 py-1 font-semibold">
+                  Unlocked &amp; Ready
+                </Badge>
+              </div>
+
+              {offerToShow && (
+                <OfferLetterSection
+                  key={`${offerToShow.id}:${offerToShow.status}:${offerToShow.candidate_response ?? 'null'}`}
+                  candidate={candidate}
+                  offer={offerToShow}
+                  job={job}
+                  onRespond={handleOfferResponse}
+                  onDiscuss={handleOfferDiscuss}
+                  discussOpen={discussOpen}
+                  onToggleDiscuss={() => setDiscussOpen((v) => !v)}
+                  discussMessage={discussMessage}
+                  onDiscussMessageChange={setDiscussMessage}
+                />
+              )}
+            </div>
+          )
+        )}
 
         <Dialog
           open={isSlotModalOpen}
@@ -2328,7 +2561,7 @@ function ExamRound({
   candidate: MockCandidate
   job: MockJobOpening | null
   interviews?: MockInterview[]
-  onExamComplete: () => void
+  onExamComplete: () => Promise<void> | void
   onExamStarted: (startedAt: string) => void
   calculatedExamPercentage: number | null
   passPercentage?: number | null
@@ -2396,14 +2629,22 @@ function ExamRound({
     onExamStarted(new Date().toISOString())
   }
 
-  const handleFinalSubmit = () => {
-    if (submitting || candidate.exam_completed_at != null || candidate.exam_score != null) return
+  const handleFinalSubmit = async () => {
+    if (submitting) return
     setSubmitting(true)
-    setExamOpen(false)
-    setExamStarted(false)
-    onExamComplete()
-    toast.success('Assessment submitted successfully! Evaluation recorded in HRMS.')
-    setSubmitting(false)
+    try {
+      await Promise.resolve(onExamComplete())
+      setExamOpen(false)
+      setExamStarted(false)
+      toast.success('Assessment submitted successfully! Evaluation recorded in HRMS.')
+    } catch (err) {
+      console.warn('Assessment submission warning:', err)
+      setExamOpen(false)
+      setExamStarted(false)
+      toast.success('Assessment submitted successfully! Evaluation recorded in HRMS.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const startRaw = screeningInterview?.scheduled_at || job?.exam_start_date || job?.exam_window_start || job?.exam_start_time

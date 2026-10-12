@@ -30,4 +30,9 @@ export const queryKeys = {
   auditLogs: ['auditLogs'] as const,
   meetingHallBookings: ['meetingHallBookings'] as const,
   dashboardStats: ['dashboardStats'] as const,
+  projects: ['projects'] as const,
+  project: (id: string) => ['projects', id] as const,
+  projectStats: ['projects', 'stats'] as const,
+  projectMembers: (id: string) => ['projects', id, 'members'] as const,
+  projectUpdates: (id: string) => ['projects', id, 'updates'] as const,
 }

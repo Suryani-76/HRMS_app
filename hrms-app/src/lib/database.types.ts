@@ -108,7 +108,24 @@ export interface Attendance {
   working_hours: number
   overtime_hours: number
   status?: string | null
+  verification_method?: 'FACE_ID' | 'MANUAL' | 'SECURE_FALLBACK_PIN' | string | null
+  verification_status?: 'VERIFIED' | 'FAILED' | 'PENDING' | string | null
   notes?: string | null
+  created_at: string
+  updated_at: string
+  employee?: Employee | null
+}
+
+export interface EmployeeFaceCredential {
+  id: string
+  employee_id: string
+  biometric_template: string // Encrypted biometric vector representation
+  model_version: string
+  registration_status: 'registered' | 'revoked' | 'locked'
+  registered_at: string
+  last_verified_at?: string | null
+  failed_attempts: number
+  locked_until?: string | null
   created_at: string
   updated_at: string
   employee?: Employee | null
@@ -205,6 +222,10 @@ export interface Task {
   description?: string | null
   assignee_id?: string | null
   assigner_id?: string | null
+  project_id?: string | null
+  project_code?: string | null
+  department_id?: string | null
+  department_sector?: string | null
   due_date?: string | null
   priority?: string | null
   status?: string | null
@@ -212,6 +233,11 @@ export interface Task {
   updated_at: string
   assignee?: Employee | null
   assigner?: Employee | null
+  project?: Project | null
+  team_lead_id?: string | null
+  team_lead?: Employee | null
+  member_ids?: string[] | null
+  members?: Employee[] | null
 }
 
 export interface Announcement {
@@ -256,6 +282,8 @@ export interface PerformanceGoal {
   target?: string | null
   due_date?: string | null
   status?: string | null
+  document_url?: string | null
+  document_name?: string | null
   created_at: string
   employee?: Employee | null
 }
@@ -475,6 +503,35 @@ export interface Asset {
   status: string
   assigned_at?: string | null
   created_at: string
+  barcode_code?: string | null
+  barcode_image?: string | null
+  seating_number?: string | null
+}
+
+export interface ParkingPass {
+  id: string
+  employee_id: string
+  employee_code: string
+  employee_name: string
+  employee_email: string
+  vehicle_type: '2-Wheeler' | '4-Wheeler'
+  vehicle_number: string
+  vehicle_model?: string | null
+  license_number?: string | null
+  emergency_phone?: string | null
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked'
+  allocated_sector?: string | null
+  allocated_slot?: string | null
+  rejection_reason?: string | null
+  approved_by?: string | null
+  approved_at?: string | null
+  qr_code_data?: string | null
+  qr_code_image?: string | null
+  is_checked_in?: boolean
+  last_check_in?: string | null
+  last_check_out?: string | null
+  created_at: string
+  updated_at?: string
 }
 
 export interface AssetIncident {
@@ -501,6 +558,82 @@ export interface MeetingHallBooking {
   created_at: string
   updated_at: string
   requester?: Employee | null
+}
+
+export type ProjectStatus =
+  | 'Not Started'
+  | 'Planning'
+  | 'In Progress'
+  | 'On Hold'
+  | 'At Risk'
+  | 'Completed'
+  | 'Cancelled'
+
+export type ProjectPriority = 'Low' | 'Medium' | 'High' | 'Critical'
+
+export type ProjectRole =
+  | 'Head'
+  | 'Lead'
+  | 'Member'
+  | 'Consultant'
+  | 'QA'
+  | 'Developer'
+  | 'Designer'
+
+export interface Project {
+  id: string
+  project_code: string
+  project_name: string
+  description?: string | null
+  client_name?: string | null
+  department_id?: string | null
+  priority: ProjectPriority
+  project_head_id?: string | null
+  team_lead_id?: string | null
+  status: ProjectStatus
+  progress_percentage: number
+  start_date: string
+  expected_end_date: string
+  actual_completion_date?: string | null
+  created_by?: string | null
+  created_at: string
+  updated_at: string
+  project_head?: Employee | null
+  team_lead?: Employee | null
+  department?: Department | null
+  members?: ProjectMember[]
+  status_updates?: ProjectStatusUpdate[]
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string
+  employee_id: string
+  project_role: ProjectRole
+  assignment_status: 'Active' | 'Removed' | 'Completed'
+  assigned_at: string
+  employee?: Employee | null
+}
+
+export interface ProjectStatusUpdate {
+  id: string
+  project_id: string
+  previous_status: ProjectStatus
+  new_status: ProjectStatus
+  previous_progress: number
+  new_progress: number
+  work_completed?: string | null
+  work_in_progress?: string | null
+  pending_tasks?: string | null
+  blockers?: string | null
+  risks?: string | null
+  delay_reason?: string | null
+  next_steps?: string | null
+  expected_completion_date?: string | null
+  update_type: 'Official' | 'Team Lead Report'
+  updated_by?: string | null
+  created_at: string
+  updater?: Employee | null
 }
 
 // Minimal Database mapping used by the typed supabase client.
@@ -537,6 +670,10 @@ export interface Database {
       assets: { Row: Asset }
       asset_incidents: { Row: AssetIncident }
       meeting_hall_bookings: { Row: MeetingHallBooking }
+      employee_face_credentials: { Row: EmployeeFaceCredential }
+      projects: { Row: Project }
+      project_members: { Row: ProjectMember }
+      project_status_updates: { Row: ProjectStatusUpdate }
     }
   }
 }

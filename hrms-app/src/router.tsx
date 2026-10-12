@@ -30,6 +30,11 @@ import InsuranceEnrollmentPage from '@/pages/insurance-enrollment-page'
 import AssetsPage from '@/pages/assets-page'
 import MeetingHallPage from '@/pages/meeting-hall-page'
 import IncentivesDashboardPage from '@/pages/incentives-dashboard-page'
+import ParkingPage from '@/pages/parking-page'
+import AssetVerifyPage from '@/pages/asset-verify-page'
+import BankDetailsPage from '@/pages/bank-details-page'
+import ComplaintsPage from '@/pages/complaints-page'
+import ProjectsPage from '@/pages/projects-page'
 import NotFoundPage from '@/pages/not-found-page'
 
 export const router = createBrowserRouter(
@@ -41,6 +46,10 @@ export const router = createBrowserRouter(
       <Route path="/careers" element={<CareersPage />} />
       <Route path="/candidate-portal" element={<CandidatePortalPage />} />
       <Route path="/portal" element={<CandidatePortalPage />} />
+      <Route path="/parking" element={<ParkingPage />} />
+      <Route path="/bank-details" element={<BankDetailsPage />} />
+      <Route path="/verify-asset" element={<AssetVerifyPage />} />
+      <Route path="/verify-asset/:code" element={<AssetVerifyPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
@@ -54,6 +63,7 @@ export const router = createBrowserRouter(
           <Route path="payslips" element={<PayslipsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="tasks" element={<TasksPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="holidays" element={<HolidaysPage />} />
           <Route path="performance" element={<PerformancePage />} />
@@ -63,8 +73,10 @@ export const router = createBrowserRouter(
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="insurance-enrollment" element={<InsuranceEnrollmentPage />} />
+          <Route path="bank-details" element={<BankDetailsPage />} />
           <Route path="assets" element={<AssetsPage />} />
           <Route path="meeting-hall" element={<MeetingHallPage />} />
+          <Route path="complaints" element={<ComplaintsPage />} />
           <Route path="incentives" element={<IncentivesDashboardPage />} />
           <Route
             path="audit-logs"

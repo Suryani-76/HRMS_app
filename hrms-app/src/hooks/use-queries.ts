@@ -20,6 +20,9 @@ import type {
   PerformanceReview,
   Task,
   MeetingHallBooking,
+  Project,
+  ProjectMember,
+  ProjectStatusUpdate,
 } from '@/lib/database.types'
 
 function useInvalidate() {
@@ -179,10 +182,17 @@ export function useAttendanceLog(options?: { month?: string; employeeId?: string
 export function useCheckIn() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
-    mutationFn: api.checkIn,
+    mutationFn: (args: string | {
+      employeeId: string
+      biometric?: api.BiometricVerificationInfo
+      location?: api.GeoLocationData
+    }) => {
+      if (typeof args === 'string') return api.checkIn(args)
+      return api.checkIn(args.employeeId, args.biometric, args.location)
+    },
     onSuccess: () => {
       invalidate([queryKeys.attendance, queryKeys.dashboardStats])
-      toast.success('Checked in')
+      toast.success('Check-in recorded successfully')
     },
     onError: toastError,
   })
@@ -190,10 +200,18 @@ export function useCheckIn() {
 export function useCheckOut() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
-    mutationFn: api.checkOut,
+    mutationFn: (args: string | {
+      employeeId: string
+      biometric?: api.BiometricVerificationInfo
+      location?: api.GeoLocationData
+      options?: api.CheckOutOptions
+    }) => {
+      if (typeof args === 'string') return api.checkOut(args)
+      return api.checkOut(args.employeeId, args.biometric, args.location, args.options)
+    },
     onSuccess: () => {
       invalidate([queryKeys.attendance, queryKeys.dashboardStats])
-      toast.success('Checked out')
+      toast.success('Check-out recorded successfully')
     },
     onError: toastError,
   })
@@ -394,6 +412,15 @@ export function useUpdateGoalStatus() {
     onError: toastError,
   })
 }
+export function useUpdateGoalDocument() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: ({ id, document_url, document_name }: { id: string; document_url: string; document_name: string }) =>
+      api.updateGoalDocument(id, document_url, document_name),
+    onSuccess: () => { invalidate([queryKeys.performanceGoals]); toast.success('Goal document updated') },
+    onError: toastError,
+  })
+}
 export function usePerformanceReviews(employeeId?: string) {
   return useQuery({ queryKey: [...queryKeys.performanceReviews, employeeId], queryFn: () => api.fetchPerformanceReviews(employeeId) })
 }
@@ -588,5 +615,114 @@ export function useAuditLogs() {
   return useQuery({ queryKey: queryKeys.auditLogs, queryFn: api.fetchAuditLogs })
 }
 
-export type { Employee, Department, Designation, Attendance, LeaveRequest, Payroll, Document, Task, Announcement, Notification, Holiday, PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, MeetingHallBooking }
+// ---- Projects ----
+export function useProjects(filters?: api.ProjectFilters) {
+  return useQuery({
+    queryKey: [...queryKeys.projects, filters],
+    queryFn: () => api.fetchProjects(filters),
+  })
+}
+
+export function useProject(id?: string) {
+  return useQuery({
+    queryKey: queryKeys.project(id ?? ''),
+    queryFn: () => api.fetchProjectById(id!),
+    enabled: Boolean(id),
+  })
+}
+
+export function useProjectStats() {
+  return useQuery({
+    queryKey: queryKeys.projectStats,
+    queryFn: api.fetchProjectDashboardStats,
+  })
+}
+
+export function useNextProjectCode() {
+  return useQuery({
+    queryKey: ['projects', 'next-code'],
+    queryFn: api.getNextProjectCode,
+  })
+}
+
+export function useCreateProject() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (input: api.CreateProjectInput) => api.createProject(input),
+    onSuccess: (project) => {
+      invalidate([queryKeys.projects, queryKeys.projectStats, ['projects', 'next-code'], queryKeys.notifications])
+      toast.success(`Project ${project.project_code} created successfully!`)
+    },
+    onError: toastError,
+  })
+}
+
+export function useUpdateProject() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: api.UpdateProjectInput }) =>
+      api.updateProject(id, input),
+    onSuccess: (project) => {
+      invalidate([queryKeys.projects, queryKeys.project(project.id), queryKeys.projectStats, queryKeys.notifications])
+      toast.success(`Project ${project.project_code} updated successfully!`)
+    },
+    onError: toastError,
+  })
+}
+
+export function useDeleteProject() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteProject(id),
+    onSuccess: () => {
+      invalidate([queryKeys.projects, queryKeys.projectStats, ['projects', 'next-code']])
+      toast.success('Project deleted successfully')
+    },
+    onError: toastError,
+  })
+}
+
+export function useSubmitProjectStatusUpdate() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (input: api.CreateStatusUpdateInput) => api.submitProjectStatusUpdate(input),
+    onSuccess: (update) => {
+      invalidate([
+        queryKeys.projects,
+        queryKeys.project(update.project_id),
+        queryKeys.projectStats,
+        queryKeys.notifications,
+      ])
+      toast.success(
+        update.update_type === 'Team Lead Report'
+          ? 'Team Lead progress report submitted successfully!'
+          : `Official status updated to "${update.new_status}" (${update.new_progress}%)`
+      )
+    },
+    onError: toastError,
+  })
+}
+
+export type {
+  Employee,
+  Department,
+  Designation,
+  Attendance,
+  LeaveRequest,
+  Payroll,
+  Document,
+  Task,
+  Announcement,
+  Notification,
+  Holiday,
+  PerformanceGoal,
+  PerformanceReview,
+  JobOpening,
+  Candidate,
+  Interview,
+  MeetingHallBooking,
+  Project,
+  ProjectMember,
+  ProjectStatusUpdate,
+}
 

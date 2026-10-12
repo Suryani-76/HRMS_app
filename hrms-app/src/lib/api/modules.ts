@@ -1,5 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog, MeetingHallBooking } from '@/lib/database.types'
+import {
+  sendCandidateStatusAlertEmail,
+  sendInterviewScheduledAlertEmail,
+  sendInterviewRescheduledAlertEmail,
+  sendRoundClearedAlertEmail,
+  sendOfferLetterReleasedAlertEmail,
+} from '@/lib/api/email'
 
 // ---------- Performance ----------
 export async function fetchPerformanceGoals(employeeId?: string) {
@@ -17,20 +24,118 @@ export async function fetchPerformanceGoals(employeeId?: string) {
   return []
 }
 
+export async function uploadGoalDocument(
+  employeeId: string,
+  file: File
+): Promise<{ url: string; name: string; size: number }> {
+  try {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `goals/${employeeId}/${Date.now()}-${safeName}`
+    const { data, error } = await supabase.storage.from('documents').upload(path, file)
+    if (!error && data) {
+      const { data: pubUrl } = supabase.storage.from('documents').getPublicUrl(path)
+      return { url: pubUrl.publicUrl, name: file.name, size: file.size }
+    }
+  } catch (err) {
+    console.warn('Storage bucket upload error, falling back to base64 Data URL:', err)
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve({ url: reader.result as string, name: file.name, size: file.size })
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export async function createGoal(input: {
   employee_id: string
   title: string
   description?: string
   target?: string
   due_date?: string
+  document_url?: string
+  document_name?: string
 }) {
   const { data: session } = await supabase.auth.getSession()
-  const { data, error } = await supabase
+
+  let formattedDesc = input.description || ''
+  if (input.document_url) {
+    const docMeta = JSON.stringify({ url: input.document_url, name: input.document_name || 'Goal Document' })
+    formattedDesc = `${formattedDesc} [DOC:${docMeta}]`.trim()
+  }
+
+  const payload: any = {
+    employee_id: input.employee_id,
+    title: input.title,
+    description: formattedDesc || null,
+    target: input.target || null,
+    due_date: input.due_date || null,
+    reviewer_id: session.session?.user.id ?? null,
+    document_url: input.document_url || null,
+    document_name: input.document_name || null,
+  }
+
+  let { data, error } = await supabase
     .from('performance_goals')
-    .insert({ ...input, reviewer_id: session.session?.user.id ?? null })
+    .insert(payload)
     .select()
     .single()
-  if (error) throw error
+
+  if (error) {
+    delete payload.document_url
+    delete payload.document_name
+    const retryRes = await supabase
+      .from('performance_goals')
+      .insert(payload)
+      .select()
+      .single()
+    if (retryRes.error) throw retryRes.error
+    data = retryRes.data
+  }
+
+  return data as PerformanceGoal
+}
+
+export async function updateGoalDocument(id: string, document_url: string, document_name: string) {
+  const { data: existing } = await supabase
+    .from('performance_goals')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  const docMeta = JSON.stringify({ url: document_url, name: document_name || 'Goal Document' })
+  const cleanDesc = (existing?.description || '').replace(/\[DOC:(\{.*?\})\]/g, '').trim()
+  const formattedDesc = `${cleanDesc} [DOC:${docMeta}]`.trim()
+
+  const payload: any = {
+    description: formattedDesc,
+    document_url,
+    document_name,
+  }
+
+  let { data, error } = await supabase
+    .from('performance_goals')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    delete payload.document_url
+    delete payload.document_name
+    const retryRes = await supabase
+      .from('performance_goals')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+    if (retryRes.error) throw retryRes.error
+    data = retryRes.data
+  }
+
   return data as PerformanceGoal
 }
 
@@ -218,19 +323,58 @@ export async function updateCandidateStatus(id: string, status: string): Promise
     updated_at: new Date().toISOString(),
   }
 
-  const { data, error } = await supabase.from('candidates').update(payload).eq('id', id).select().single()
+  const { data, error } = await supabase
+    .from('candidates')
+    .update(payload)
+    .eq('id', id)
+    .select('*, job_opening:job_openings(title)')
+    .single()
   if (error) throw error
+
+  // Forward email alert to candidate
+  try {
+    if (data?.email) {
+      sendCandidateStatusAlertEmail({
+        candidateName: data.name,
+        candidateEmail: data.email,
+        jobTitle: (data.job_opening as any)?.title || 'Open Position',
+        referenceId: data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase(),
+        dateOfBirth: data.date_of_birth,
+        status,
+      }).catch((e) => console.warn('Candidate status email dispatch notice:', e))
+    }
+  } catch (emailErr) {
+    console.warn('Status change email alert notice:', emailErr)
+  }
+
   return data as Candidate
 }
 
 export async function updateCandidateStage(id: string, stage: string, rating?: number, notes?: string) {
   const { data, error } = await supabase
     .from('candidates')
-    .update({ stage, rating: rating ?? null, notes: notes ?? null, updated_at: new Date().toISOString() })
+    .update({ stage, status: stage, rating: rating ?? null, notes: notes ?? null, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select()
+    .select('*, job_opening:job_openings(title)')
     .single()
   if (error) throw error
+
+  try {
+    if (data?.email) {
+      sendCandidateStatusAlertEmail({
+        candidateName: data.name,
+        candidateEmail: data.email,
+        jobTitle: (data.job_opening as any)?.title || 'Open Position',
+        referenceId: data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase(),
+        dateOfBirth: data.date_of_birth,
+        status: stage,
+        feedback: notes || undefined,
+      }).catch((e) => console.warn('Stage change email alert notice:', e))
+    }
+  } catch (err) {
+    console.warn('updateCandidateStage email error:', err)
+  }
+
   return data as Candidate
 }
 
@@ -309,25 +453,25 @@ export async function createInterview(input: {
     }
     await supabase.from('candidates').update(updatePayload).eq('id', input.candidate_id)
 
-    // Queue email invitation
-    const { data: cand } = await supabase.from('candidates').select('name, email, reference_id, date_of_birth').eq('id', input.candidate_id).maybeSingle()
+    // Queue and dispatch email invitation
+    const { data: cand } = await supabase
+      .from('candidates')
+      .select('name, email, reference_id, date_of_birth, job_opening:job_openings(title)')
+      .eq('id', input.candidate_id)
+      .maybeSingle()
+
     if (cand?.email) {
-      const scheduledFormatted = new Date(input.scheduled_at).toLocaleString()
-      await supabase.from('audit_logs').insert({
-        action: 'EMAIL_PENDING',
-        entity_name: 'interview_invitation',
-        details: {
-          to: cand.email,
-          name: cand.name,
-          refId: cand.reference_id,
-          round: input.round || 'Technical',
-          scheduled_at: scheduledFormatted,
-          meeting_link: input.meeting_link || '',
-          exam_link: input.exam_link || '',
-          from: 'hr@oklut.com',
-          subject: `Interview Scheduled: ${input.round || 'Technical'} Round — OKLUT HRMS`,
-        },
-      })
+      sendInterviewScheduledAlertEmail({
+        candidateName: cand.name,
+        candidateEmail: cand.email,
+        referenceId: cand.reference_id || input.candidate_id.slice(0, 8).toUpperCase(),
+        dateOfBirth: cand.date_of_birth,
+        jobTitle: (cand.job_opening as any)?.title || 'Open Position',
+        roundName: input.round || 'Technical',
+        scheduledAt: input.scheduled_at,
+        mode: input.mode || 'online',
+        meetingLink: input.meeting_link || input.exam_link || undefined,
+      }).catch((e) => console.warn('Interview scheduled email notice:', e))
     }
   } catch (syncErr) {
     console.warn('Candidate interview sync notice:', syncErr)
@@ -410,6 +554,46 @@ export async function updateInterviewStatus(
       candUpdate.stage = candStatus
 
       await supabase.from('candidates').update(candUpdate).eq('id', data.candidate_id)
+
+      // Fetch candidate info and dispatch email alert
+      const { data: cand } = await supabase
+        .from('candidates')
+        .select('name, email, reference_id, date_of_birth, job_opening:job_openings(title)')
+        .eq('id', data.candidate_id)
+        .maybeSingle()
+
+      if (cand?.email) {
+        const jobTitle = (cand.job_opening as any)?.title || 'Open Position'
+        const refId = cand.reference_id || data.candidate_id.slice(0, 8).toUpperCase()
+
+        if (isPassed) {
+          const nextStep = roundLower.includes('hr') || roundLower.includes('round 3')
+            ? 'Verification Softcopies & Formal Offer Letter'
+            : roundLower.includes('screen') || roundLower.includes('exam')
+              ? 'Technical Interview Round'
+              : 'HR Discussion Round'
+
+          sendRoundClearedAlertEmail({
+            candidateName: cand.name,
+            candidateEmail: cand.email,
+            referenceId: refId,
+            jobTitle,
+            roundName: data.round || 'Evaluation Round',
+            nextStep,
+            feedback: combinedFeedback || undefined,
+          }).catch((e) => console.warn('Round cleared email dispatch notice:', e))
+        } else if (isFailed) {
+          sendCandidateStatusAlertEmail({
+            candidateName: cand.name,
+            candidateEmail: cand.email,
+            referenceId: refId,
+            dateOfBirth: cand.date_of_birth,
+            jobTitle,
+            status: 'Rejected',
+            feedback: combinedFeedback || undefined,
+          }).catch((e) => console.warn('Interview failed email notice:', e))
+        }
+      }
     }
   } catch (syncErr) {
     console.warn('Candidate status sync notice:', syncErr)
@@ -481,31 +665,34 @@ export async function rescheduleInterview(input: {
       await supabase.from('candidates').update(candPatch).eq('id', data.candidate_id)
     }
 
-    // Record audit email event to notify candidate of confirmation
+    // Dispatch email alert to candidate
     const candEmail = (data as any)?.candidate?.email
     if (candEmail) {
       const candName = (data as any)?.candidate?.name || 'Candidate'
       const refId = (data as any)?.candidate?.reference_id || ''
-      const subject = isDecline
-        ? `Interview Reschedule Update: ${data.round || 'Interview'} — OKLUT HRMS`
-        : `Interview Reschedule Confirmed: ${data.round || 'Interview'} — OKLUT HRMS`
+      const jobTitle = (data as any)?.job_opening?.title || 'Open Position'
 
-      await supabase.from('audit_logs').insert({
-        action: 'EMAIL_PENDING',
-        entity_name: 'interview_rescheduled',
-        details: {
-          to: candEmail,
-          name: candName,
-          refId,
-          round: data.round || 'Interview',
-          scheduled_at: !isDecline ? new Date(input.scheduled_at).toLocaleString() : undefined,
-          meeting_link: input.meeting_link || '',
-          admin_note: input.admin_note || '',
-          status: isDecline ? 'declined' : 'confirmed',
-          from: 'hr@oklut.com',
-          subject,
-        },
-      })
+      if (!isDecline) {
+        sendInterviewRescheduledAlertEmail({
+          candidateName: candName,
+          candidateEmail: candEmail,
+          referenceId: refId,
+          jobTitle,
+          roundName: data.round || 'Interview',
+          scheduledAt: input.scheduled_at,
+          meetingLink: input.meeting_link || data.meeting_link || undefined,
+          adminNote: input.admin_note || undefined,
+        }).catch((e) => console.warn('Reschedule email dispatch notice:', e))
+      } else {
+        sendCandidateStatusAlertEmail({
+          candidateName: candName,
+          candidateEmail: candEmail,
+          referenceId: refId,
+          jobTitle,
+          status: 'Rejected',
+          reason: input.admin_note || 'Interview reschedule request could not be accommodated.',
+        }).catch((e) => console.warn('Decline email dispatch notice:', e))
+      }
     }
   } catch (syncErr) {
     console.warn('Candidate reschedule sync error:', syncErr)
@@ -610,6 +797,24 @@ export async function createOffer(input: {
       notes: `[Offer Terms] Bond: ${bondText} | Relocation: ${relocText}`,
       updated_at: new Date().toISOString(),
     }).eq('id', input.candidate_id)
+
+    // Forward offer letter released email alert to candidate
+    const { data: cand } = await supabase
+      .from('candidates')
+      .select('name, email, reference_id, job_opening:job_openings(title)')
+      .eq('id', input.candidate_id)
+      .maybeSingle()
+
+    if (cand?.email) {
+      sendOfferLetterReleasedAlertEmail({
+        candidateName: cand.name || 'Candidate',
+        candidateEmail: cand.email,
+        referenceId: cand.reference_id || input.candidate_id.slice(0, 8).toUpperCase(),
+        jobTitle: (cand.job_opening as any)?.title || 'Open Position',
+        salaryOffered: input.salary_offered,
+        joiningDate: input.joining_date,
+      }).catch((e) => console.warn('Offer creation email dispatch notice:', e))
+    }
   } catch {}
 
   return {
@@ -625,8 +830,24 @@ export async function createOffer(input: {
 }
 
 export async function updateOfferStatus(id: string, status: string) {
-  const { data, error } = await supabase.from('offers').update({ status }).eq('id', id).select().single()
+  const { data, error } = await supabase.from('offers').update({ status }).eq('id', id).select('*, candidate:candidates(name, email, reference_id, job_opening:job_openings(title))').single()
   if (error) throw error
+
+  // If status moved to issued or released, forward alert
+  try {
+    const cand = (data as any)?.candidate
+    if (cand?.email && (status === 'issued' || status === 'released')) {
+      sendOfferLetterReleasedAlertEmail({
+        candidateName: cand.name || 'Candidate',
+        candidateEmail: cand.email,
+        referenceId: cand.reference_id || '',
+        jobTitle: cand.job_opening?.title || 'Open Position',
+        salaryOffered: data.salary_offered,
+        joiningDate: data.joining_date,
+      }).catch((e) => console.warn('Offer status update email notice:', e))
+    }
+  } catch {}
+
   return data as Offer
 }
 

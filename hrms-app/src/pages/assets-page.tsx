@@ -14,6 +14,9 @@ import { TableSkeleton } from '@/components/shared/skeletons'
 import { StatusPill } from '@/components/shared/status-pill'
 import { formatDate } from '@/lib/format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { LaptopBarcodeTab } from '@/components/assets/laptop-barcode-tab'
+import { Car, ExternalLink, QrCode } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 
 export default function AssetsPage() {
@@ -198,11 +201,26 @@ Date:               ______________________
         description={isManager ? "Manage company assets and track incidents." : "View your assigned assets and report issues."}
       />
 
-      <Tabs defaultValue="assets">
-        <TabsList>
-          <TabsTrigger value="assets">Assigned Assets</TabsTrigger>
-          <TabsTrigger value="incidents">Incident Reports</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="laptops">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <TabsList className="h-10 p-1">
+            <TabsTrigger value="laptops" className="flex items-center gap-1.5 text-xs font-semibold">
+              <QrCode className="h-4 w-4 text-indigo-600" /> Laptop QR Codes & Seating
+            </TabsTrigger>
+            <TabsTrigger value="assets" className="text-xs font-semibold">Assigned Assets</TabsTrigger>
+            <TabsTrigger value="incidents" className="text-xs font-semibold">Incident Reports</TabsTrigger>
+          </TabsList>
+
+          <Link to="/parking">
+            <Button variant="outline" size="sm" className="h-9 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold shadow-sm">
+              <Car className="mr-1.5 h-3.5 w-3.5 text-indigo-600" /> Open Parking & QR Portal <ExternalLink className="ml-1 h-3 w-3 text-slate-400" />
+            </Button>
+          </Link>
+        </div>
+
+        <TabsContent value="laptops" className="space-y-4 pt-4">
+          <LaptopBarcodeTab employees={employees} assets={assets} isManager={isManager} />
+        </TabsContent>
 
         <TabsContent value="assets" className="space-y-4 pt-4">
           {isManager && (

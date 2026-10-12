@@ -8,6 +8,7 @@ interface AuthState {
   employee: Employee | null
   loading: boolean
   isAdmin: boolean
+  isHR: boolean
   isManager: boolean
   login: (email: string, password: string) => Promise<{ error: string | null }>
   logout: () => Promise<void>
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthState>({
   employee: null,
   loading: true,
   isAdmin: false,
+  isHR: false,
   isManager: false,
   login: async () => ({ error: null }),
   logout: async () => {},
@@ -135,49 +137,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const refresh = async () => {
-    const { data } = await supabase.auth.getSession()
-    const session = data.session
-    if (!session) {
+    try {
+      const { data } = await supabase.auth.getSession()
+      const session = data?.session
+      if (!session) {
+        setState(null)
+        setEmployee(null)
+        setLoading(false)
+        return
+      }
+      const profile = await fetchProfile(session.user.id)
+      if (
+        profile.user?.status === 'Blocked' ||
+        profile.user?.status === 'Terminated' ||
+        profile.user?.status === 'Inactive' ||
+        profile.employee?.status === 'Terminated'
+      ) {
+        await supabase.auth.signOut()
+        setState(null)
+        setEmployee(null)
+        setLoading(false)
+        return
+      }
+      setState(profile.user)
+      setEmployee(profile.employee)
+    } catch (err) {
+      console.warn('Auth refresh error, continuing as unauthenticated:', err)
       setState(null)
       setEmployee(null)
+    } finally {
       setLoading(false)
-      return
     }
-    const profile = await fetchProfile(session.user.id)
-    if (profile.user?.status === 'Blocked' || profile.user?.status === 'Terminated' || profile.user?.status === 'Inactive' || profile.employee?.status === 'Terminated') {
-      await supabase.auth.signOut()
-      setState(null)
-      setEmployee(null)
-      setLoading(false)
-      return
-    }
-    setState(profile.user)
-    setEmployee(profile.employee)
-    setLoading(false)
   }
 
   useEffect(() => {
     refresh()
+    // Safety fallback: never leave user stuck on infinite skeleton if network hangs
+    const safetyTimer = setTimeout(() => {
+      setLoading(false)
+    }, 2500)
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      clearTimeout(safetyTimer)
       if (!session) {
         setState(null)
         setEmployee(null)
         setLoading(false)
       } else {
-        fetchProfile(session.user.id).then((p) => {
-          if (p.user?.status === 'Blocked' || p.user?.status === 'Terminated' || p.user?.status === 'Inactive' || p.employee?.status === 'Terminated') {
-            supabase.auth.signOut()
-            setState(null)
-            setEmployee(null)
-          } else {
-            setState(p.user)
-            setEmployee(p.employee)
-          }
-          setLoading(false)
-        })
+        fetchProfile(session.user.id)
+          .then((p) => {
+            if (
+              p.user?.status === 'Blocked' ||
+              p.user?.status === 'Terminated' ||
+              p.user?.status === 'Inactive' ||
+              p.employee?.status === 'Terminated'
+            ) {
+              supabase.auth.signOut()
+              setState(null)
+              setEmployee(null)
+            } else {
+              setState(p.user)
+              setEmployee(p.employee)
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setLoading(false)
+          })
       }
     })
-    return () => sub.subscription.unsubscribe()
+    return () => {
+      clearTimeout(safetyTimer)
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email: string, password: string) => {
@@ -240,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         employee,
         loading,
         isAdmin,
+        isHR,
         isManager,
         login,
         logout,

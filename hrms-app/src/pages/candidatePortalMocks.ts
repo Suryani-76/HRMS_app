@@ -171,17 +171,17 @@ const fresherBase = (overrides: Partial<MockCandidate> = {}): MockCandidate => (
   name: 'Ananya Sharma',
   email: 'ananya.sharma@example.com',
   category: 'Fresher',
-  status: 'passed',
+  status: 'applied',
   applied_at: iso(-6 * DAY),
   created_at: iso(-6 * DAY),
-  exam_score: 85, // 85% score
-  exam_started_at: iso(-2 * DAY),
-  exam_completed_at: iso(-2 * DAY + 45 * 60 * 1000), // Completed 45 mins later
-  exam_feedback: 'Qualified for Technical Interview round.',
-  technical_interview_status: 'scheduled', // Matched standard portal enum ('scheduled' | 'ongoing' | 'passed' | 'failed')
+  exam_score: null,
+  exam_started_at: null,
+  exam_completed_at: null,
+  exam_feedback: null,
+  technical_interview_status: null,
   technical_interview_feedback: null,
-  technical_interview_time: iso(2 * DAY + 45 * 60 * 1000),
-  technical_interview_date: iso(2 * DAY + 45 * 60 * 1000),
+  technical_interview_time: null,
+  technical_interview_date: null,
   technical_interview_rescheduled: null,
   hr_interview_status: null,
   hr_interview_feedback: null,
@@ -442,6 +442,7 @@ export const MOCK_SCENARIOS: PortalSnapshot[] = [
     description: 'Exam cleared (above cutoff). Technical slots open — progress shows 1/3.',
     group: 'Fresher',
     candidate: fresherBase({
+      status: 'passed',
       exam_started_at: iso(-2 * DAY),
       exam_completed_at: iso(-2 * DAY + HOUR),
       exam_score: 33,

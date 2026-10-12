@@ -138,60 +138,233 @@ export async function fetchTasks(options?: { status?: string; assigneeId?: strin
   if (options?.status) query = query.eq('status', options.status)
   if (options?.assigneeId) query = query.eq('assignee_id', options.assigneeId)
   const { data, error } = await query
+  let tasks: Task[] = []
   if (error) {
     const { data: fallback } = await supabase
       .from('tasks')
       .select('*, assignee:employees!assignee_id(id, first_name, last_name, employee_code), assigner:employees!assigner_id(id, first_name, last_name)')
       .order('created_at', { ascending: false })
-    return (fallback ?? []) as Task[]
+    tasks = (fallback ?? []) as Task[]
+  } else {
+    tasks = (data ?? []) as Task[]
   }
-  return (data ?? []) as Task[]
+
+  // Enrich tasks with team_lead_id, member_ids, and project_code from metadata
+  return tasks.map((t) => {
+    if (t.department_sector && t.department_sector.startsWith('{')) {
+      try {
+        const meta = JSON.parse(t.department_sector)
+        if (meta.lead) t.team_lead_id = meta.lead
+        if (meta.members) t.member_ids = meta.members
+        if (meta.prj && !t.project_id) t.project_id = meta.prj
+        if (meta.code) t.project_code = meta.code
+      } catch {
+        // ignore
+      }
+    }
+    return t
+  })
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function toSafeUuid(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null
+  const trimmed = val.trim()
+  if (!trimmed || trimmed === 'all' || trimmed === 'none') return null
+  return UUID_REGEX.test(trimmed) ? trimmed : null
 }
 
 export async function createTask(input: {
   title: string
   description?: string
   assignee_id?: string
+  team_lead_id?: string
+  member_ids?: string[]
   due_date?: string
   priority?: string
+  project_id?: string
+  project_code?: string
+  department_id?: string
+  department_sector?: string
 }) {
   const { data: session } = await supabase.auth.getSession()
-  const userId = session.session?.user.id ?? null
-  const { data: profile } = await supabase.from('users').select('employee_id').eq('id', userId).maybeSingle()
+  const rawUserId = session.session?.user.id
+  const userId = toSafeUuid(rawUserId)
+
+  let profile: { employee_id: string | null } | null = null
+  if (userId) {
+    try {
+      const { data } = await supabase.from('users').select('employee_id').eq('id', userId).maybeSingle()
+      profile = data
+    } catch {
+      // ignore
+    }
+  }
+
+  // 1. Resolve assignee_id (support UUID or employee_code)
+  let assigneeId = toSafeUuid(input.assignee_id)
+  if (!assigneeId && input.assignee_id && typeof input.assignee_id === 'string' && input.assignee_id.trim()) {
+    const rawCode = input.assignee_id.trim()
+    try {
+      const { data: emp } = await supabase
+        .from('employees')
+        .select('id')
+        .or(`employee_code.eq.${rawCode},id.eq.${rawCode}`)
+        .maybeSingle()
+      if (emp?.id && toSafeUuid(emp.id)) {
+        assigneeId = emp.id
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Double-check assignee exists in employees table to prevent FK violation
+  if (assigneeId) {
+    try {
+      const { data: empCheck } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', assigneeId)
+        .maybeSingle()
+      if (!empCheck) {
+        assigneeId = null
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Resolve Team Lead ID
+  let resolvedLeadId = toSafeUuid(input.team_lead_id) || assigneeId
+  if (resolvedLeadId) {
+    try {
+      const { data: leadCheck } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', resolvedLeadId)
+        .maybeSingle()
+      if (!leadCheck) {
+        resolvedLeadId = null
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Sanitize member IDs (N members)
+  const safeMemberIds = (input.member_ids || [])
+    .map((m) => toSafeUuid(m))
+    .filter(Boolean) as string[]
+
+  // Primary assignee is the designated Team Lead or first member
+  const primaryAssigneeId = resolvedLeadId || (safeMemberIds.length > 0 ? safeMemberIds[0] : assigneeId)
+
+  // 2. Validate department_id exists in remote DB to prevent foreign key errors
+  let deptId = toSafeUuid(input.department_id)
+  if (deptId) {
+    try {
+      const { data: dept } = await supabase.from('departments').select('id').eq('id', deptId).maybeSingle()
+      if (!dept) deptId = null
+    } catch {
+      deptId = null
+    }
+  }
+
+  // 3. Validate assigner_id exists in remote DB
+  let assignerId = toSafeUuid(profile?.employee_id)
+  if (assignerId) {
+    try {
+      const { data: empCheck } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', assignerId)
+        .maybeSingle()
+      if (!empCheck) assignerId = null
+    } catch {
+      assignerId = null
+    }
+  }
+
+  // Encode project, project_code, lead, and team members in department_sector metadata JSON
+  let deptSector = input.department_sector || null
+  const meta: Record<string, any> = {}
+  if (input.project_id && input.project_id !== 'none') meta.prj = input.project_id
+  if (input.project_code) meta.code = input.project_code
+  if (resolvedLeadId) meta.lead = resolvedLeadId
+  if (safeMemberIds.length > 0) meta.members = safeMemberIds
+  if (deptSector && !deptSector.startsWith('{')) meta.sector = deptSector
+
+  if (Object.keys(meta).length > 0) {
+    deptSector = JSON.stringify(meta)
+  }
+
+  const payload: any = {
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    assignee_id: primaryAssigneeId,
+    assigner_id: assignerId,
+    due_date: input.due_date || null,
+    priority: input.priority || 'medium',
+    status: 'todo',
+    department_id: deptId,
+    department_sector: deptSector,
+  }
 
   let taskData: Task | null = null
+
+  // Attempt 1: Full insert with assignee relationship joined
   const { data, error } = await supabase
     .from('tasks')
-    .insert({ ...input, assigner_id: profile?.employee_id ?? null })
-    .select('*, assignee:employees!assignee_id(id, first_name, last_name, user_id)')
+    .insert(payload)
+    .select('*, assignee:employees!assignee_id(id, first_name, last_name, employee_code, user_id)')
     .single()
 
   if (error) {
+    // Attempt 2: Simple insert without complex join
     const { data: simpleData, error: simpleErr } = await supabase
       .from('tasks')
-      .insert({ ...input, assigner_id: profile?.employee_id ?? null })
+      .insert(payload)
       .select()
       .single()
-    if (simpleErr) throw simpleErr
-    taskData = simpleData as Task
+
+    if (simpleErr) {
+      // Attempt 3: Fallback stripping department columns in case of constraint
+      const { department_id, department_sector, ...safeInput } = payload
+      const { data: fallbackData, error: fallbackErr } = await supabase
+        .from('tasks')
+        .insert(safeInput)
+        .select()
+        .single()
+      if (fallbackErr) throw fallbackErr
+      taskData = fallbackData as Task
+    } else {
+      taskData = simpleData as Task
+    }
   } else {
     taskData = data as Task
   }
 
-  if (input.assignee_id) {
+  // Dispatch notifications to the Team Lead and all assigned team members
+  const allNotifTargetIds = Array.from(
+    new Set([primaryAssigneeId, resolvedLeadId, ...safeMemberIds].filter(Boolean) as string[])
+  )
+
+  for (const empTargetId of allNotifTargetIds) {
     try {
       const { data: empUser } = await supabase
         .from('users')
         .select('id')
-        .eq('employee_id', input.assignee_id)
+        .eq('employee_id', empTargetId)
         .maybeSingle()
 
       await supabase.from('notifications').insert({
         user_id: empUser?.id ?? null,
-        employee_id: input.assignee_id,
+        employee_id: empTargetId,
         type: 'info',
         title: 'New Task Assigned: ' + input.title,
-        message: input.description || `You have been assigned a new task: "${input.title}"`,
+        message: input.description || `You have been assigned to task: "${input.title}"`,
         link: '/tasks',
         is_read: false,
       })

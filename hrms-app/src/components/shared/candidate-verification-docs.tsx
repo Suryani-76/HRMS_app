@@ -804,6 +804,9 @@ export function CandidateDocumentsAdminViewer({
   const uploadedDocs = submission.documents.filter((d) => !!d.fileName)
   const verifiedDocs = uploadedDocs.filter((d) => d.status === 'verified')
 
+  const isDocsVerified = submission.status === 'verified'
+  const hasTermsAgreed = !!submission.termsAgreedAt || ['offer sent', 'offered', 'hired'].includes((candidate.status || '').toLowerCase())
+
   const handleVerifyOne = async (docId: string) => {
     const updated = await updateCandidateDocVerification(
       candidateId,
@@ -845,10 +848,18 @@ export function CandidateDocumentsAdminViewer({
     }
     const updated = await verifyAllCandidateDocuments(candidateId, 'HR Admin', candidateEmail)
     setSubmission(updated)
-    toast.success('All candidate verification softcopies verified and approved!')
+    toast.success('All candidate verification softcopies verified and approved! The Terms & Conditions section is now unlocked for the candidate.')
   }
 
   const handleReleaseOffer = async () => {
+    if (!isDocsVerified) {
+      toast.error('Please verify and approve candidate documents first.')
+      return
+    }
+    if (!hasTermsAgreed) {
+      toast.error('The candidate must review and accept the Company Terms & Conditions in their portal before the offer letter can be released.')
+      return
+    }
     setIsReleasingOffer(true)
     try {
       const updated = await releaseOfferLetterForCandidate(candidateId, 'HR Admin', candidateEmail)
@@ -953,7 +964,7 @@ export function CandidateDocumentsAdminViewer({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : !isDocsVerified ? (
         <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-white p-4 shadow-2xs space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -963,16 +974,83 @@ export function CandidateDocumentsAdminViewer({
               <div>
                 <div className="flex items-center gap-2">
                   <h5 className="font-bold text-xs text-slate-900">
-                    Offer Letter Gated &amp; Pending HR Release
+                    Step 1: Document Verification Required
                   </h5>
                   <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-900 text-[10px] py-0 px-2 h-4 font-semibold">
-                    Offer Letter Hidden from Candidate
+                    Awaiting HR Document Approval
                   </Badge>
                 </div>
                 <p className="text-[11px] text-slate-600 mt-0.5">
                   {uploadedDocs.length > 0
-                    ? `Candidate has uploaded ${uploadedDocs.length} verification softcopies. Review them below and click to release the official offer letter.`
-                    : 'Candidate has not submitted softcopies yet. Once submitted, review and release the offer letter.'}
+                    ? `Candidate has uploaded ${uploadedDocs.length} verification softcopies. Review them below and click "Approve Documents" to unlock Terms & Conditions for the candidate.`
+                    : 'Candidate has not submitted softcopies yet. Once submitted, review and approve their documents.'}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleVerifyAll}
+              disabled={uploadedDocs.length === 0}
+              className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm px-4"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Approve &amp; Verify Documents
+            </Button>
+          </div>
+        </div>
+      ) : !hasTermsAgreed ? (
+        <div className="rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-amber-50/70 p-4 shadow-2xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                <Clock className="h-5 w-5 animate-spin" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h5 className="font-bold text-xs text-amber-950">
+                    Step 2: Documents Approved ✓ · Awaiting Candidate Terms &amp; Conditions
+                  </h5>
+                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] py-0 px-2 h-4 font-semibold">
+                    Terms Pending Candidate Acceptance
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-amber-900 mt-0.5">
+                  Documents have been verified and approved. The Terms &amp; Conditions section is now unlocked in the candidate&apos;s portal. Once the candidate accepts the terms, the Offer Letter release button will become active.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={true}
+              className="h-9 text-xs bg-slate-200 text-slate-500 border border-slate-300 font-semibold gap-1.5 shadow-none px-4 cursor-not-allowed"
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Waiting for Candidate Terms Acceptance
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-emerald-50 p-4 shadow-2xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h5 className="font-bold text-xs text-emerald-950">
+                    Step 3: Ready for Official Offer Letter Release ✓
+                  </h5>
+                  <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-2 h-4 font-semibold">
+                    Terms Digitally Accepted
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-emerald-800 mt-0.5">
+                  Candidate has digitally accepted the Company Terms &amp; Conditions {submission.termsAgreedAt ? `on ${formatDateTime(submission.termsAgreedAt)}` : ''}. Click below to officially generate and release the Offer Letter.
                 </p>
               </div>
             </div>
@@ -989,7 +1067,7 @@ export function CandidateDocumentsAdminViewer({
               ) : (
                 <Send className="h-3.5 w-3.5" />
               )}
-              Approve Documents &amp; Release Offer Letter
+              Release Official Offer Letter →
             </Button>
           </div>
         </div>

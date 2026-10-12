@@ -72,6 +72,7 @@ import {
   respondToOffer,
   disqualifyCandidate,
   getCandidateVerificationDocs,
+  saveCandidateVerificationDocs,
   type CandidateDocSubmission,
 } from '@/lib/api/candidatePortal'
 import {
@@ -1112,8 +1113,14 @@ export default function CandidatePortalPage() {
     return null
   }, [effectiveOffer, termsAccepted, candidate, job])
 
-  // Already-responded offers skip the T&C gate and show the letter directly.
-  const termsUnlocked = termsAccepted || offerToShow?.candidate_response != null
+  // Candidate documents verified & approved by HR/Admin
+  const docsVerified =
+    docSubmission.status === 'verified' ||
+    candStatusNorm === 'hired' ||
+    offerToShow?.candidate_response != null ||
+    (typeof (candidate as any)?.notes === 'string' &&
+      ((candidate as any).notes.includes('[DOCS_VERIFIED: true]') ||
+       (candidate as any).notes.includes('[OFFER_RELEASED: true]')))
 
   const docsSubmitted =
     docSubmission.status === 'submitted' ||
@@ -1121,6 +1128,12 @@ export default function CandidatePortalPage() {
     docSubmission.status === 'verified' ||
     candStatusNorm === 'hired' ||
     offerToShow?.candidate_response != null
+
+  const termsAcceptedEffective =
+    termsAccepted ||
+    !!docSubmission.termsAgreedAt ||
+    offerToShow?.candidate_response != null ||
+    (typeof (candidate as any)?.notes === 'string' && (candidate as any).notes.includes('[TERMS_ACCEPTED: true]'))
 
   const isOfferReleased = useMemo(() => {
     if (offerToShow?.candidate_response != null) return true
@@ -1148,13 +1161,26 @@ export default function CandidatePortalPage() {
         console.warn('DB error, using mock fallback...', e)
       }
     }
+    const nowIso = new Date().toISOString()
     setTermsAccepted(true)
     setTermsOpen(false)
-    toast.success('Terms accepted! Please upload your softcopy verification documents to proceed.')
+
+    const updatedSub: CandidateDocSubmission = {
+      ...docSubmission,
+      termsAgreedAt: nowIso,
+    }
+    setDocSubmission(updatedSub)
+    if (candidate?.id) {
+      saveCandidateVerificationDocs(candidate.id, updatedSub, candidate.email).catch((e: unknown) =>
+        console.warn('saveCandidateVerificationDocs warning:', e)
+      )
+    }
+
+    toast.success('Terms and conditions accepted successfully! HR has been notified to release your official offer letter.')
     pushNotification(
-      'notif-terms-accepted',
+      'notif-terms-accepted-' + Date.now(),
       'Terms & Conditions Accepted',
-      'You have accepted the employment terms. Please upload the required verification softcopies below before your official offer letter is released.',
+      'You have accepted the employment terms. Your official offer letter will be released by HR shortly.',
       'success'
     )
 
@@ -2250,35 +2276,148 @@ export default function CandidatePortalPage() {
         </Card>
 
         {allRoundsPassed && (
-          !termsUnlocked ? (
-            <CongratulationsCard onViewTerms={() => setTermsOpen(true)} />
-          ) : !docsSubmitted || manageDocsOpen ? (
-            <div className="space-y-4">
-              <CandidateDocumentUploadSection
-                candidateId={candidate.id}
-                candidateEmail={candidate.email}
+          /* STEP 1: Documents must be verified by HR first */
+          !docsVerified ? (
+            !docsSubmitted || manageDocsOpen ? (
+              <div className="space-y-4">
+                <CandidateDocumentUploadSection
+                  candidateId={candidate.id}
+                  candidateEmail={candidate.email}
+                  candidateName={candidate.name}
+                  isExperienced={isExperienced}
+                  onSubmissionComplete={(sub) => {
+                    setDocSubmission(sub)
+                    setManageDocsOpen(false)
+                  }}
+                />
+                {manageDocsOpen && docsSubmitted && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setManageDocsOpen(false)}
+                      className="text-xs"
+                    >
+                      ← Back to Verification Status
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Softcopies uploaded, awaiting HR approval */
+              <div className="space-y-6">
+                <SubmittedDocumentsStatusCard
+                  submission={docSubmission}
+                  candidateName={candidate.name}
+                  onOpenManage={() => setManageDocsOpen(true)}
+                />
+
+                <Card className="border-indigo-200 bg-gradient-to-b from-indigo-50/40 via-white to-white shadow-sm">
+                  <CardHeader className="pb-3 border-b">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                          <Clock className="h-5 w-5 animate-spin" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            Pre-Offer Verification Documents Under Review
+                          </CardTitle>
+                          <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                            {docSubmission.documents.filter((d) => !!d.fileName).length} softcopies submitted · Awaiting HR approval before Terms &amp; Conditions
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-300 py-1 px-3 text-xs font-semibold gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-amber-700 animate-spin" /> Awaiting HR Verification
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-5 space-y-4">
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-indigo-950">
+                        <Info className="h-4 w-4 text-indigo-700" /> Pre-Offer Verification in Progress
+                      </div>
+                      <p className="text-xs text-indigo-900 leading-relaxed">
+                        Your pre-offer verification documents have been received by the HR &amp; Admin team. As per hiring process, <strong>HR will verify and approve your documents first</strong>. Once approved, the <strong>Company Terms &amp; Conditions</strong> section will automatically unlock for your review, followed by your official Offer Letter release.
+                      </p>
+                    </div>
+
+                    {/* Step-by-Step Progress Pipeline */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 1. Rounds Cleared
+                        </div>
+                        <p className="text-[11px] text-emerald-700">All evaluation stages passed.</p>
+                      </div>
+
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 2. Docs Submitted
+                        </div>
+                        <p className="text-[11px] text-indigo-700">Softcopies uploaded for review.</p>
+                      </div>
+
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs space-y-1 animate-pulse">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                          <Clock className="h-4 w-4 text-amber-600" /> 3. HR Verification
+                        </div>
+                        <p className="text-[11px] text-amber-800 font-medium">Under review by HR / Admin.</p>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs space-y-1 opacity-70">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                          <Lock className="h-4 w-4 text-slate-400" /> 4. Terms &amp; Conditions
+                        </div>
+                        <p className="text-[11px] text-slate-500">Unlocks upon HR approval.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )
+          ) : /* STEP 2: Documents ARE approved by HR! Check if Terms & Conditions accepted */
+          !termsAcceptedEffective ? (
+            <div className="space-y-6">
+              <SubmittedDocumentsStatusCard
+                submission={docSubmission}
                 candidateName={candidate.name}
-                isExperienced={isExperienced}
-                onSubmissionComplete={(sub) => {
-                  setDocSubmission(sub)
-                  setManageDocsOpen(false)
-                }}
+                onOpenManage={() => setManageDocsOpen(true)}
               />
-              {manageDocsOpen && docsSubmitted && (
-                <div className="flex justify-end">
+
+              <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-5 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-base text-emerald-950">
+                          Documents Verified &amp; Approved by HR ✓
+                        </h4>
+                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] py-0 px-2 h-4 font-semibold">
+                          Pre-Verification Cleared
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-emerald-800 mt-1">
+                        All your verification softcopies have been reviewed and approved by HR. You are now eligible to review and accept the official <strong>Company Terms &amp; Conditions</strong> to proceed to offer letter release.
+                      </p>
+                    </div>
+                  </div>
+
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setManageDocsOpen(false)}
-                    className="text-xs"
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-10 px-5 shadow-md gap-2 shrink-0"
+                    onClick={() => setTermsOpen(true)}
                   >
-                    ← Back to Verification Status
+                    <FileText className="h-4 w-4" /> Review &amp; Accept Terms &amp; Conditions →
                   </Button>
                 </div>
-              )}
+              </div>
             </div>
-          ) : !isOfferReleased ? (
-            /* Documents submitted by candidate, but HR has not yet released the offer letter */
+          ) : /* STEP 3: Terms Accepted! Awaiting Offer Release or Released */
+          !isOfferReleased ? (
             <div className="space-y-6">
               <SubmittedDocumentsStatusCard
                 submission={docSubmission}
@@ -2295,65 +2434,32 @@ export default function CandidatePortalPage() {
                       </div>
                       <div>
                         <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                          Official Offer Letter — Pending HR Release
+                          Terms Accepted ✓ — Pending Offer Letter Release
                         </CardTitle>
                         <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                          Verification softcopies submitted · Awaiting HR review &amp; formal offer issuance
+                          Documents approved · Terms accepted · Awaiting HR formal offer release
                         </CardDescription>
                       </div>
                     </div>
                     <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-300 py-1 px-3 text-xs font-semibold gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-amber-700 animate-spin" /> Under HR Verification
+                      <Clock className="h-3.5 w-3.5 text-amber-700 animate-spin" /> Pending HR Release
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-5 space-y-4">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
-                      <Info className="h-4 w-4 text-amber-700" /> Documents Under HR Verification
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Next Step: Official Offer Letter
                     </div>
-                    <p className="text-xs text-amber-900 leading-relaxed">
-                      Thank you for submitting your softcopy verification documents. Our HR &amp; Admin recruitment team has received your documents and is currently reviewing them. As per company policy, your <strong>Official Employment Offer Letter</strong> will be released and displayed right here as soon as HR verifies and approves your credentials.
+                    <p className="text-xs text-emerald-900 leading-relaxed">
+                      You have accepted the company terms and conditions. The HR recruitment team has been notified to generate and release your official employment offer letter. It will be released and displayed right here shortly.
                     </p>
-                  </div>
-
-                  {/* Verification Pipeline Step Tracker */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 1. Rounds Cleared
-                      </div>
-                      <p className="text-[11px] text-emerald-700">All evaluation stages passed.</p>
-                    </div>
-
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 2. Terms Accepted
-                      </div>
-                      <p className="text-[11px] text-emerald-700">Company terms &amp; conditions agreed.</p>
-                    </div>
-
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> 3. Softcopies Submitted
-                      </div>
-                      <p className="text-[11px] text-emerald-700">
-                        {docSubmission.documents.filter((d) => !!d.fileName).length} verification files uploaded.
-                      </p>
-                    </div>
-
-                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs space-y-1 animate-pulse">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-950">
-                        <Clock className="h-4 w-4 text-amber-600" /> 4. Offer Release
-                      </div>
-                      <p className="text-[11px] text-amber-800 font-medium">Pending HR approval &amp; release.</p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
           ) : (
-            /* Documents submitted AND HR has released the offer letter */
+            /* STEP 4: Official Offer Letter Released */
             <div className="space-y-6">
               <SubmittedDocumentsStatusCard
                 submission={docSubmission}
@@ -2371,7 +2477,7 @@ export default function CandidatePortalPage() {
                       Offer Letter Released by HR ✓
                     </h4>
                     <p className="text-xs text-emerald-800 mt-0.5">
-                      Your verification documents have been approved by HR. Your official offer letter is unlocked below — review and confirm your decision.
+                      Your verification documents have been approved and your terms are accepted. Your official offer letter is unlocked below — review and confirm your decision.
                     </p>
                   </div>
                 </div>
@@ -3806,7 +3912,7 @@ function MetricFeedback({ metrics, title, compact }: { metrics?: Record<string, 
 // ============================================================================
 // Offer — stage complete & terms flow
 // ============================================================================
-function CongratulationsCard({ onViewTerms }: { onViewTerms: () => void }) {
+export function CongratulationsCard({ onViewTerms }: { onViewTerms: () => void }) {
   return (
     <div className="rounded-lg border border-primary bg-primary/5 p-5">
       <div className="flex items-center gap-2 text-lg font-semibold">

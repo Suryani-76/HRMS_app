@@ -236,6 +236,12 @@ export const DEFAULT_REQUIRED_DOCUMENTS: Array<{
     description: 'Recent clear passport size color photograph with plain background (JPG/PNG).',
     required: true,
   },
+  {
+    docType: 'other',
+    title: 'Current / Permanent Address Proof',
+    description: 'Aadhaar Card, Electricity Bill, Rental Agreement, or Passport showing valid residential address proof.',
+    required: true,
+  },
 ]
 
 export function createDefaultCandidateDocuments(isExperienced: boolean = false): CandidateVerificationDoc[] {
@@ -1059,6 +1065,7 @@ export function getCandidateVerificationDocs(
             offerReleased: parsedMeta.offerReleased || hasOfferReleasedNote,
             offerReleasedAt: parsedMeta.offerReleasedAt,
             offerReleasedBy: parsedMeta.offerReleasedBy,
+            termsAgreedAt: parsedMeta.termsAgreedAt,
             documents: parsedMeta.documents,
             overallNotes: parsedMeta.overallNotes,
           }
@@ -1128,6 +1135,7 @@ export async function saveCandidateVerificationDocs(
         offerReleased: payload.offerReleased ?? false,
         offerReleasedAt: payload.offerReleasedAt,
         offerReleasedBy: payload.offerReleasedBy,
+        termsAgreedAt: payload.termsAgreedAt,
         docCount: payload.documents.filter((d) => !!d.fileName).length,
         documents: payload.documents.map((d) => ({
           id: d.id,

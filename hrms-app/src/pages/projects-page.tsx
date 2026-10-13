@@ -1608,7 +1608,7 @@ export default function ProjectsPage() {
 
                 {/* Status Updates Audit Timeline (Section 4) */}
                 <TabsContent value="audit-trail" className="pt-3">
-                  <div className="max-h-[380px] sm:max-h-[440px] overflow-y-auto custom-scrollbar pr-2.5 pb-2">
+                  <div className="max-h-[280px] sm:max-h-[320px] overflow-y-scroll custom-scrollbar pr-3 pb-2">
                     {detailsProject.status_updates && detailsProject.status_updates.length > 0 ? (
                       <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-muted-foreground/20">
                       {detailsProject.status_updates.map((upd, idx) => {
@@ -1723,7 +1723,7 @@ export default function ProjectsPage() {
 
                 {/* Team Roster Tab */}
                 <TabsContent value="team" className="pt-3">
-                  <div className="max-h-[380px] sm:max-h-[440px] overflow-y-auto custom-scrollbar pr-2.5 pb-2">
+                  <div className="max-h-[280px] sm:max-h-[320px] overflow-y-scroll custom-scrollbar pr-3 pb-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {detailsProject.members?.map((mem) => {
                       const emp = mem.employee || employees.find((e) => e.id === mem.employee_id)

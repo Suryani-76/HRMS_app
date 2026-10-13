@@ -352,7 +352,23 @@ function getInitialSeedProjects(): {
 function getLocalProjects(): Project[] {
   try {
     const raw = localStorage.getItem(PROJECTS_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const list: Project[] = JSON.parse(raw)
+      let changed = false
+      const migrated = list.map((p) => {
+        if (p.project_code && p.project_code.startsWith('PRJ-')) {
+          const parts = p.project_code.split('-')
+          const num = parts[parts.length - 1]
+          changed = true
+          return { ...p, project_code: `ok-ind-${num}` }
+        }
+        return p
+      })
+      if (changed) {
+        saveLocalProjects(migrated)
+      }
+      return migrated
+    }
   } catch (e) {
     console.warn('Failed to parse local projects:', e)
   }

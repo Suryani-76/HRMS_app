@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'
@@ -33,7 +32,6 @@ import {
   Eye,
   Trash2,
   UserCheck,
-  UserX,
   FileText,
   AlertCircle,
   HelpCircle,
@@ -81,7 +79,6 @@ export default function ComplaintsPage() {
   const [department, setDepartment] = useState('Human Resources (HR)')
   const [priority, setPriority] = useState<ComplaintRecord['priority']>('medium')
   const [description, setDescription] = useState('')
-  const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Filters (for Admin / My Complaints)
@@ -177,7 +174,6 @@ export default function ComplaintsPage() {
         employee_code: employee?.employee_code,
         employee_email: employee?.email,
         department,
-        is_anonymous: isAnonymous,
         category: selectedCategory,
         custom_subject: selectedCategory === 'Other' ? customSubject : null,
         description,
@@ -191,7 +187,6 @@ export default function ComplaintsPage() {
       setCustomSubject('')
       setDescription('')
       setPriority('medium')
-      setIsAnonymous(false)
 
       await loadData()
       setActiveTab('my-complaints')
@@ -597,30 +592,25 @@ export default function ComplaintsPage() {
                     </p>
                   </div>
 
-                  {/* Anonymous Checkbox Option */}
-                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id="anonymous-toggle"
-                        checked={isAnonymous}
-                        onCheckedChange={(checked) => setIsAnonymous(!!checked)}
-                        className="mt-0.5"
-                      />
-                      <div className="space-y-1">
-                        <Label
-                          htmlFor="anonymous-toggle"
-                          className="text-sm font-semibold text-slate-800 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {isAnonymous ? <UserX className="w-4 h-4 text-rose-500" /> : <UserCheck className="w-4 h-4 text-emerald-600" />}
-                          Submit as Anonymous Complaint
-                        </Label>
-                        <p className="text-xs text-slate-500">
-                          {isAnonymous
-                            ? 'Your identity (name, email, employee code) will be completely hidden from HR and management.'
-                            : `Reporting as ${employee ? `${employee.first_name} ${employee.last_name} (${employee.employee_code || employee.email})` : 'Logged-in employee'}.`}
-                        </p>
+                  {/* Complainant Identity Confirmation */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0">
+                        <UserCheck className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800 block">
+                          Filing as: {employee ? `${employee.first_name} ${employee.last_name}` : 'Logged-in Staff'}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {employee?.employee_code ? `${employee.employee_code} • ` : ''}
+                          {employee?.email || 'Confidential submission to HR & Admin'}
+                        </span>
                       </div>
                     </div>
+                    <Badge variant="outline" className="text-slate-600 bg-white border-slate-300 text-[11px] w-fit">
+                      Confidential to HR & Admin
+                    </Badge>
                   </div>
 
                   <div className="flex items-center justify-end gap-3 pt-2">
@@ -632,7 +622,6 @@ export default function ComplaintsPage() {
                         setCustomSubject('')
                         setDescription('')
                         setPriority('medium')
-                        setIsAnonymous(false)
                       }}
                       disabled={isSubmitting}
                     >
@@ -673,7 +662,7 @@ export default function ComplaintsPage() {
                     <strong>Word Limit Rule:</strong> To facilitate quick investigation and immediate resolution, all complaint summaries are capped at <strong>100 words</strong>.
                   </p>
                   <p>
-                    <strong>Anonymity:</strong> If you select Anonymous, your user ID and name will be removed prior to committee submission.
+                    <strong>Confidential Routing:</strong> Complaints are securely routed only to authorized HR and Management Admins with employee details for investigation. No external notifications are broadcast.
                   </p>
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 space-y-1">
                     <p className="font-semibold flex items-center gap-1">
@@ -754,11 +743,6 @@ export default function ComplaintsPage() {
                           </span>
                           {getStatusBadge(item.status)}
                           {getPriorityBadge(item.priority)}
-                          {item.is_anonymous && (
-                            <Badge variant="outline" className="text-slate-500 text-xs">
-                              Anonymous
-                            </Badge>
-                          )}
                           <span className="text-xs text-slate-400">
                             {new Date(item.created_at).toLocaleDateString()}
                           </span>
@@ -900,18 +884,12 @@ export default function ComplaintsPage() {
                             {new Date(item.created_at).toLocaleDateString()}
                           </td>
                           <td className="p-3 whitespace-nowrap">
-                            {item.is_anonymous ? (
-                              <span className="inline-flex items-center gap-1 font-medium text-slate-500 italic">
-                                <UserX className="w-3.5 h-3.5 text-rose-500" /> Anonymous
+                            <div>
+                              <span className="font-semibold text-slate-800 block">{item.employee_name}</span>
+                              <span className="text-[11px] text-slate-400 block">
+                                {item.employee_code ? `${item.employee_code} • ` : ''}{item.employee_email || item.department || ''}
                               </span>
-                            ) : (
-                              <div>
-                                <span className="font-semibold text-slate-800 block">{item.employee_name}</span>
-                                {item.employee_code && (
-                                  <span className="text-[11px] text-slate-400">{item.employee_code}</span>
-                                )}
-                              </div>
-                            )}
+                            </div>
                           </td>
                           <td className="p-3 max-w-xs">
                             <span className="font-semibold text-slate-800 block">
@@ -986,17 +964,14 @@ export default function ComplaintsPage() {
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <div>
                   <span className="text-slate-400 block font-medium">Complainant:</span>
-                  <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
-                    {selectedComplaint.is_anonymous ? (
-                      <>
-                        <UserX className="w-3.5 h-3.5 text-rose-500" /> Anonymous Employee
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" /> {selectedComplaint.employee_name}
-                      </>
-                    )}
+                  <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5">
+                    <UserCheck className="w-3.5 h-3.5 text-primary" /> {selectedComplaint.employee_name}
                   </span>
+                  {selectedComplaint.employee_code && (
+                    <span className="text-[11px] text-slate-500 block">
+                      {selectedComplaint.employee_code} {selectedComplaint.employee_email ? `• ${selectedComplaint.employee_email}` : ''}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Department:</span>

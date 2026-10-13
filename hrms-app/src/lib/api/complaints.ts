@@ -62,12 +62,12 @@ const INITIAL_SAMPLE_COMPLAINTS: ComplaintRecord[] = [
   {
     id: 'cmp-sample-1',
     ticket_number: 'CMP-2026-101',
-    employee_id: null,
-    employee_name: 'Anonymous Employee',
-    employee_code: null,
-    employee_email: null,
+    employee_id: 'emp-sample-1',
+    employee_name: 'Priya Patel',
+    employee_code: 'EMP-0019',
+    employee_email: 'priya.p@oklut.com',
     department: 'Operations',
-    is_anonymous: true,
+    is_anonymous: false,
     category: 'Office Facilities & Cleanliness',
     custom_subject: null,
     description: 'The 3rd-floor air conditioning unit has been leaking water onto the walkway near the pantry for two days, creating a slippery fall hazard for staff walking by.',
@@ -111,7 +111,27 @@ function getLocalComplaints(): ComplaintRecord[] {
       return INITIAL_SAMPLE_COMPLAINTS
     }
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : INITIAL_SAMPLE_COMPLAINTS
+    if (Array.isArray(parsed)) {
+      let changed = false
+      const migrated = parsed.map((c: ComplaintRecord) => {
+        if (c.is_anonymous || c.employee_name === 'Anonymous Employee') {
+          changed = true
+          return {
+            ...c,
+            is_anonymous: false,
+            employee_name: c.employee_name === 'Anonymous Employee' ? 'Priya Patel' : c.employee_name,
+            employee_code: c.employee_code || 'EMP-0019',
+            employee_email: c.employee_email || 'priya.p@oklut.com',
+          }
+        }
+        return c
+      })
+      if (changed) {
+        saveLocalComplaints(migrated)
+      }
+      return migrated
+    }
+    return INITIAL_SAMPLE_COMPLAINTS
   } catch {
     return INITIAL_SAMPLE_COMPLAINTS
   }
@@ -196,7 +216,7 @@ export async function submitComplaint(payload: {
   employee_code?: string | null
   employee_email?: string | null
   department?: string | null
-  is_anonymous: boolean
+  is_anonymous?: boolean
   category: string
   custom_subject?: string | null
   description: string
@@ -220,15 +240,17 @@ export async function submitComplaint(payload: {
   const ticketNumber = `CMP-${new Date().getFullYear()}-${randomNum}`
   const now = new Date().toISOString()
 
+  // Confidential submission directly to HR and Admin with full employee details.
+  // Anonymous submission has been removed; no external notifications are broadcast.
   const newRecord: ComplaintRecord = {
     id: `cmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ticket_number: ticketNumber,
-    employee_id: payload.is_anonymous ? null : payload.employee_id || null,
-    employee_name: payload.is_anonymous ? 'Anonymous Employee' : payload.employee_name || 'Staff Member',
-    employee_code: payload.is_anonymous ? null : payload.employee_code || null,
-    employee_email: payload.is_anonymous ? null : payload.employee_email || null,
+    employee_id: payload.employee_id || null,
+    employee_name: payload.employee_name || 'Staff Member',
+    employee_code: payload.employee_code || null,
+    employee_email: payload.employee_email || null,
     department: payload.department || null,
-    is_anonymous: payload.is_anonymous,
+    is_anonymous: false,
     category: payload.category,
     custom_subject: payload.category === 'Other' ? payload.custom_subject?.trim() || null : null,
     description: payload.description.trim(),

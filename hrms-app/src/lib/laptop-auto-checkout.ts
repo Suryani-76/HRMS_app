@@ -6,7 +6,7 @@
 // without checking out.
 // ============================================================================
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { checkOut, fetchTodayAttendance } from '@/lib/api/attendance'
 
@@ -115,138 +115,22 @@ export async function executeLaptopAutoCheckOut(
 }
 
 /**
- * Global React Hook that monitors laptop lid close, system sleep, and
- * tab visibility. If the laptop is closed or hidden for >= 30 minutes,
- * auto-checkout is immediately processed.
+ * Hook for laptop auto-checkout (Disabled per user requirement).
+ * All automatic background monitoring, listeners, sleep detection, and auto-checkout timers are disabled.
  */
-export function useLaptopAutoCheckout(employeeId?: string) {
-  const isExecutingRef = useRef(false)
-  const lastHeartbeatRef = useRef(Date.now())
-
-  // Trigger check and auto-checkout if criteria met
-  const evaluateLidTimeout = useCallback(async (forcedDurationMs?: number) => {
-    if (!employeeId || isExecutingRef.current) return
-
-    const closedRaw = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-    if (!closedRaw && forcedDurationMs == null) return
-
-    const closedAt = closedRaw ? Number(closedRaw) : Date.now() - (forcedDurationMs || 0)
-    const elapsed = forcedDurationMs ?? (Date.now() - closedAt)
-
-    if (elapsed >= LAPTOP_CLOSED_TIMEOUT_MS) {
-      isExecutingRef.current = true
-      try {
-        await executeLaptopAutoCheckOut(employeeId, elapsed, closedAt)
-      } finally {
-        isExecutingRef.current = false
-      }
-    }
-  }, [employeeId])
-
+export function useLaptopAutoCheckout(_employeeId?: string) {
   useEffect(() => {
-    if (!employeeId) return
-
-    // Initialize heartbeat
-    lastHeartbeatRef.current = Date.now()
-    localStorage.setItem(STORAGE_KEY_LAST_HEARTBEAT, String(Date.now()))
-
-    // 1. Initial on-mount check:
-    // If the laptop was closed in a previous session or laptop restarted after 30m:
-    evaluateLidTimeout()
-
-    // 2. Visibility change listener (Laptop lid closed / screen turned off / tab minimized)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // Laptop lid closed or screen turned off
-        const existing = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-        if (!existing) {
-          localStorage.setItem(STORAGE_KEY_LID_CLOSED_AT, String(Date.now()))
-        }
-      } else if (document.visibilityState === 'visible') {
-        // Laptop lid reopened! Check if closed for 30+ minutes
-        const closedRaw = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-        if (closedRaw) {
-          const closedAt = Number(closedRaw)
-          const elapsed = Date.now() - closedAt
-          if (elapsed >= LAPTOP_CLOSED_TIMEOUT_MS) {
-            evaluateLidTimeout(elapsed)
-          } else {
-            // Reopened before 30 minutes (e.g. 5-10 mins) -> Reset closed timer
-            localStorage.removeItem(STORAGE_KEY_LID_CLOSED_AT)
-          }
-        }
-      }
+    try {
+      localStorage.removeItem(STORAGE_KEY_LID_CLOSED_AT)
+      localStorage.removeItem(STORAGE_KEY_LAST_HEARTBEAT)
+    } catch {
+      // Ignore
     }
+  }, [])
 
-    // 3. Pagehide / Blur listener
-    const handlePageHide = () => {
-      const existing = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-      if (!existing) {
-        localStorage.setItem(STORAGE_KEY_LID_CLOSED_AT, String(Date.now()))
-      }
-    }
-
-    // 4. Focus listener
-    const handleFocus = () => {
-      const closedRaw = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-      if (closedRaw) {
-        const closedAt = Number(closedRaw)
-        const elapsed = Date.now() - closedAt
-        if (elapsed >= LAPTOP_CLOSED_TIMEOUT_MS) {
-          evaluateLidTimeout(elapsed)
-        } else {
-          localStorage.removeItem(STORAGE_KEY_LID_CLOSED_AT)
-        }
-      }
-    }
-
-    // 5. System Sleep / Wakeup Clock Drift Detector:
-    // When a laptop lid closes, the OS enters S3/S0ix sleep and JavaScript timers halt.
-    // When the laptop opens, the timer wakes up and detects the large jump in time!
-    const sleepCheckInterval = setInterval(() => {
-      const now = Date.now()
-      const gap = now - lastHeartbeatRef.current
-      lastHeartbeatRef.current = now
-      localStorage.setItem(STORAGE_KEY_LAST_HEARTBEAT, String(now))
-
-      // If gap exceeds 30 minutes, system was asleep because laptop was closed!
-      if (gap >= LAPTOP_CLOSED_TIMEOUT_MS) {
-        evaluateLidTimeout(gap)
-      } else if (document.visibilityState === 'hidden') {
-        // Connected standby / background timer execution
-        const closedRaw = localStorage.getItem(STORAGE_KEY_LID_CLOSED_AT)
-        if (closedRaw) {
-          const closedAt = Number(closedRaw)
-          if (now - closedAt >= LAPTOP_CLOSED_TIMEOUT_MS) {
-            evaluateLidTimeout(now - closedAt)
-          }
-        }
-      }
-    }, 5000)
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('pagehide', handlePageHide)
-    window.addEventListener('blur', handlePageHide)
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      clearInterval(sleepCheckInterval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('pagehide', handlePageHide)
-      window.removeEventListener('blur', handlePageHide)
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [employeeId, evaluateLidTimeout])
-
-  // Simulation function for instant manual testing / demo
   const simulateAutoCheckout = useCallback(async () => {
-    if (!employeeId) {
-      toast.error('No logged-in employee found to simulate checkout.')
-      return
-    }
-    toast.info('Simulating laptop closed for 30 minutes...')
-    await executeLaptopAutoCheckOut(employeeId, LAPTOP_CLOSED_TIMEOUT_MS, Date.now() - LAPTOP_CLOSED_TIMEOUT_MS)
-  }, [employeeId])
+    // No-op when disabled
+  }, [])
 
   return {
     simulateAutoCheckout,

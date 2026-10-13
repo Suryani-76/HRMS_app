@@ -530,14 +530,7 @@ function ManagerAttendance({
                             </td>
                             <td className="px-4 py-2.5 text-xs">
                               {a.check_out ? (
-                                <div className="flex flex-col">
-                                  <span>{new Date(a.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                  {a.notes?.includes('Auto-Checkout') && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-semibold" title="Automatically checked out because laptop was closed for >30m">
-                                      ⚡ Auto (Lid 30m)
-                                    </span>
-                                  )}
-                                </div>
+                                <span>{new Date(a.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               ) : (a.check_in ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">On Shift</span> : '—')}
                             </td>
                             <td className="px-4 py-2.5 text-xs">

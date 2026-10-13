@@ -12,7 +12,6 @@ import {
   RefreshCw,
   ExternalLink,
   Layers,
-  Laptop,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,7 +32,6 @@ import {
   parseAttendanceSessions,
   calculateCumulativeLoginHours,
 } from '@/lib/attendance-sessions'
-import { useLaptopAutoCheckout } from '@/lib/laptop-auto-checkout'
 
 interface TodayAttendanceCardProps {
   employeeId: string
@@ -45,7 +43,6 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
   const { data: employee } = useEmployee(employeeId)
   const checkIn = useCheckIn()
   const checkOut = useCheckOut()
-  const { simulateAutoCheckout } = useLaptopAutoCheckout(employeeId)
 
   const [faceModalOpen, setFaceModalOpen] = useState(false)
   const [faceModalAction, setFaceModalAction] = useState<'check-in' | 'check-out'>('check-in')
@@ -119,10 +116,6 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
   const isCheckedIn = Boolean(record?.check_in)
   const isCheckedOut = Boolean(record?.check_out)
   const isOnShift = isCheckedIn && !isCheckedOut
-  const isAutoCheckedOut = Boolean(
-    record?.notes?.includes('Auto-Checkout') ||
-    record?.notes?.includes('Laptop closed')
-  )
 
   const busy = checkIn.isPending || checkOut.isPending
 
@@ -232,7 +225,7 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
                 variant={isCheckedOut ? 'secondary' : 'success'}
                 className="font-medium"
               >
-                {isCheckedOut ? (isAutoCheckedOut ? 'Auto Checked out' : 'Checked out') : 'On shift'}
+                {isCheckedOut ? 'Checked out' : 'On shift'}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground text-xs font-normal">
@@ -249,59 +242,6 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
             </div>
           ) : (
             <>
-              {/* Laptop Lid Auto Check-Out Status & Test Banner (Armed when on shift) */}
-              {isOnShift && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 text-xs text-indigo-950 dark:text-indigo-200">
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-md bg-indigo-100 dark:bg-indigo-900/60 flex items-center justify-center text-indigo-700 dark:text-indigo-300 shrink-0">
-                      <Laptop className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-semibold flex items-center gap-1.5">
-                        Laptop Auto Check-Out:
-                        <Badge className="bg-emerald-600 text-white border-0 text-[10px] px-1.5 py-0">
-                          Active &amp; Armed
-                        </Badge>
-                      </span>
-                      <p className="text-[11px] text-indigo-700/90 dark:text-indigo-300/80">
-                        If your laptop is closed or asleep for half an hour (30m) without checking out, you will be automatically checked out.
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => simulateAutoCheckout()}
-                    className="h-7 px-2.5 text-[11px] border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/70 font-semibold cursor-pointer shrink-0"
-                    title="Simulate 30 minutes of laptop lid being closed"
-                  >
-                    ⚡ Test 30m Auto-Checkout
-                  </Button>
-                </div>
-              )}
-
-              {/* Auto Checked Out Notice */}
-              {isAutoCheckedOut && isCheckedOut && (
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-xs text-amber-950 dark:text-amber-200">
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-md bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0">
-                      <Laptop className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-bold flex items-center gap-1.5">
-                        Automatic Check-Out Recorded
-                        <Badge className="bg-amber-600 text-white border-0 text-[10px] px-1.5 py-0">
-                          Laptop Closed &gt;30m
-                        </Badge>
-                      </span>
-                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                        System automatically checked you out because the laptop remained closed for over half an hour.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
               {/* First-time enrollment alert if face not scanned in the beginning */}
               {!storedProfile && !isCheckedIn && (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200">

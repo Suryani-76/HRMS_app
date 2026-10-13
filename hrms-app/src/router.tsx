@@ -35,6 +35,7 @@ import AssetVerifyPage from '@/pages/asset-verify-page'
 import BankDetailsPage from '@/pages/bank-details-page'
 import ComplaintsPage from '@/pages/complaints-page'
 import ProjectsPage from '@/pages/projects-page'
+import ServiceRequestsPage from '@/pages/service-requests-page'
 import NotFoundPage from '@/pages/not-found-page'
 
 export const router = createBrowserRouter(
@@ -78,6 +79,8 @@ export const router = createBrowserRouter(
           <Route path="meeting-hall" element={<MeetingHallPage />} />
           <Route path="complaints" element={<ComplaintsPage />} />
           <Route path="incentives" element={<IncentivesDashboardPage />} />
+          <Route path="service-requests" element={<ServiceRequestsPage />} />
+          <Route path="tickets" element={<ServiceRequestsPage />} />
           <Route
             path="audit-logs"
             element={<ProtectedRoute adminOnly><AuditLogsPage /></ProtectedRoute>}

@@ -23,8 +23,10 @@ import {
   Landmark,
   MessageSquareWarning,
   FolderKanban,
+  LifeBuoy,
   type LucideIcon,
 } from 'lucide-react'
+
 
 export interface NavItem {
   title: string
@@ -77,6 +79,7 @@ export const adminNav: NavSection[] = [
       { title: 'Announcements', to: '/announcements', icon: Megaphone },
       { title: 'Holidays', to: '/holidays', icon: CalendarDays },
       { title: 'Insurance', to: '/insurance-enrollment', icon: HeartPulse },
+      { title: 'Service Request Sector', to: '/service-requests', icon: LifeBuoy },
     ],
   },
   {
@@ -108,6 +111,7 @@ export const employeeNav: NavSection[] = [
       { title: 'Complaint Box', to: '/complaints', icon: MessageSquareWarning },
       { title: 'My Performance', to: '/performance', icon: Star },
       { title: 'My Profile', to: '/profile', icon: Users },
+      { title: 'Service Request Sector', to: '/service-requests', icon: LifeBuoy },
     ],
   },
   {
@@ -118,6 +122,7 @@ export const employeeNav: NavSection[] = [
       { title: 'Holidays', to: '/holidays', icon: CalendarDays },
       { title: 'Insurance', to: '/insurance-enrollment', icon: HeartPulse },
       { title: 'Careers', to: '/careers', icon: UserPlus },
+      { title: 'Service Request Sector', to: '/service-requests', icon: LifeBuoy },
     ],
   },
 ]

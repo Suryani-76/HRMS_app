@@ -5,7 +5,64 @@ import type {
   ProjectStatusUpdate,
   ProjectStatus,
   ProjectPriority,
+  Employee,
 } from '@/lib/database.types'
+
+// -----------------------------------------------------------------------------
+// Verified Staff Fallback Registry (Guarantees visible employee names everywhere)
+// -----------------------------------------------------------------------------
+export const DEFAULT_PROJECT_STAFF: Record<string, Employee> = {
+  '00000000-0000-0000-0000-000000000020': {
+    id: '00000000-0000-0000-0000-000000000020',
+    first_name: 'Meera',
+    last_name: 'Sharma',
+    email: 'm.sharma@oklut.com',
+    employee_code: 'OKL-ENG-2026-002',
+    department_id: '00000000-0000-4000-8000-0000000000d1',
+    designation: { id: 'des-dir', name: 'Director of Engineering', level: 1, created_at: '' } as any,
+    department: { id: '00000000-0000-4000-8000-0000000000d1', name: 'Engineering & Technology', code: 'ENG', created_at: '' } as any,
+  } as Employee,
+  '00000000-0000-0000-0000-000000000030': {
+    id: '00000000-0000-0000-0000-000000000030',
+    first_name: 'Rohan',
+    last_name: 'Iyer',
+    email: 'r.iyer@oklut.com',
+    employee_code: 'OKL-ENG-2026-003',
+    department_id: '00000000-0000-4000-8000-0000000000d1',
+    designation: { id: 'des-arch', name: 'Lead Technical Architect', level: 2, created_at: '' } as any,
+    department: { id: '00000000-0000-4000-8000-0000000000d1', name: 'Engineering & Technology', code: 'ENG', created_at: '' } as any,
+  } as Employee,
+  '00000000-0000-0000-0000-000000000010': {
+    id: '00000000-0000-0000-0000-000000000010',
+    first_name: 'Aarav',
+    last_name: 'Patel',
+    email: 'a.patel@oklut.com',
+    employee_code: 'OKL-HR-2026-001',
+    department_id: '00000000-0000-4000-8000-0000000000d3',
+    designation: { id: 'des-vp', name: 'VP of Human Resources', level: 1, created_at: '' } as any,
+    department: { id: '00000000-0000-4000-8000-0000000000d3', name: 'People & Culture', code: 'HR', created_at: '' } as any,
+  } as Employee,
+  '00000000-0000-0000-0000-000000000040': {
+    id: '00000000-0000-0000-0000-000000000040',
+    first_name: 'Priya',
+    last_name: 'Nair',
+    email: 'p.nair@oklut.com',
+    employee_code: 'OKL-ENG-2026-004',
+    department_id: '00000000-0000-4000-8000-0000000000d1',
+    designation: { id: 'des-ai', name: 'Senior AI Engineer', level: 3, created_at: '' } as any,
+    department: { id: '00000000-0000-4000-8000-0000000000d1', name: 'Engineering & Technology', code: 'ENG', created_at: '' } as any,
+  } as Employee,
+  '00000000-0000-0000-0000-000000000050': {
+    id: '00000000-0000-0000-0000-000000000050',
+    first_name: 'Kavita',
+    last_name: 'Reddy',
+    email: 'k.reddy@oklut.com',
+    employee_code: 'OKL-OPS-2026-005',
+    department_id: '00000000-0000-4000-8000-0000000000d1',
+    designation: { id: 'des-ops', name: 'Cloud Infrastructure Lead', level: 2, created_at: '' } as any,
+    department: { id: '00000000-0000-4000-8000-0000000000d1', name: 'IT Infrastructure', code: 'IT', created_at: '' } as any,
+  } as Employee,
+}
 
 const PROJECTS_STORAGE_KEY = 'oklut_db_projects'
 const MEMBERS_STORAGE_KEY = 'oklut_db_project_members'
@@ -111,6 +168,8 @@ function getInitialSeedProjects(): {
       priority: 'High',
       project_head_id: head1,
       team_lead_id: lead1,
+      project_head: DEFAULT_PROJECT_STAFF[head1],
+      team_lead: DEFAULT_PROJECT_STAFF[lead1],
       status: 'In Progress',
       progress_percentage: 65,
       start_date: `${currentYear}-01-15`,
@@ -130,6 +189,8 @@ function getInitialSeedProjects(): {
       priority: 'Critical',
       project_head_id: hrHead,
       team_lead_id: head1,
+      project_head: DEFAULT_PROJECT_STAFF[hrHead],
+      team_lead: DEFAULT_PROJECT_STAFF[head1],
       status: 'At Risk',
       progress_percentage: 40,
       start_date: `${currentYear}-02-01`,
@@ -149,6 +210,8 @@ function getInitialSeedProjects(): {
       priority: 'Medium',
       project_head_id: lead1,
       team_lead_id: head1,
+      project_head: DEFAULT_PROJECT_STAFF[lead1],
+      team_lead: DEFAULT_PROJECT_STAFF[head1],
       status: 'Planning',
       progress_percentage: 15,
       start_date: `${currentYear}-03-01`,
@@ -168,6 +231,8 @@ function getInitialSeedProjects(): {
       priority: 'High',
       project_head_id: hrHead,
       team_lead_id: lead1,
+      project_head: DEFAULT_PROJECT_STAFF[hrHead],
+      team_lead: DEFAULT_PROJECT_STAFF[lead1],
       status: 'Completed',
       progress_percentage: 100,
       start_date: `${currentYear}-01-05`,
@@ -181,19 +246,19 @@ function getInitialSeedProjects(): {
 
   const members: ProjectMember[] = [
     // P1
-    { id: 'mem-1-1', project_id: p1Id, employee_id: head1, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[0].created_at },
-    { id: 'mem-1-2', project_id: p1Id, employee_id: lead1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[0].created_at },
-    { id: 'mem-1-3', project_id: p1Id, employee_id: hrHead, project_role: 'Member', assignment_status: 'Active', assigned_at: projects[0].created_at },
+    { id: 'mem-1-1', project_id: p1Id, employee_id: head1, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[0].created_at, employee: DEFAULT_PROJECT_STAFF[head1] },
+    { id: 'mem-1-2', project_id: p1Id, employee_id: lead1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[0].created_at, employee: DEFAULT_PROJECT_STAFF[lead1] },
+    { id: 'mem-1-3', project_id: p1Id, employee_id: hrHead, project_role: 'Member', assignment_status: 'Active', assigned_at: projects[0].created_at, employee: DEFAULT_PROJECT_STAFF[hrHead] },
     // P2
-    { id: 'mem-2-1', project_id: p2Id, employee_id: hrHead, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[1].created_at },
-    { id: 'mem-2-2', project_id: p2Id, employee_id: head1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[1].created_at },
-    { id: 'mem-2-3', project_id: p2Id, employee_id: lead1, project_role: 'Member', assignment_status: 'Active', assigned_at: projects[1].created_at },
+    { id: 'mem-2-1', project_id: p2Id, employee_id: hrHead, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[1].created_at, employee: DEFAULT_PROJECT_STAFF[hrHead] },
+    { id: 'mem-2-2', project_id: p2Id, employee_id: head1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[1].created_at, employee: DEFAULT_PROJECT_STAFF[head1] },
+    { id: 'mem-2-3', project_id: p2Id, employee_id: lead1, project_role: 'Member', assignment_status: 'Active', assigned_at: projects[1].created_at, employee: DEFAULT_PROJECT_STAFF[lead1] },
     // P3
-    { id: 'mem-3-1', project_id: p3Id, employee_id: lead1, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[2].created_at },
-    { id: 'mem-3-2', project_id: p3Id, employee_id: head1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[2].created_at },
+    { id: 'mem-3-1', project_id: p3Id, employee_id: lead1, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[2].created_at, employee: DEFAULT_PROJECT_STAFF[lead1] },
+    { id: 'mem-3-2', project_id: p3Id, employee_id: head1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[2].created_at, employee: DEFAULT_PROJECT_STAFF[head1] },
     // P4
-    { id: 'mem-4-1', project_id: p4Id, employee_id: hrHead, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[3].created_at },
-    { id: 'mem-4-2', project_id: p4Id, employee_id: lead1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[3].created_at },
+    { id: 'mem-4-1', project_id: p4Id, employee_id: hrHead, project_role: 'Head', assignment_status: 'Active', assigned_at: projects[3].created_at, employee: DEFAULT_PROJECT_STAFF[hrHead] },
+    { id: 'mem-4-2', project_id: p4Id, employee_id: lead1, project_role: 'Lead', assignment_status: 'Active', assigned_at: projects[3].created_at, employee: DEFAULT_PROJECT_STAFF[lead1] },
   ]
 
   const updates: ProjectStatusUpdate[] = [
@@ -441,14 +506,50 @@ export async function fetchProjects(filters?: ProjectFilters): Promise<Project[]
   const allMembers = await fetchAllProjectMembers()
   const allUpdates = await fetchAllProjectStatusUpdates()
 
-  // Augment projects with members and updates
+  // Query employees to guarantee hydration for project_head, team_lead, and roster
+  let allEmployees: Employee[] = []
+  try {
+    const { data: empData } = await supabase
+      .from('employees')
+      .select('*, department:departments(*), designation:designations(*)')
+    if (empData && empData.length > 0) {
+      allEmployees = empData as Employee[]
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  const resolveStaff = (empId?: string | null, existing?: Employee | null): Employee | null => {
+    if (existing && existing.first_name) return existing
+    if (!empId) return null
+    const found = allEmployees.find((e) => e.id === empId)
+    if (found) return found
+    if (DEFAULT_PROJECT_STAFF[empId]) return DEFAULT_PROJECT_STAFF[empId]
+    return null
+  }
+
+  // Augment projects with leadership employees, members, and updates
   projectList = projectList.map((p) => {
-    const pMembers = allMembers.filter((m) => m.project_id === p.id)
+    const headEmp = resolveStaff(p.project_head_id, p.project_head)
+    const leadEmp = resolveStaff(p.team_lead_id, p.team_lead)
+    const pMembers = allMembers
+      .filter((m) => m.project_id === p.id)
+      .map((m) => ({
+        ...m,
+        employee: resolveStaff(m.employee_id, m.employee) || (m.project_role === 'Head' ? headEmp : m.project_role === 'Lead' ? leadEmp : null),
+      }))
     const pUpdates = allUpdates
       .filter((u) => u.project_id === p.id)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((u) => ({
+        ...u,
+        updater: resolveStaff(u.updated_by, u.updater) || headEmp || leadEmp,
+      }))
+
     return {
       ...p,
+      project_head: headEmp,
+      team_lead: leadEmp,
       members: pMembers,
       status_updates: pUpdates,
     }
@@ -518,13 +619,20 @@ export async function fetchAllProjectMembers(): Promise<ProjectMember[]> {
       .from('project_members')
       .select('*, employee:employees(*, department:departments(*), designation:designations(*))')
     if (!error && data && data.length > 0) {
-      saveLocalMembers(data as unknown as ProjectMember[])
-      return data as unknown as ProjectMember[]
+      const enriched = (data as unknown as ProjectMember[]).map((m) => ({
+        ...m,
+        employee: m.employee || (m.employee_id ? DEFAULT_PROJECT_STAFF[m.employee_id] : null) || null,
+      }))
+      saveLocalMembers(enriched)
+      return enriched
     }
   } catch (err) {
     // ignore
   }
-  return getLocalMembers()
+  return getLocalMembers().map((m) => ({
+    ...m,
+    employee: m.employee || (m.employee_id ? DEFAULT_PROJECT_STAFF[m.employee_id] : null) || null,
+  }))
 }
 
 // -----------------------------------------------------------------------------
@@ -727,6 +835,15 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   const localUpdates = getLocalUpdates()
   saveLocalUpdates([initialUpdate, ...localUpdates])
 
+  const headStaff = (newProject.project_head_id ? DEFAULT_PROJECT_STAFF[newProject.project_head_id] : null) || null
+  const leadStaff = (newProject.team_lead_id ? DEFAULT_PROJECT_STAFF[newProject.team_lead_id] : null) || null
+  newProject.project_head = headStaff
+  newProject.team_lead = leadStaff
+  memberList.forEach((m) => {
+    m.employee = (m.employee_id ? DEFAULT_PROJECT_STAFF[m.employee_id] : null) || (m.project_role === 'Head' ? headStaff : m.project_role === 'Lead' ? leadStaff : null)
+  })
+  newProject.members = memberList
+
   // Notifications: Dispatch to Project Head, Team Lead, and Members
   sendProjectAssignmentNotifications(newProject, memberList)
 
@@ -773,6 +890,8 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
     // ignore
   }
 
+  let finalMembers: ProjectMember[] | undefined = undefined
+
   // Update members if member_ids provided
   if (input.member_ids !== undefined) {
     const allMembers = getLocalMembers().filter((m) => m.project_id !== id)
@@ -818,6 +937,7 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
     })
 
     saveLocalMembers([...allMembers, ...newMembers])
+    finalMembers = newMembers
 
     try {
       await supabase.from('project_members').delete().eq('project_id', id)
@@ -834,6 +954,21 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
     } catch (e) {
       // ignore
     }
+  }
+
+  const headStaff = (updated.project_head_id ? DEFAULT_PROJECT_STAFF[updated.project_head_id] : null) || updated.project_head || null
+  const leadStaff = (updated.team_lead_id ? DEFAULT_PROJECT_STAFF[updated.team_lead_id] : null) || updated.team_lead || null
+  updated.project_head = headStaff
+  updated.team_lead = leadStaff
+  if (finalMembers) {
+    finalMembers.forEach((m: ProjectMember) => {
+      m.employee = (m.employee_id ? DEFAULT_PROJECT_STAFF[m.employee_id] : null) || (m.project_role === 'Head' ? headStaff : m.project_role === 'Lead' ? leadStaff : null)
+    })
+    updated.members = finalMembers
+  } else if (updated.members) {
+    updated.members.forEach((m: ProjectMember) => {
+      m.employee = (m.employee_id ? DEFAULT_PROJECT_STAFF[m.employee_id] : null) || (m.project_role === 'Head' ? headStaff : m.project_role === 'Lead' ? leadStaff : null)
+    })
   }
 
   // Update local storage

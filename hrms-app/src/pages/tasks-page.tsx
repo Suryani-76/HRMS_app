@@ -152,7 +152,7 @@ function resolveTaskProject(
       const p = projects.find((proj) => proj.id === pid || proj.project_code === pid)
       if (p?.project_code) return { code: p.project_code, project: p }
     }
-    if (task.department_sector.startsWith('PRJ-')) {
+    if (task.department_sector.startsWith('ok-ind-') || task.department_sector.startsWith('PRJ-')) {
       return { code: task.department_sector.split(' ')[0], project: null }
     }
   }
@@ -177,14 +177,13 @@ function resolveTaskProject(
     }
   }
 
-  // 6. Deterministic Auto-Generated Project Code fallback (Format: PRJ-YYYY-NNN)
-  const currentYear = new Date().getFullYear()
+  // 6. Deterministic Auto-Generated Project Code fallback (Format: ok-ind-NNN)
   let hash = 0
   for (let i = 0; i < task.id.length; i++) {
     hash = (hash * 31 + task.id.charCodeAt(i)) & 0xffff
   }
   const seqNum = (Math.abs(hash) % 50) + 1
-  return { code: `PRJ-${currentYear}-${String(seqNum).padStart(3, '0')}`, project: null }
+  return { code: `ok-ind-${String(seqNum).padStart(3, '0')}`, project: null }
 }
 
 function TaskCard({
@@ -508,15 +507,14 @@ export default function TasksPage() {
     if (matchedProjectSuggestion?.project_code) {
       return matchedProjectSuggestion.project_code
     }
-    // 3. Auto-generated next sequence code (e.g. PRJ-2026-005)
-    const currentYear = new Date().getFullYear()
+    // 3. Auto-generated next sequence code (e.g. ok-ind-005)
     let maxNum = 0
     projects.forEach((p) => {
       const parts = (p.project_code || '').split('-')
       const n = parseInt(parts[parts.length - 1], 10)
       if (!isNaN(n) && n > maxNum) maxNum = n
     })
-    return `PRJ-${currentYear}-${String(maxNum + 1).padStart(3, '0')}`
+    return `ok-ind-${String(maxNum + 1).padStart(3, '0')}`
   }, [taskProjectId, projects, matchedProjectSuggestion])
 
   const columns: { key: string; label: string; color: string }[] = [

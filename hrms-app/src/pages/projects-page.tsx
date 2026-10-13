@@ -1002,7 +1002,7 @@ export default function ProjectsPage() {
               <div>
                 <Label className="text-xs text-muted-foreground">Project Code (Auto-generated)</Label>
                 <div className="font-mono text-base font-bold text-primary">
-                  {editProject ? editProject.project_code : nextCode || 'PRJ-2026-XXX (Auto)'}
+                  {editProject ? editProject.project_code : nextCode || 'ok-ind-001 (Auto)'}
                 </div>
               </div>
               <Badge variant="outline" className="text-xs bg-background">

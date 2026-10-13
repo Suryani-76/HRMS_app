@@ -160,7 +160,7 @@ function getInitialSeedProjects(): {
   const projects: Project[] = [
     {
       id: p1Id,
-      project_code: `PRJ-${currentYear}-001`,
+      project_code: 'ok-ind-001',
       project_name: 'AI Automated Recruitment Engine',
       description: 'End-to-end autonomous interview scoring, resume parsing, and pipeline orchestration system.',
       client_name: 'Talent Acquisition Group',
@@ -181,7 +181,7 @@ function getInitialSeedProjects(): {
     },
     {
       id: p2Id,
-      project_code: `PRJ-${currentYear}-002`,
+      project_code: 'ok-ind-002',
       project_name: 'Enterprise Cloud Infrastructure Migration',
       description: 'Multi-region AWS cluster migration with automated failover and SOC 2 security compliance.',
       client_name: 'DevOps & Reliability',
@@ -202,7 +202,7 @@ function getInitialSeedProjects(): {
     },
     {
       id: p3Id,
-      project_code: `PRJ-${currentYear}-003`,
+      project_code: 'ok-ind-003',
       project_name: 'HRMS Employee Mobile Application v2',
       description: 'Cross-platform mobile application for attendance check-ins, leave approvals, and pay slip access.',
       client_name: 'People Operations',
@@ -223,7 +223,7 @@ function getInitialSeedProjects(): {
     },
     {
       id: p4Id,
-      project_code: `PRJ-${currentYear}-004`,
+      project_code: 'ok-ind-004',
       project_name: 'Information Security & Compliance Audit',
       description: 'Comprehensive ISO 27001 & SOC 2 Type II external security audit and penetration remediation.',
       client_name: 'Internal Audit & Legal',
@@ -410,11 +410,10 @@ function saveLocalUpdates(updates: ProjectStatusUpdate[]) {
 }
 
 // -----------------------------------------------------------------------------
-// Safe Unique Project Code Generation (Format: PRJ-YYYY-NNN)
+// Safe Unique Project Code Generation (Format: ok-ind-NNN)
 // -----------------------------------------------------------------------------
 export async function getNextProjectCode(): Promise<string> {
-  const currentYear = new Date().getFullYear()
-  const prefix = `PRJ-${currentYear}-`
+  const prefix = 'ok-ind-'
 
   let maxSeq = 0
 
@@ -441,11 +440,13 @@ export async function getNextProjectCode(): Promise<string> {
   // 2. Also check local cached store to prevent any collision
   const localProjects = getLocalProjects()
   for (const proj of localProjects) {
-    if (proj.project_code?.startsWith(prefix)) {
-      const parts = proj.project_code.split('-')
-      const num = parseInt(parts[parts.length - 1], 10)
-      if (!isNaN(num) && num > maxSeq) {
-        maxSeq = num
+    if (proj.project_code) {
+      if (proj.project_code.toLowerCase().startsWith(prefix.toLowerCase()) || proj.project_code.startsWith('PRJ-')) {
+        const parts = proj.project_code.split('-')
+        const num = parseInt(parts[parts.length - 1], 10)
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num
+        }
       }
     }
   }

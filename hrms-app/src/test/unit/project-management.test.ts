@@ -1,7 +1,7 @@
 /**
  * UNIT & INTEGRATION TESTS — Project Management Module
  * Tests:
- * 1. Safe, sequential Project Code generation (PRJ-YYYY-NNN format)
+ * 1. Safe, sequential Project Code generation (ok-ind-NNN format)
  * 2. Mandatory field validations (Name, Dates, Head, Lead)
  * 3. Employee assignments (Head, Lead, Members with unique roles)
  * 4. Project Head official status update rules (Completed requires 100%, delay reasons)
@@ -31,10 +31,10 @@ describe('Project Management Module', () => {
     localStorage.removeItem('oklut_db_project_status_updates')
   })
 
-  describe('1. Project Code Auto-Generation (PRJ-YYYY-NNN)', () => {
-    it('generates a valid code matching the current year', async () => {
+  describe('1. Project Code Auto-Generation (ok-ind-NNN)', () => {
+    it('generates a valid code matching ok-ind-NNN format', async () => {
       const code = await getNextProjectCode()
-      expect(code).toMatch(new RegExp(`^PRJ-${currentYear}-\\d{3}$`))
+      expect(code).toMatch(/^ok-ind-\d{3}$/)
     })
 
     it('generates sequential non-colliding codes after each creation', async () => {
@@ -46,11 +46,11 @@ describe('Project Management Module', () => {
         start_date: `${currentYear}-01-01`,
         expected_end_date: `${currentYear}-06-30`,
       })
-      expect(p1.project_code).toContain(`PRJ-${currentYear}-`)
+      expect(p1.project_code).toContain('ok-ind-')
 
       const codeNext = await getNextProjectCode()
       expect(codeNext).not.toBe(p1.project_code)
-      expect(codeNext).toMatch(new RegExp(`^PRJ-${currentYear}-\\d{3}$`))
+      expect(codeNext).toMatch(/^ok-ind-\d{3}$/)
     })
   })
 

@@ -983,7 +983,7 @@ export default function ProjectsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar pr-3">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <FolderKanban className="h-5 w-5 text-primary" />
@@ -1293,7 +1293,7 @@ export default function ProjectsPage() {
           if (!open) setStatusUpdateProject(null)
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar pr-3">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <History className="h-5 w-5 text-primary" />
@@ -1515,7 +1515,7 @@ export default function ProjectsPage() {
           if (!open) setDetailsProject(null)
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar pr-3">
           {detailsProject && (
             <div className="space-y-6 py-2">
               {/* Header */}
@@ -1607,9 +1607,10 @@ export default function ProjectsPage() {
                 </TabsList>
 
                 {/* Status Updates Audit Timeline (Section 4) */}
-                <TabsContent value="audit-trail" className="pt-3 space-y-4">
-                  {detailsProject.status_updates && detailsProject.status_updates.length > 0 ? (
-                    <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-muted-foreground/20">
+                <TabsContent value="audit-trail" className="pt-3">
+                  <div className="max-h-[380px] sm:max-h-[440px] overflow-y-auto custom-scrollbar pr-2.5 pb-2">
+                    {detailsProject.status_updates && detailsProject.status_updates.length > 0 ? (
+                      <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-muted-foreground/20">
                       {detailsProject.status_updates.map((upd, idx) => {
                         const author = upd.updater
                         return (
@@ -1713,15 +1714,17 @@ export default function ProjectsPage() {
                       })}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-xs text-muted-foreground">
-                      No status updates recorded yet for this project.
-                    </div>
-                  )}
+                      <div className="text-center py-8 text-xs text-muted-foreground">
+                        No status updates recorded yet for this project.
+                      </div>
+                    )}
+                  </div>
                 </TabsContent>
 
                 {/* Team Roster Tab */}
                 <TabsContent value="team" className="pt-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="max-h-[380px] sm:max-h-[440px] overflow-y-auto custom-scrollbar pr-2.5 pb-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {detailsProject.members?.map((mem) => {
                       const emp = mem.employee || employees.find((e) => e.id === mem.employee_id)
                       return (
@@ -1758,6 +1761,7 @@ export default function ProjectsPage() {
                         </div>
                       )
                     })}
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>

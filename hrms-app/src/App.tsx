@@ -8,6 +8,8 @@ import { isSupabaseConfigured } from '@/lib/supabase'
 import { SetupScreen } from '@/components/setup-screen'
 import { ErrorBoundary } from '@/components/shared/error-boundary'
 
+import { LaptopAutoCheckoutMonitor } from '@/components/shared/laptop-auto-checkout-monitor'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -24,6 +26,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
+            <LaptopAutoCheckoutMonitor />
             {isSupabaseConfigured ? (
               <RouterProvider router={router} />
             ) : (

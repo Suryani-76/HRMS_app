@@ -40,4 +40,10 @@ describe('Laptop Lid Close Auto Check-Out Service', () => {
     expect(status.elapsedMinutes).toBeGreaterThanOrEqual(35)
     expect(status.elapsedMinutes * 60 * 1000).toBeGreaterThanOrEqual(LAPTOP_CLOSED_TIMEOUT_MS)
   })
+
+  it('guarantees executeLaptopAutoCheckOut is permanently disabled and returns false', async () => {
+    const { executeLaptopAutoCheckOut } = await import('@/lib/laptop-auto-checkout')
+    const result = await executeLaptopAutoCheckOut('test-emp-123')
+    expect(result).toBe(false)
+  })
 })

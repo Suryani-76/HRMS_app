@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search, UserPlus, UserX, Users, Trash2, Loader2,
   AlertTriangle, SlidersHorizontal, RotateCcw, Download,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -103,6 +103,7 @@ export default function EmployeesPage() {
 
   // ── Dialog state ──────────────────────────────────────────────
   const [formOpen, setFormOpen] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState<any | null>(null)
   const [initialConversionValues, setInitialConversionValues] = useState<Record<string, any> | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [employeeIdInput, setEmployeeIdInput] = useState('')
@@ -238,7 +239,7 @@ export default function EmployeesPage() {
               <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10 gap-1.5" onClick={() => setDeleteDialogOpen(true)}>
                 <UserX className="h-3.5 w-3.5" /> Delete by ID
               </Button>
-              <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5">
+              <Button size="sm" onClick={() => { setEditingEmployee(null); setFormOpen(true); }} className="gap-1.5">
                 <UserPlus className="h-3.5 w-3.5" /> Add Employee
               </Button>
             </div>
@@ -416,7 +417,7 @@ export default function EmployeesPage() {
       ) : filtered.length === 0 ? (
         <EmptyState title="No employees found" description="Try adjusting your search or filters.">
           {isManager && (
-            <Button onClick={() => setFormOpen(true)}>
+            <Button onClick={() => { setEditingEmployee(null); setFormOpen(true); }}>
               <Users className="mr-2 h-4 w-4" /> Add your first employee
             </Button>
           )}
@@ -482,35 +483,50 @@ export default function EmployeesPage() {
                     </TableCell>
                     {isManager && (
                       <TableCell className="text-right">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-opacity"
-                              aria-label={`Delete ${e.first_name} ${e.last_name}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete employee & block credentials?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently delete <strong>{e.first_name} {e.last_name}</strong> ({e.employee_code ?? e.id}) and block their portal login. This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteSingle.mutate(e.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            onClick={() => {
+                              setEditingEmployee(e)
+                              setFormOpen(true)
+                            }}
+                            title="Edit Employee / ID"
+                            aria-label={`Edit ${e.first_name} ${e.last_name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-opacity"
+                                aria-label={`Delete ${e.first_name} ${e.last_name}`}
                               >
-                                Delete & Block Login
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete employee & block credentials?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete <strong>{e.first_name} {e.last_name}</strong> ({e.employee_code ?? e.id}) and block their portal login. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteSingle.mutate(e.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete & Block Login
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -527,8 +543,12 @@ export default function EmployeesPage() {
         open={formOpen}
         onOpenChange={(open) => {
           setFormOpen(open)
-          if (!open) setInitialConversionValues(null)
+          if (!open) {
+            setInitialConversionValues(null)
+            setEditingEmployee(null)
+          }
         }}
+        employee={editingEmployee}
         initialValues={initialConversionValues}
       />
 

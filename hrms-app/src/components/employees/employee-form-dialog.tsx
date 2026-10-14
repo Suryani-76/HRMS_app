@@ -49,6 +49,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
   const [sameAsCurrent, setSameAsCurrent] = useState(false)
 
   const [form, setForm] = useState({
+    employee_code: '',
     first_name: '',
     last_name: '',
     email: '',
@@ -114,6 +115,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
         setSameAsCurrent(isSame)
 
         setForm({
+          employee_code: employee.employee_code ?? '',
           first_name: employee.first_name ?? '',
           last_name: employee.last_name ?? '',
           email: employee.email ?? '',
@@ -165,6 +167,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
         }
 
         setForm({
+          employee_code: initialValues.employee_code || initialValues.code || '',
           first_name: fName,
           last_name: lName,
           email: initialValues.email || '',
@@ -202,6 +205,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
       } else {
         setSameAsCurrent(false)
         setForm({
+          employee_code: '',
           first_name: '',
           last_name: '',
           email: '',
@@ -309,7 +313,21 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
       setError('Login password must be at least 6 characters long.')
       return
     }
+
+    // Validate employee_code uniqueness if entered manually
+    if (form.employee_code.trim()) {
+      const codeTrimmed = form.employee_code.trim().toUpperCase()
+      const duplicate = allEmployees.find(
+        (e) => e.employee_code && e.employee_code.toUpperCase() === codeTrimmed && e.id !== employee?.id
+      )
+      if (duplicate) {
+        setError(`Employee ID "${form.employee_code.trim()}" is already assigned to ${duplicate.first_name} ${duplicate.last_name}. Please choose a unique Employee ID.`)
+        return
+      }
+    }
+
     const payload = {
+      employee_code: form.employee_code.trim() || undefined,
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim(),
@@ -377,8 +395,8 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
           <DialogTitle>{employee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
           <DialogDescription>
             {employee
-              ? 'Update the employee record, emergency contact, and address details.'
-              : 'Fill in the details below. An Employee ID (e.g. OKL-ENG-2026-001) will be auto-generated based on the department selected. Email and Phone are mandatory unique identifiers — they distinguish employees with the same name.'}
+              ? 'Update the employee ID, personal details, contact info, and employment information.'
+              : 'Fill in the details below. You can enter a custom Employee ID (e.g. OKL-ENG-2026-001 or EMP-001) or leave it blank to auto-generate. Email and Phone are mandatory unique identifiers.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -391,10 +409,30 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
 
           {/* 1. Personal Details */}
           <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
-              <User className="h-4 w-4 text-indigo-600" /> Personal Details
+            <h3 className="text-sm font-semibold flex items-center justify-between text-slate-900">
+              <span className="flex items-center gap-2">
+                <User className="h-4 w-4 text-indigo-600" /> Identity & Personal Details
+              </span>
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2 bg-indigo-50/60 p-3.5 rounded-lg border border-indigo-100">
+                <Label htmlFor="emp_code_input" className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-900 text-sm">Employee ID / Code</span>
+                  <span className="text-xs text-indigo-700 font-medium">
+                    {employee ? 'Editable manually by HR' : 'Enter manual ID or leave blank to auto-generate'}
+                  </span>
+                </Label>
+                <Input
+                  id="emp_code_input"
+                  value={form.employee_code}
+                  onChange={(e) => set('employee_code', e.target.value)}
+                  placeholder="e.g. OKL-ENG-2026-001, EMP-001, OK-IND-001"
+                  className="font-mono bg-white text-sm font-medium tracking-wide mt-1.5"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Manual ID reflects across Employee Directory, Profile, Attendance, Payroll, Projects, Tasks, and Reports.
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label>First name *</Label>
                 <Input value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" required />

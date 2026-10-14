@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Mail, Phone, Building2, Briefcase, Cake, MapPin, BadgeCheck, CalendarDays, PhoneCall, Home, CheckSquare, Square } from 'lucide-react'
+import { Loader2, Mail, Phone, Building2, Briefcase, Cake, MapPin, BadgeCheck, CalendarDays, PhoneCall, Home, CheckSquare, Square, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -56,13 +56,14 @@ export default function ProfilePage() {
     setSameAsCurrent(isSame)
 
     setForm({
+      employee_code: e.employee_code ?? '',
       phone: e.phone ?? '',
       date_of_birth: e.date_of_birth?.slice(0, 10) ?? '',
       marital_status: e.marital_status ?? '',
       blood_group: e.blood_group ?? '',
       emergency_contact_name: e.emergency_contact_name || e.guardian_name || '',
       emergency_contact_relation: e.emergency_contact_relation || e.guardian_relation || '',
-      emergency_contact_phone: e.emergency_contact_phone || e.emergency_contact || e.guardian_phone || '',
+      emergency_contact_phone: e.emergency_contact_phone || employee?.emergency_contact || e.guardian_phone || '',
       current_address: curAddr,
       current_city: curCity,
       current_state: curState,
@@ -108,6 +109,7 @@ export default function ProfilePage() {
   const submit = async (e2: React.FormEvent) => {
     e2.preventDefault()
     await update.mutateAsync({
+      employee_code: form.employee_code?.trim() || undefined,
       phone: form.phone || undefined,
       date_of_birth: form.date_of_birth || undefined,
       marital_status: form.marital_status || undefined,
@@ -167,6 +169,7 @@ export default function ProfilePage() {
   const emergencyPhone = e.emergency_contact_phone || e.emergency_contact || e.guardian_phone || '—'
 
   const infoItems = [
+    { icon: Hash, label: 'Employee ID', value: e.employee_code || '—' },
     { icon: Mail, label: 'Email', value: e.email },
     { icon: Phone, label: 'Personal Phone', value: e.phone || '—' },
     { icon: Building2, label: 'Department', value: e.department?.name || '—' },
@@ -293,6 +296,16 @@ export default function ProfilePage() {
             <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
               <h4 className="text-sm font-semibold text-slate-900">Personal Info</h4>
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="prof_employee_code">Employee ID / Code</Label>
+                  <Input
+                    id="prof_employee_code"
+                    value={form.employee_code ?? ''}
+                    onChange={(e) => setField('employee_code', e.target.value)}
+                    placeholder="e.g. OKL-ENG-2026-001 or EMP-001"
+                    className="font-mono bg-white"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Personal Phone <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
                   <Input

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Mail, Phone, MapPin, Cake, CalendarDays, Building2, Briefcase, BadgeCheck, Pencil, Trash2, Loader2, Download } from 'lucide-react'
+import { Mail, Phone, MapPin, Cake, CalendarDays, Building2, Briefcase, BadgeCheck, Pencil, Trash2, Loader2, Download, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -95,6 +95,7 @@ export default function EmployeeDetailPage() {
   const emergencyPhone = employee.emergency_contact_phone || employee.emergency_contact || employee.guardian_phone || '—'
 
   const infoItems = [
+    { icon: Hash, label: 'Employee ID', value: employee.employee_code || '—' },
     { icon: Mail, label: 'Email', value: employee.email },
     { icon: Phone, label: 'Personal Phone', value: employee.phone || '—' },
     { icon: Building2, label: 'Department', value: employee.department?.name || '—' },

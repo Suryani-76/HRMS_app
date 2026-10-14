@@ -17,7 +17,7 @@ import {
   ChevronRight,
   MessageSquareWarning,
 } from 'lucide-react'
-import { format, isToday, parseISO } from 'date-fns'
+import { format, isToday, isSameDay, parseISO } from 'date-fns'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -215,8 +215,9 @@ function ScheduledMeetingsCard() {
                       <p className="truncate text-sm font-medium text-slate-900">{b.title}</p>
                       <p className="truncate text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Clock className="h-3 w-3 inline shrink-0" />
-                        {today ? 'Today, ' : format(startDate, 'MMM d, ')}
-                        {format(startDate, 'h:mm a')} - {format(endDate, 'h:mm a')}
+                        {isSameDay(startDate, endDate)
+                          ? `${today ? 'Today, ' : format(startDate, 'MMM d, ')}${format(startDate, 'h:mm a')} – ${format(endDate, 'h:mm a')}`
+                          : `${format(startDate, 'MMM d')} – ${format(endDate, 'MMM d, yyyy')} • ${format(startDate, 'h:mm a')} – ${format(endDate, 'h:mm a')}`}
                       </p>
                       {b.requester && (
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">

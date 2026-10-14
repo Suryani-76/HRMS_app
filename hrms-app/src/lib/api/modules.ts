@@ -933,12 +933,13 @@ export async function createMeetingHallBooking(input: {
 
   if (error) throw error
 
-  const dateStr = new Date(input.start_time).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-  const timeStr = `${new Date(input.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(input.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  const sDate = new Date(input.start_time)
+  const eDate = new Date(input.end_time)
+  const isSingle = sDate.toDateString() === eDate.toDateString()
+  const dateStr = isSingle
+    ? `on ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    : `from ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${eDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  const timeStr = `${sDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${eDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
   // If approved immediately (Admin direct booking) -> broadcast to all users
   if (input.status === 'Approved') {
@@ -946,7 +947,7 @@ export async function createMeetingHallBooking(input: {
       await supabase.from('notifications').insert({
         type: 'info',
         title: `Meeting Hall Booked: ${input.title}`,
-        message: `Meeting Hall reserved for "${input.title}" on ${dateStr} (${timeStr}).`,
+        message: `Meeting Hall reserved for "${input.title}" ${dateStr} (${timeStr}).`,
         link: '/meeting-hall',
         is_read: false,
       })
@@ -957,7 +958,7 @@ export async function createMeetingHallBooking(input: {
       await supabase.from('notifications').insert({
         type: 'info',
         title: `Meeting Hall Booking Request: ${input.title}`,
-        message: `New booking request for "${input.title}" on ${dateStr} (${timeStr}). Please review and approve.`,
+        message: `New booking request for "${input.title}" ${dateStr} (${timeStr}). Please review and approve.`,
         link: '/meeting-hall',
         is_read: false,
       })
@@ -985,11 +986,16 @@ export async function updateMeetingHallBookingStatus(
 
   if (error) throw error
 
-  const dateStr = data?.start_time
-    ? new Date(data.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const sDate = data?.start_time ? new Date(data.start_time) : null
+  const eDate = data?.end_time ? new Date(data.end_time) : null
+  const isSingle = sDate && eDate ? sDate.toDateString() === eDate.toDateString() : true
+  const dateStr = sDate
+    ? isSingle
+      ? `on ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : `from ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${eDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
     : ''
-  const timeStr = data?.start_time && data?.end_time
-    ? `${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(data.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  const timeStr = sDate && eDate
+    ? `${sDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${eDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     : ''
 
   // Broadcast to all users if approved
@@ -998,7 +1004,7 @@ export async function updateMeetingHallBookingStatus(
       await supabase.from('notifications').insert({
         type: 'info',
         title: `Meeting Hall Booked: ${data.title}`,
-        message: `Meeting Hall reserved for "${data.title}" on ${dateStr} (${timeStr}).`,
+        message: `Meeting Hall reserved for "${data.title}" ${dateStr} (${timeStr}).`,
         link: '/meeting-hall',
         is_read: false,
       })

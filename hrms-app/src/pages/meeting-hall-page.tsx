@@ -27,6 +27,42 @@ import {
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/shared/empty-state'
 
+function formatBookingSchedule(startTime: string, endTime: string) {
+  try {
+    const s = new Date(startTime)
+    const e = new Date(endTime)
+    const timeStr = `${format(s, 'h:mm a')} – ${format(e, 'h:mm a')}`
+    if (isSameDay(s, e)) {
+      return {
+        dateStr: format(s, 'MMM d, yyyy'),
+        timeStr,
+        fullStr: `${format(s, 'MMM d, yyyy')} (${timeStr})`,
+        isMultiDay: false,
+        startDateStr: format(s, 'MMM d, yyyy'),
+        endDateStr: format(e, 'MMM d, yyyy'),
+      }
+    }
+    const dateStr = `${format(s, 'MMM d, yyyy')} – ${format(e, 'MMM d, yyyy')}`
+    return {
+      dateStr,
+      timeStr,
+      fullStr: `from ${format(s, 'MMM d, yyyy')} to ${format(e, 'MMM d, yyyy')} (${timeStr})`,
+      isMultiDay: true,
+      startDateStr: format(s, 'MMM d, yyyy'),
+      endDateStr: format(e, 'MMM d, yyyy'),
+    }
+  } catch {
+    return {
+      dateStr: startTime,
+      timeStr: endTime,
+      fullStr: `${startTime} – ${endTime}`,
+      isMultiDay: false,
+      startDateStr: startTime,
+      endDateStr: endTime,
+    }
+  }
+}
+
 export default function MeetingHallPage() {
   const { user, employee, isAdmin, isManager } = useAuth()
   const { data: allEmployees = [] } = useEmployees()
@@ -38,9 +74,10 @@ export default function MeetingHallPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('10:00')
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [startTime, setStartTime] = useState('15:00')
+  const [endTime, setEndTime] = useState('16:30')
 
   // Derived state
   const now = new Date()
@@ -58,10 +95,15 @@ export default function MeetingHallPage() {
   }, [bookings, now])
 
   const todaysBookings = useMemo(() => {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
     return bookings
       .filter((b) => {
+        if (b.status !== 'Approved') return false
         try {
-          return isSameDay(new Date(b.start_time), now) && b.status === 'Approved'
+          const bStart = new Date(b.start_time)
+          const bEnd = new Date(b.end_time)
+          return bStart <= todayEnd && bEnd >= todayStart
         } catch {
           return false
         }
@@ -78,11 +120,11 @@ export default function MeetingHallPage() {
 
     const currentEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
 
-    const start = new Date(`${date}T${startTime}`)
-    const end = new Date(`${date}T${endTime}`)
+    const start = new Date(`${startDate}T${startTime}`)
+    const end = new Date(`${endDate}T${endTime}`)
 
-    if (start >= end) {
-      return toast.error('End time must be after start time')
+    if (end <= start) {
+      return toast.error('End date & time must be after start date & time')
     }
 
     // Check for overlap with approved bookings
@@ -91,14 +133,14 @@ export default function MeetingHallPage() {
       try {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
-        return isSameDay(bStart, start) && start < bEnd && end > bStart
+        return start < bEnd && end > bStart
       } catch {
         return false
       }
     })
 
     if (hasOverlap) {
-      return toast.error('This time slot overlaps with an existing approved booking. Please choose another time.')
+      return toast.error('This date & time slot overlaps with an existing approved booking. Please choose another slot.')
     }
 
     try {
@@ -114,9 +156,10 @@ export default function MeetingHallPage() {
       setIsDialogOpen(false)
       setTitle('')
       setDescription('')
-      setDate(format(new Date(), 'yyyy-MM-dd'))
-      setStartTime('09:00')
-      setEndTime('10:00')
+      setStartDate(format(new Date(), 'yyyy-MM-dd'))
+      setEndDate(format(new Date(), 'yyyy-MM-dd'))
+      setStartTime('15:00')
+      setEndTime('16:30')
     } catch {
       // toast is handled in mutation
     }
@@ -186,17 +229,37 @@ export default function MeetingHallPage() {
                     placeholder="e.g. Q3 Roadmap Review / Client Demo"
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="date">Date *</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                    min={format(now, 'yyyy-MM-dd')}
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="startDate">Start Date *</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value)
+                        if (endDate < e.target.value) {
+                          setEndDate(e.target.value)
+                        }
+                      }}
+                      required
+                      min={format(now, 'yyyy-MM-dd')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endDate">End Date *</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      required
+                      min={startDate || format(now, 'yyyy-MM-dd')}
+                    />
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="start">Start Time *</Label>
@@ -207,6 +270,16 @@ export default function MeetingHallPage() {
                     <Input id="end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
                   </div>
                 </div>
+
+                {startDate && endDate && startTime && endTime && (
+                  <div className="rounded-lg bg-indigo-50/70 border border-indigo-100 p-2.5 text-xs text-indigo-900 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <span>
+                      Booking from <strong>{format(new Date(startDate + 'T00:00:00'), 'MMM d, yyyy')}</strong> to <strong>{format(new Date(endDate + 'T00:00:00'), 'MMM d, yyyy')}</strong> ({format(new Date(`2000-01-01T${startTime}`), 'h:mm a')} – {format(new Date(`2000-01-01T${endTime}`), 'h:mm a')})
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid gap-2">
                   <Label htmlFor="desc">Description / Agenda (Optional)</Label>
                   <Textarea
@@ -354,11 +427,25 @@ export default function MeetingHallPage() {
                         <p>
                           <strong>Requested By:</strong> {req.requester?.first_name || 'Staff'} {req.requester?.last_name || ''}
                         </p>
+                        {(() => {
+                          const sched = formatBookingSchedule(req.start_time, req.end_time)
+                          return sched.isMultiDay ? (
+                            <>
+                              <p>
+                                <strong>Start Date:</strong> {sched.startDateStr}
+                              </p>
+                              <p>
+                                <strong>End Date:</strong> {sched.endDateStr}
+                              </p>
+                            </>
+                          ) : (
+                            <p>
+                              <strong>Date:</strong> {sched.dateStr}
+                            </p>
+                          )
+                        })()}
                         <p>
-                          <strong>Date:</strong> {format(new Date(req.start_time), 'MMM d, yyyy')}
-                        </p>
-                        <p>
-                          <strong>Time:</strong> {format(new Date(req.start_time), 'h:mm a')} -{' '}
+                          <strong>Timing:</strong> {format(new Date(req.start_time), 'h:mm a')} –{' '}
                           {format(new Date(req.end_time), 'h:mm a')}
                         </p>
                         {req.description && (
@@ -416,26 +503,37 @@ export default function MeetingHallPage() {
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
                     <th className="px-4 py-3">Meeting Title</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Time</th>
+                    <th className="px-4 py-3">Date (Start – End)</th>
+                    <th className="px-4 py-3">Timing</th>
                     <th className="px-4 py-3">Organized By</th>
                     <th className="px-4 py-3">Status</th>
                     {isAdmin && <th className="px-4 py-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((b) => (
-                    <tr key={b.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-900">{b.title}</p>
-                        {b.description && <p className="text-xs text-muted-foreground truncate max-w-xs">{b.description}</p>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {format(new Date(b.start_time), 'MMM d, yyyy')}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-indigo-600 text-xs">
-                        {format(new Date(b.start_time), 'h:mm a')} - {format(new Date(b.end_time), 'h:mm a')}
-                      </td>
+                  {bookings.map((b) => {
+                    const sched = formatBookingSchedule(b.start_time, b.end_time)
+                    return (
+                      <tr key={b.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-900">{b.title}</p>
+                          {b.description && <p className="text-xs text-muted-foreground truncate max-w-xs">{b.description}</p>}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {sched.isMultiDay ? (
+                            <div>
+                              <p className="font-semibold text-slate-900 text-xs">
+                                {sched.startDateStr} – {sched.endDateStr}
+                              </p>
+                              <span className="text-[10px] text-indigo-600 font-medium">Multi-day booking</span>
+                            </div>
+                          ) : (
+                            <span className="font-medium text-xs text-slate-800">{sched.dateStr}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-indigo-600 text-xs">
+                          {sched.timeStr}
+                        </td>
                       <td className="px-4 py-3 text-slate-700">
                         {b.requester ? `${b.requester.first_name} ${b.requester.last_name}` : 'Staff'}
                       </td>
@@ -461,7 +559,7 @@ export default function MeetingHallPage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>

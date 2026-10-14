@@ -167,13 +167,13 @@ export function useTodayAttendance(employeeId?: string) {
     queryFn: () => api.fetchTodayAttendance(employeeId),
   })
 }
-export function useAttendanceMonth(employeeId: string, month: string) {
+export function useAttendanceMonth(employeeId: string, month: string, date?: string) {
   return useQuery({
-    queryKey: queryKeys.attendanceMonth(employeeId, month),
-    queryFn: () => api.fetchAttendanceMonth(employeeId, month),
+    queryKey: [...queryKeys.attendanceMonth(employeeId, month), { date }],
+    queryFn: () => api.fetchAttendanceMonth(employeeId, month, date),
   })
 }
-export function useAttendanceLog(options?: { month?: string; employeeId?: string; status?: string }) {
+export function useAttendanceLog(options?: { date?: string; month?: string; employeeId?: string; status?: string }) {
   return useQuery({
     queryKey: [...queryKeys.attendance, options],
     queryFn: () => api.fetchAttendanceLog(options),

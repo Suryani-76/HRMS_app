@@ -9,6 +9,8 @@ import {
   Lock,
   Unlock,
   RefreshCw,
+  Calendar,
+  CalendarDays,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,6 +40,7 @@ import {
 } from '@/lib/api/faceCredentials'
 import { parseGpsFromNotes, getCurrentGeoLocation, type GeoLocationData } from '@/lib/geo-tracking'
 import { parseAttendanceSessions } from '@/lib/attendance-sessions'
+import { getTodayDateString } from '@/lib/api/attendance'
 
 const PAGE_SIZE = 15
 
@@ -341,7 +344,10 @@ function ManagerAttendance({
   onLaunchFaceModal: (employee: any) => void
 }) {
   const [activeTab, setActiveTab] = useState<'log' | 'registry'>('log')
+  const [filterMode, setFilterMode] = useState<'date' | 'month'>('month')
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString())
   const [month, setMonth] = useState(currentPayPeriod())
+  const [selectedDay, setSelectedDay] = useState('all')
   const [employeeId, setEmployeeId] = useState('all')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
@@ -351,9 +357,27 @@ function ManagerAttendance({
   const [selectedLoc, setSelectedLoc] = useState<any>(null)
   const [locDialogOpen, setLocDialogOpen] = useState(false)
 
+  const daysInSelectedMonth = useMemo(() => {
+    if (!month) return 31
+    const [y, m] = month.split('-').map(Number)
+    if (!y || !m) return 31
+    return new Date(y, m, 0).getDate()
+  }, [month])
+
+  const queryDate = filterMode === 'date'
+    ? (selectedDate || undefined)
+    : selectedDay !== 'all'
+      ? `${month}-${selectedDay}`
+      : undefined
+
+  const queryMonth = filterMode === 'month' && selectedDay === 'all'
+    ? month
+    : undefined
+
   const { data: employees = [] } = useEmployees()
   const { data: log = [], isLoading, isError, refetch } = useAttendanceLog({
-    month,
+    date: queryDate,
+    month: queryMonth,
     employeeId: employeeId !== 'all' ? employeeId : undefined,
     status: status !== 'all' ? status : undefined,
   })
@@ -413,16 +437,106 @@ function ManagerAttendance({
             </Card>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              type="month"
-              value={month}
-              onChange={(e) => {
-                setMonth(e.target.value)
-                setPage(1)
-              }}
-              className="sm:w-44"
-            />
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Filter Mode Toggle: Specific Date vs Month & Year */}
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('date')
+                  setPage(1)
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  filterMode === 'date'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Filter by Specific Date (Day, Month, Year)"
+              >
+                <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Exact Date</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('month')
+                  setPage(1)
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  filterMode === 'month'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Filter by Month & Year"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-emerald-500" />
+                <span>Month & Year</span>
+              </button>
+            </div>
+
+            {/* Date Pickers based on mode */}
+            {filterMode === 'date' ? (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value)
+                    if (e.target.value) {
+                      setMonth(e.target.value.slice(0, 7))
+                    }
+                    setPage(1)
+                  }}
+                  className="w-44 h-9 text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = getTodayDateString()
+                    setSelectedDate(today)
+                    setMonth(today.slice(0, 7))
+                    setPage(1)
+                  }}
+                  className="h-9 px-2.5 text-xs"
+                >
+                  Today
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="month"
+                  value={month}
+                  onChange={(e) => {
+                    setMonth(e.target.value)
+                    setPage(1)
+                  }}
+                  className="w-40 h-9 text-xs"
+                />
+                <Select
+                  value={selectedDay}
+                  onValueChange={(v) => {
+                    setSelectedDay(v)
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-32 h-9 text-xs">
+                    <SelectValue placeholder="All days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All days</SelectItem>
+                    {Array.from({ length: daysInSelectedMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
+                      <SelectItem key={d} value={d}>
+                        Day {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <Select
               value={employeeId}
               onValueChange={(v) => {
@@ -430,7 +544,7 @@ function ManagerAttendance({
                 setPage(1)
               }}
             >
-              <SelectTrigger className="sm:w-52">
+              <SelectTrigger className="w-44 h-9 text-xs">
                 <SelectValue placeholder="Employee" />
               </SelectTrigger>
               <SelectContent>
@@ -442,6 +556,7 @@ function ManagerAttendance({
                 ))}
               </SelectContent>
             </Select>
+
             <Select
               value={status}
               onValueChange={(v) => {
@@ -449,7 +564,7 @@ function ManagerAttendance({
                 setPage(1)
               }}
             >
-              <SelectTrigger className="sm:w-40">
+              <SelectTrigger className="w-36 h-9 text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -460,7 +575,8 @@ function ManagerAttendance({
                 <SelectItem value="on_leave">On Leave</SelectItem>
               </SelectContent>
             </Select>
-            <div className="relative flex-1">
+
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search employee..."
@@ -469,7 +585,7 @@ function ManagerAttendance({
                   setSearch(e.target.value)
                   setPage(1)
                 }}
-                className="pl-9"
+                className="pl-9 h-9 text-xs"
               />
             </div>
           </div>
@@ -628,8 +744,25 @@ function EmployeeAttendance() {
   const { user, employee } = useAuth()
   const { data: allEmployees = [] } = useEmployees()
   const effectiveEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
+  const [filterMode, setFilterMode] = useState<'month' | 'date'>('month')
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString())
   const [month, setMonth] = useState(currentPayPeriod())
-  const { data: records = [], isLoading } = useAttendanceMonth(effectiveEmployeeId, month)
+  const [selectedDay, setSelectedDay] = useState('all')
+
+  const daysInSelectedMonth = useMemo(() => {
+    if (!month) return 31
+    const [y, m] = month.split('-').map(Number)
+    if (!y || !m) return 31
+    return new Date(y, m, 0).getDate()
+  }, [month])
+
+  const queryDate = filterMode === 'date'
+    ? (selectedDate || undefined)
+    : selectedDay !== 'all'
+      ? `${month}-${selectedDay}`
+      : undefined
+
+  const { data: records = [], isLoading } = useAttendanceMonth(effectiveEmployeeId, month, queryDate)
 
   const [selectedLoc, setSelectedLoc] = useState<any>(null)
   const [locDialogOpen, setLocDialogOpen] = useState(false)
@@ -646,8 +779,88 @@ function EmployeeAttendance() {
     <div className="space-y-4">
       <TodayAttendanceCard employeeId={effectiveEmployeeId} />
 
-      <div className="flex items-center gap-2">
-        <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="sm:w-44" />
+      <div className="flex flex-wrap items-center gap-2.5">
+        {/* Filter Mode Toggle: Specific Date vs Month & Year */}
+        <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setFilterMode('date')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              filterMode === 'date'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Filter by Specific Date (Day, Month, Year)"
+          >
+            <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Exact Date</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterMode('month')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              filterMode === 'month'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Filter by Month & Year"
+          >
+            <CalendarDays className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Month & Year</span>
+          </button>
+        </div>
+
+        {/* Date Pickers based on mode */}
+        {filterMode === 'date' ? (
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value)
+                if (e.target.value) {
+                  setMonth(e.target.value.slice(0, 7))
+                }
+              }}
+              className="w-44 h-9 text-xs"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = getTodayDateString()
+                setSelectedDate(today)
+                setMonth(today.slice(0, 7))
+              }}
+              className="h-9 px-2.5 text-xs"
+            >
+              Today
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="w-40 h-9 text-xs"
+            />
+            <Select value={selectedDay} onValueChange={setSelectedDay}>
+              <SelectTrigger className="w-32 h-9 text-xs">
+                <SelectValue placeholder="All days" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All days</SelectItem>
+                {Array.from({ length: daysInSelectedMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
+                  <SelectItem key={d} value={d}>
+                    Day {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -659,7 +872,7 @@ function EmployeeAttendance() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
-            <span>Monthly Log — {monthName(month)}</span>
+            <span>{queryDate ? `Daily Log — ${formatDate(queryDate)}` : `Monthly Log — ${monthName(month)}`}</span>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="border-indigo-500/30 text-indigo-600 dark:text-indigo-400 text-xs gap-1 font-normal">
                 <ScanFace className="h-3 w-3" /> Face Verified
@@ -674,7 +887,7 @@ function EmployeeAttendance() {
           {isLoading ? (
             <TableSkeleton rows={6} />
           ) : records.length === 0 ? (
-            <EmptyState title="No records" description="No attendance records for this month yet." icon={ClipboardList} />
+            <EmptyState title="No records" description={queryDate ? "No attendance record found for this date." : "No attendance records for this month yet."} icon={ClipboardList} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

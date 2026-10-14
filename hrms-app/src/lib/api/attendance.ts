@@ -12,7 +12,7 @@ export * from '@/lib/attendance-sessions'
 export type { GeoLocationData } from '@/lib/geo-tracking'
 
 // ---------- Attendance ----------
-function getTodayDateString(): string {
+export function getTodayDateString(): string {
   const d = new Date()
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -41,20 +41,25 @@ function getMonthDateRange(monthStr: string): { start: string; end: string } {
   }
 }
 
-export async function fetchAttendanceMonth(employeeId: string, month: string) {
-  const { start, end } = getMonthDateRange(month)
-  const { data, error } = await supabase
+export async function fetchAttendanceMonth(employeeId: string, month: string, date?: string) {
+  let query = supabase
     .from('attendance')
     .select('*, employee:employees(first_name, last_name, employee_code)')
     .eq('employee_id', employeeId)
-    .gte('date', start)
-    .lte('date', end)
-    .order('date')
+
+  if (date) {
+    query = query.eq('date', date)
+  } else {
+    const { start, end } = getMonthDateRange(month)
+    query = query.gte('date', start).lte('date', end)
+  }
+
+  const { data, error } = await query.order('date')
   if (error) throw error
   return (data ?? []) as Attendance[]
 }
 
-export async function fetchAttendanceLog(options?: { month?: string; employeeId?: string; status?: string }) {
+export async function fetchAttendanceLog(options?: { date?: string; month?: string; employeeId?: string; status?: string }) {
   try {
     let query = supabase
       .from('attendance')
@@ -62,7 +67,9 @@ export async function fetchAttendanceLog(options?: { month?: string; employeeId?
       .order('date', { ascending: false })
       .limit(500)
 
-    if (options?.month) {
+    if (options?.date) {
+      query = query.eq('date', options.date)
+    } else if (options?.month) {
       const { start, end } = getMonthDateRange(options.month)
       query = query.gte('date', start).lte('date', end)
     }
@@ -80,7 +87,9 @@ export async function fetchAttendanceLog(options?: { month?: string; employeeId?
         .select('*, employee:employees(id, first_name, last_name, employee_code, department_id)')
         .order('date', { ascending: false })
         .limit(500)
-      if (options?.month) {
+      if (options?.date) {
+        fallbackQuery = fallbackQuery.eq('date', options.date)
+      } else if (options?.month) {
         const { start, end } = getMonthDateRange(options.month)
         fallbackQuery = fallbackQuery.gte('date', start).lte('date', end)
       }

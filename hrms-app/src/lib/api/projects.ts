@@ -8,6 +8,13 @@ import type {
   Employee,
 } from '@/lib/database.types'
 
+export function sanitizeUuid(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null
+  const trimmed = val.trim()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)
+  return isUuid ? trimmed : null
+}
+
 // -----------------------------------------------------------------------------
 // Verified Staff Fallback Registry (Guarantees visible employee names everywhere)
 // -----------------------------------------------------------------------------
@@ -432,6 +439,7 @@ export async function getNextProjectCode(): Promise<string> {
   const prefix = 'ok-ind-'
 
   let maxSeq = 0
+  let fetchedFromRemote = false
 
   // 1. Check Supabase DB
   try {
@@ -440,7 +448,8 @@ export async function getNextProjectCode(): Promise<string> {
       .select('project_code')
       .ilike('project_code', `${prefix}%`)
 
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
+      fetchedFromRemote = true
       for (const row of data) {
         const parts = row.project_code.split('-')
         const num = parseInt(parts[parts.length - 1], 10)
@@ -453,15 +462,17 @@ export async function getNextProjectCode(): Promise<string> {
     // ignore remote error, use local
   }
 
-  // 2. Also check local cached store to prevent any collision
-  const localProjects = getLocalProjects()
-  for (const proj of localProjects) {
-    if (proj.project_code) {
-      if (proj.project_code.toLowerCase().startsWith(prefix.toLowerCase()) || proj.project_code.startsWith('PRJ-')) {
-        const parts = proj.project_code.split('-')
-        const num = parseInt(parts[parts.length - 1], 10)
-        if (!isNaN(num) && num > maxSeq) {
-          maxSeq = num
+  // 2. Only if remote is unreachable or empty, check local cached store
+  if (!fetchedFromRemote) {
+    const localProjects = getLocalProjects()
+    for (const proj of localProjects) {
+      if (proj.project_code) {
+        if (proj.project_code.toLowerCase().startsWith(prefix.toLowerCase()) || proj.project_code.startsWith('PRJ-')) {
+          const parts = proj.project_code.split('-')
+          const num = parseInt(parts[parts.length - 1], 10)
+          if (!isNaN(num) && num > maxSeq) {
+            maxSeq = num
+          }
         }
       }
     }
@@ -696,7 +707,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   }
 
   const projectCode = await getNextProjectCode()
-  const projectId = `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  const projectId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + Date.now().toString(16).slice(-12).padStart(12, '0')
   const now = new Date().toISOString()
 
   const newProject: Project = {
@@ -726,7 +737,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   // 1. Add Project Head
   if (input.project_head_id) {
     memberList.push({
-      id: `mem-${Date.now()}-head`,
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 1).toString(16).slice(-12).padStart(12, '0'),
       project_id: projectId,
       employee_id: input.project_head_id,
       project_role: 'Head',
@@ -739,7 +750,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   // 2. Add Team Lead (if distinct from Head)
   if (input.team_lead_id && !assignedEmpIds.has(input.team_lead_id)) {
     memberList.push({
-      id: `mem-${Date.now()}-lead`,
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 2).toString(16).slice(-12).padStart(12, '0'),
       project_id: projectId,
       employee_id: input.team_lead_id,
       project_role: 'Lead',
@@ -754,7 +765,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     input.member_ids.forEach((empId, idx) => {
       if (empId && !assignedEmpIds.has(empId)) {
         memberList.push({
-          id: `mem-${Date.now()}-m${idx}`,
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 10 + idx).toString(16).slice(-12).padStart(12, '0'),
           project_id: projectId,
           employee_id: empId,
           project_role: 'Member',
@@ -768,7 +779,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 
   // Initial status audit log entry
   const initialUpdate: ProjectStatusUpdate = {
-    id: `upd-${Date.now()}-init`,
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 99).toString(16).slice(-12).padStart(12, '0'),
     project_id: projectId,
     previous_status: 'Not Started',
     new_status: newProject.status,
@@ -787,59 +798,65 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     created_at: now,
   }
 
-  // Attempt Supabase insert
-  try {
-    const { error: pErr } = await supabase.from('projects').insert({
-      id: newProject.id,
-      project_code: newProject.project_code,
-      project_name: newProject.project_name,
-      description: newProject.description,
-      client_name: newProject.client_name,
-      department_id: newProject.department_id,
-      priority: newProject.priority,
-      project_head_id: newProject.project_head_id,
-      team_lead_id: newProject.team_lead_id,
-      status: newProject.status,
-      progress_percentage: newProject.progress_percentage,
-      start_date: newProject.start_date,
-      expected_end_date: newProject.expected_end_date,
-      actual_completion_date: newProject.actual_completion_date,
-      created_by: newProject.created_by,
-      created_at: newProject.created_at,
-      updated_at: newProject.updated_at,
-    })
+  // Insert directly into Supabase
+  const deptId = sanitizeUuid(newProject.department_id)
+  const headId = sanitizeUuid(newProject.project_head_id)
+  const leadId = sanitizeUuid(newProject.team_lead_id)
+  const createdById = sanitizeUuid(newProject.created_by)
 
-    if (!pErr) {
-      if (memberList.length > 0) {
-        await supabase.from('project_members').insert(
-          memberList.map((m) => ({
-            id: m.id,
-            project_id: m.project_id,
-            employee_id: m.employee_id,
-            project_role: m.project_role,
-            assignment_status: m.assignment_status,
-            assigned_at: m.assigned_at,
-          }))
-        )
-      }
-      await supabase.from('project_status_updates').insert({
-        id: initialUpdate.id,
-        project_id: initialUpdate.project_id,
-        previous_status: initialUpdate.previous_status,
-        new_status: initialUpdate.new_status,
-        previous_progress: initialUpdate.previous_progress,
-        new_progress: initialUpdate.new_progress,
-        work_completed: initialUpdate.work_completed,
-        pending_tasks: initialUpdate.pending_tasks,
-        expected_completion_date: initialUpdate.expected_completion_date,
-        update_type: initialUpdate.update_type,
-        updated_by: initialUpdate.updated_by,
-        created_at: initialUpdate.created_at,
-      })
-    }
-  } catch (err) {
-    console.warn('Supabase project creation fallback to local:', err)
+  const { error: pErr } = await supabase.from('projects').insert({
+    id: newProject.id,
+    project_code: newProject.project_code,
+    project_name: newProject.project_name,
+    description: newProject.description,
+    client_name: newProject.client_name,
+    department_id: deptId,
+    priority: newProject.priority,
+    project_head_id: headId,
+    team_lead_id: leadId,
+    status: newProject.status,
+    progress_percentage: newProject.progress_percentage,
+    start_date: newProject.start_date,
+    expected_end_date: newProject.expected_end_date,
+    actual_completion_date: newProject.actual_completion_date,
+    created_by: createdById,
+    created_at: newProject.created_at,
+    updated_at: newProject.updated_at,
+  })
+
+  if (pErr) {
+    console.error('Supabase project creation failed:', pErr)
+    throw new Error(`Failed to save project to Supabase: ${pErr.message}`)
   }
+
+  const validMembers = memberList.filter((m) => sanitizeUuid(m.employee_id))
+  if (validMembers.length > 0) {
+    await supabase.from('project_members').insert(
+      validMembers.map((m) => ({
+        id: m.id,
+        project_id: m.project_id,
+        employee_id: m.employee_id,
+        project_role: m.project_role,
+        assignment_status: m.assignment_status,
+        assigned_at: m.assigned_at,
+      }))
+    )
+  }
+
+  await supabase.from('project_status_updates').insert({
+    id: initialUpdate.id,
+    project_id: initialUpdate.project_id,
+    previous_status: initialUpdate.previous_status,
+    new_status: initialUpdate.new_status,
+    previous_progress: initialUpdate.previous_progress,
+    new_progress: initialUpdate.new_progress,
+    work_completed: initialUpdate.work_completed,
+    pending_tasks: initialUpdate.pending_tasks,
+    expected_completion_date: initialUpdate.expected_completion_date,
+    update_type: initialUpdate.update_type,
+    updated_by: createdById || headId,
+    created_at: initialUpdate.created_at,
+  })
 
   // Save to local cache
   const localProjects = getLocalProjects()
@@ -887,24 +904,29 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
   }
 
   // Sync to Supabase
-  try {
-    await supabase.from('projects').update({
-      project_name: updated.project_name,
-      description: updated.description,
-      client_name: updated.client_name,
-      department_id: updated.department_id,
-      priority: updated.priority,
-      project_head_id: updated.project_head_id,
-      team_lead_id: updated.team_lead_id,
-      status: updated.status,
-      progress_percentage: updated.progress_percentage,
-      start_date: updated.start_date,
-      expected_end_date: updated.expected_end_date,
-      actual_completion_date: updated.actual_completion_date,
-      updated_at: now,
-    }).eq('id', id)
-  } catch (e) {
-    // ignore
+  const deptId = sanitizeUuid(updated.department_id)
+  const headId = sanitizeUuid(updated.project_head_id)
+  const leadId = sanitizeUuid(updated.team_lead_id)
+
+  const { error: uErr } = await supabase.from('projects').update({
+    project_name: updated.project_name,
+    description: updated.description,
+    client_name: updated.client_name,
+    department_id: deptId,
+    priority: updated.priority,
+    project_head_id: headId,
+    team_lead_id: leadId,
+    status: updated.status,
+    progress_percentage: updated.progress_percentage,
+    start_date: updated.start_date,
+    expected_end_date: updated.expected_end_date,
+    actual_completion_date: updated.actual_completion_date,
+    updated_at: now,
+  }).eq('id', id)
+
+  if (uErr) {
+    console.error('Update project Supabase error:', uErr)
+    throw new Error(`Failed to update project in Supabase: ${uErr.message}`)
   }
 
   let finalMembers: ProjectMember[] | undefined = undefined
@@ -917,7 +939,7 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 
     if (updated.project_head_id) {
       newMembers.push({
-        id: `mem-${Date.now()}-head`,
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 1).toString(16).slice(-12).padStart(12, '0'),
         project_id: id,
         employee_id: updated.project_head_id,
         project_role: 'Head',
@@ -929,7 +951,7 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 
     if (updated.team_lead_id && !assignedEmpIds.has(updated.team_lead_id)) {
       newMembers.push({
-        id: `mem-${Date.now()}-lead`,
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 2).toString(16).slice(-12).padStart(12, '0'),
         project_id: id,
         employee_id: updated.team_lead_id,
         project_role: 'Lead',
@@ -942,7 +964,7 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
     input.member_ids.forEach((empId, idx) => {
       if (empId && !assignedEmpIds.has(empId)) {
         newMembers.push({
-          id: `mem-${Date.now()}-m${idx}`,
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + (Date.now() + 10 + idx).toString(16).slice(-12).padStart(12, '0'),
           project_id: id,
           employee_id: empId,
           project_role: 'Member',
@@ -999,10 +1021,10 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 // Delete Project
 // -----------------------------------------------------------------------------
 export async function deleteProject(id: string): Promise<boolean> {
-  try {
-    await supabase.from('projects').delete().eq('id', id)
-  } catch (e) {
-    // ignore
+  const { error: delErr } = await supabase.from('projects').delete().eq('id', id)
+  if (delErr) {
+    console.error('Delete project Supabase error:', delErr)
+    throw new Error(`Failed to delete project from Supabase: ${delErr.message}`)
   }
 
   const localProjects = getLocalProjects().filter((p) => p.id !== id)
@@ -1052,7 +1074,7 @@ export async function submitProjectStatusUpdate(input: CreateStatusUpdateInput):
   const todayStr = now.slice(0, 10)
 
   const updateRecord: ProjectStatusUpdate = {
-    id: `upd-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + Date.now().toString(16).slice(-12).padStart(12, '0'),
     project_id: input.project_id,
     previous_status: project.status,
     new_status: input.new_status,
@@ -1099,28 +1121,29 @@ export async function submitProjectStatusUpdate(input: CreateStatusUpdateInput):
   }
 
   // Save status update record
-  try {
-    await supabase.from('project_status_updates').insert({
-      id: updateRecord.id,
-      project_id: updateRecord.project_id,
-      previous_status: updateRecord.previous_status,
-      new_status: updateRecord.new_status,
-      previous_progress: updateRecord.previous_progress,
-      new_progress: updateRecord.new_progress,
-      work_completed: updateRecord.work_completed,
-      work_in_progress: updateRecord.work_in_progress,
-      pending_tasks: updateRecord.pending_tasks,
-      blockers: updateRecord.blockers,
-      risks: updateRecord.risks,
-      delay_reason: updateRecord.delay_reason,
-      next_steps: updateRecord.next_steps,
-      expected_completion_date: updateRecord.expected_completion_date,
-      update_type: updateRecord.update_type,
-      updated_by: updateRecord.updated_by,
-      created_at: updateRecord.created_at,
-    })
-  } catch (e) {
-    // ignore
+  const { error: suErr } = await supabase.from('project_status_updates').insert({
+    id: updateRecord.id,
+    project_id: updateRecord.project_id,
+    previous_status: updateRecord.previous_status,
+    new_status: updateRecord.new_status,
+    previous_progress: updateRecord.previous_progress,
+    new_progress: updateRecord.new_progress,
+    work_completed: updateRecord.work_completed,
+    work_in_progress: updateRecord.work_in_progress,
+    pending_tasks: updateRecord.pending_tasks,
+    blockers: updateRecord.blockers,
+    risks: updateRecord.risks,
+    delay_reason: updateRecord.delay_reason,
+    next_steps: updateRecord.next_steps,
+    expected_completion_date: updateRecord.expected_completion_date,
+    update_type: updateRecord.update_type,
+    updated_by: sanitizeUuid(updateRecord.updated_by),
+    created_at: updateRecord.created_at,
+  })
+
+  if (suErr) {
+    console.error('Supabase status update error:', suErr)
+    throw new Error(`Failed to save status update to Supabase: ${suErr.message}`)
   }
 
   const localUpdates = getLocalUpdates()

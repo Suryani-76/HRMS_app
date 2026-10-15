@@ -15,6 +15,28 @@ export function sanitizeUuid(val?: string | null): string | null {
   return isUuid ? trimmed : null
 }
 
+export async function verifyEmployeeId(empId?: string | null): Promise<string | null> {
+  const clean = sanitizeUuid(empId)
+  if (!clean) return null
+  try {
+    const { data } = await supabase.from('employees').select('id').eq('id', clean).maybeSingle()
+    return data ? clean : null
+  } catch {
+    return null
+  }
+}
+
+export async function verifyDepartmentId(deptId?: string | null): Promise<string | null> {
+  const clean = sanitizeUuid(deptId)
+  if (!clean) return null
+  try {
+    const { data } = await supabase.from('departments').select('id').eq('id', clean).maybeSingle()
+    return data ? clean : null
+  } catch {
+    return null
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Verified Staff Fallback Registry (Guarantees visible employee names everywhere)
 // -----------------------------------------------------------------------------
@@ -518,15 +540,16 @@ export async function fetchProjects(filters?: ProjectFilters): Promise<Project[]
 
     const { data, error } = await query
 
-    if (!error && data && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       projectList = data as unknown as Project[]
       usedRemote = true
+      saveLocalProjects(projectList)
     }
   } catch (err) {
     console.warn('Projects remote fetch failed, using local store:', err)
   }
 
-  if (!usedRemote || projectList.length === 0) {
+  if (!usedRemote) {
     projectList = getLocalProjects()
   }
 
@@ -799,10 +822,10 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   }
 
   // Insert directly into Supabase
-  const deptId = sanitizeUuid(newProject.department_id)
-  const headId = sanitizeUuid(newProject.project_head_id)
-  const leadId = sanitizeUuid(newProject.team_lead_id)
-  const createdById = sanitizeUuid(newProject.created_by)
+  const deptId = await verifyDepartmentId(newProject.department_id)
+  const headId = await verifyEmployeeId(newProject.project_head_id)
+  const leadId = await verifyEmployeeId(newProject.team_lead_id)
+  const createdById = await verifyEmployeeId(newProject.created_by)
 
   const { error: pErr } = await supabase.from('projects').insert({
     id: newProject.id,
@@ -829,18 +852,24 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     throw new Error(`Failed to save project to Supabase: ${pErr.message}`)
   }
 
-  const validMembers = memberList.filter((m) => sanitizeUuid(m.employee_id))
-  if (validMembers.length > 0) {
-    await supabase.from('project_members').insert(
-      validMembers.map((m) => ({
+  // Verify and insert members safely
+  const memberInsertData: Array<{ id: string; project_id: string; employee_id: string; project_role: string; assignment_status: string; assigned_at: string }> = []
+  for (const m of memberList) {
+    const validEmpId = await verifyEmployeeId(m.employee_id)
+    if (validEmpId) {
+      memberInsertData.push({
         id: m.id,
         project_id: m.project_id,
-        employee_id: m.employee_id,
+        employee_id: validEmpId,
         project_role: m.project_role,
         assignment_status: m.assignment_status,
         assigned_at: m.assigned_at,
-      }))
-    )
+      })
+    }
+  }
+
+  if (memberInsertData.length > 0) {
+    await supabase.from('project_members').insert(memberInsertData)
   }
 
   await supabase.from('project_status_updates').insert({
@@ -854,7 +883,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     pending_tasks: initialUpdate.pending_tasks,
     expected_completion_date: initialUpdate.expected_completion_date,
     update_type: initialUpdate.update_type,
-    updated_by: createdById || headId,
+    updated_by: createdById || headId || null,
     created_at: initialUpdate.created_at,
   })
 
@@ -904,9 +933,9 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
   }
 
   // Sync to Supabase
-  const deptId = sanitizeUuid(updated.department_id)
-  const headId = sanitizeUuid(updated.project_head_id)
-  const leadId = sanitizeUuid(updated.team_lead_id)
+  const deptId = await verifyDepartmentId(updated.department_id)
+  const headId = await verifyEmployeeId(updated.project_head_id)
+  const leadId = await verifyEmployeeId(updated.team_lead_id)
 
   const { error: uErr } = await supabase.from('projects').update({
     project_name: updated.project_name,
@@ -1137,7 +1166,7 @@ export async function submitProjectStatusUpdate(input: CreateStatusUpdateInput):
     next_steps: updateRecord.next_steps,
     expected_completion_date: updateRecord.expected_completion_date,
     update_type: updateRecord.update_type,
-    updated_by: sanitizeUuid(updateRecord.updated_by),
+    updated_by: await verifyEmployeeId(updateRecord.updated_by),
     created_at: updateRecord.created_at,
   })
 

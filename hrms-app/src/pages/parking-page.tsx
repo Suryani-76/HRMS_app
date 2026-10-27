@@ -9,6 +9,10 @@ import {
   approveParkingPassRequest,
   rejectParkingPassRequest,
   toggleGateCheckIn,
+  isValidVehicleNumber,
+  getStateFromPlate,
+  isValidDrivingLicense,
+  isValidEmergencyPhone,
 } from '@/lib/api/parking'
 import { useAuth } from '@/features/auth/auth-context'
 import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/card'
@@ -39,6 +43,7 @@ import {
   PlusCircle,
   Check,
   X,
+  RotateCw,
 } from 'lucide-react'
 
 export default function ParkingPage() {
@@ -70,6 +75,7 @@ export default function ParkingPage() {
 
   // HR / Admin Approval Queue
   const [allPasses, setAllPasses] = useState<ParkingPass[]>([])
+  const [refreshing, setRefreshing] = useState(false)
 
   // Approval Modal State
   const [selectedPassToApprove, setSelectedPassToApprove] = useState<ParkingPass | null>(null)
@@ -103,17 +109,29 @@ export default function ParkingPage() {
   }, [authEmployee])
 
   // Load All Passes for Admin
-  const loadAllPasses = async () => {
+  const loadAllPasses = async (showToast = false) => {
+    setRefreshing(true)
     try {
       const data = await fetchAllParkingPasses()
       setAllPasses(data)
-    } catch (e) {
+      if (currentEmployee) {
+        await loadEmployeePass(currentEmployee.email, currentEmployee.employee_code || undefined)
+      }
+      if (showToast) {
+        toast.success(`Vehicle pass queue refreshed (${data.length} ${data.length === 1 ? 'record' : 'records'})`)
+      }
+    } catch (e: any) {
       console.error(e)
+      if (showToast) {
+        toast.error('Failed to refresh vehicle pass list: ' + (e?.message || 'Error'))
+      }
+    } finally {
+      setRefreshing(false)
     }
   }
 
   useEffect(() => {
-    loadAllPasses()
+    loadAllPasses(false)
   }, [])
 
   // Load Employee's pass from DB
@@ -203,6 +221,31 @@ export default function ParkingPage() {
     toast.info('Logged out of parking portal.')
   }
 
+  // Input limitation handlers for Vehicle Form
+  const handleVehicleNumberChange = (val: string) => {
+    // Uppercase alphanumeric, spaces, and hyphens only, max 14 characters
+    const clean = val.toUpperCase().replace(/[^A-Z0-9\s-]/g, '').slice(0, 14)
+    setVNumber(clean)
+  }
+
+  const handleVehicleModelChange = (val: string) => {
+    // Letters, digits, spaces, slashes, hyphens, parentheses, max 50 characters
+    const clean = val.replace(/[^a-zA-Z0-9\s/(),.-]/g, '').slice(0, 50)
+    setVModel(clean)
+  }
+
+  const handleLicenseNumberChange = (val: string) => {
+    // Uppercase alphanumeric, hyphens, and spaces, max 18 characters
+    const clean = val.toUpperCase().replace(/[^A-Z0-9\s-]/g, '').slice(0, 18)
+    setLicenseNumber(clean)
+  }
+
+  const handleEmergencyPhoneChange = (val: string) => {
+    // Digits, spaces, hyphens, and leading +, max 15 characters
+    const clean = val.replace(/[^\d+\s-]/g, '').slice(0, 15)
+    setEmergencyPhone(clean)
+  }
+
   // Submit Vehicle Request (Employee Sector)
   const handleSubmitVehicleRequest = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -212,9 +255,36 @@ export default function ParkingPage() {
       return
     }
 
-    if (!vNumber.trim()) {
+    const cleanVNum = vNumber.trim().toUpperCase()
+    if (!cleanVNum) {
       toast.error('Please enter your vehicle registration plate number.')
       return
+    }
+
+    const cleanAlphanumeric = cleanVNum.replace(/[\s-]/g, '')
+    if (cleanAlphanumeric.length < 6 || cleanAlphanumeric.length > 11) {
+      toast.error(`Vehicle registration number must be between 6 and 11 alphanumeric characters (currently ${cleanAlphanumeric.length}).`)
+      return
+    }
+
+    if (!isValidVehicleNumber(cleanVNum)) {
+      toast.error('Invalid Indian vehicle registration format. Expected standard plate (e.g. TS 09 AB 1234) or BH series (e.g. 22BH1234AB).')
+      return
+    }
+
+    if (licenseNumber.trim()) {
+      const cleanDL = licenseNumber.replace(/[\s-]/g, '')
+      if (cleanDL.length < 10) {
+        toast.error('Driving License number must be at least 10 characters (e.g. DL-1420110012345).')
+        return
+      }
+    }
+
+    if (emergencyPhone.trim()) {
+      if (!isValidEmergencyPhone(emergencyPhone.trim())) {
+        toast.error('Please enter a valid 10-digit Indian emergency phone number (e.g. +91 98765 43210 or 9876543210).')
+        return
+      }
     }
 
     setSubmittingRequest(true)
@@ -225,7 +295,7 @@ export default function ParkingPage() {
         employee_name: `${currentEmployee.first_name} ${currentEmployee.last_name}`,
         employee_email: currentEmployee.email,
         vehicle_type: vType,
-        vehicle_number: vNumber.trim().toUpperCase(),
+        vehicle_number: cleanVNum,
         vehicle_model: vModel.trim() || undefined,
         license_number: licenseNumber.trim() || undefined,
         emergency_phone: emergencyPhone.trim() || undefined,
@@ -944,49 +1014,154 @@ export default function ParkingPage() {
 
                       {/* Vehicle Registration Number */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700">
-                          Vehicle Registration Number (License Plate) *
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="vNumber" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                            Vehicle Registration Number (License Plate) <span className="text-rose-500">*</span>
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            {getStateFromPlate(vNumber) && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-2 font-medium border-indigo-200 text-indigo-700 bg-indigo-50/60">
+                                {getStateFromPlate(vNumber)}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] py-0 px-1.5 font-mono ${
+                                isValidVehicleNumber(vNumber)
+                                  ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                                  : vNumber.length >= 8
+                                  ? 'border-amber-300 text-amber-700 bg-amber-50'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {vNumber.length} / 14
+                            </Badge>
+                          </div>
+                        </div>
                         <Input
+                          id="vNumber"
+                          name="vNumber"
                           value={vNumber}
-                          onChange={(e) => setVNumber(e.target.value.toUpperCase())}
+                          onChange={(e) => handleVehicleNumberChange(e.target.value)}
+                          maxLength={14}
+                          autoComplete="off"
                           placeholder="e.g. TS 09 AB 1234 or MH 12 CD 5678"
-                          className="font-mono text-sm uppercase h-10 rounded-xl"
+                          className={`font-mono text-sm uppercase h-10 rounded-xl bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                            isValidVehicleNumber(vNumber)
+                              ? 'border-emerald-500'
+                              : vNumber.length >= 8
+                              ? 'border-amber-400'
+                              : ''
+                          }`}
                           required
                         />
+                        <div className="min-h-[18px]">
+                          {!vNumber ? (
+                            <p className="text-[11px] text-muted-foreground">Standard Indian plate: 2-letter state code + RTO + series + 4 digits (e.g. TS 09 AB 1234) or BH series (22BH1234AB).</p>
+                          ) : isValidVehicleNumber(vNumber) ? (
+                            <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid Indian Registration Plate Format ({getStateFromPlate(vNumber) || 'Approved Format'}).
+                            </p>
+                          ) : vNumber.length >= 8 ? (
+                            <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3 shrink-0" /> Invalid plate format. Standard format: 2-letter state + RTO digits + series + 4 digits (e.g. TS 09 AB 1234).
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                              <Clock className="h-3 w-3 shrink-0" /> Incomplete registration number ({vNumber.length} / 8 min characters).
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       {/* Make & Model */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700">Vehicle Make, Model &amp; Color</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="vModel" className="text-xs font-semibold text-slate-700">Vehicle Make, Model &amp; Color</Label>
+                          <span className="text-[10px] text-muted-foreground font-mono">{vModel.length} / 50</span>
+                        </div>
                         <Input
+                          id="vModel"
+                          name="vModel"
                           value={vModel}
-                          onChange={(e) => setVModel(e.target.value)}
+                          onChange={(e) => handleVehicleModelChange(e.target.value)}
+                          maxLength={50}
                           placeholder="e.g. Hyundai i20 White / Royal Enfield Classic 350 Black"
-                          className="text-sm h-10 rounded-xl"
+                          className="text-sm h-10 rounded-xl bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm"
                         />
+                        <p className="text-[11px] text-muted-foreground">Specify manufacturer brand, model name, and color (Max 50 characters).</p>
                       </div>
 
                       {/* Driving License & Phone */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold text-slate-700">Driving License Number</Label>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="licenseNumber" className="text-xs font-semibold text-slate-700">Driving License Number</Label>
+                            <span className="text-[10px] text-muted-foreground font-mono">{licenseNumber.length} / 18</span>
+                          </div>
                           <Input
+                            id="licenseNumber"
+                            name="licenseNumber"
                             value={licenseNumber}
-                            onChange={(e) => setLicenseNumber(e.target.value.toUpperCase())}
+                            onChange={(e) => handleLicenseNumberChange(e.target.value)}
+                            maxLength={18}
+                            autoComplete="off"
                             placeholder="e.g. DL-1420110012345"
-                            className="font-mono text-xs uppercase h-10 rounded-xl"
+                            className={`font-mono text-xs uppercase h-10 rounded-xl bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                              licenseNumber && isValidDrivingLicense(licenseNumber)
+                                ? 'border-emerald-500'
+                                : licenseNumber && licenseNumber.length >= 10 && !isValidDrivingLicense(licenseNumber)
+                                ? 'border-amber-400'
+                                : ''
+                            }`}
                           />
+                          <div className="min-h-[18px]">
+                            {!licenseNumber ? (
+                              <p className="text-[11px] text-muted-foreground">Optional: 13-16 character Indian Driving License.</p>
+                            ) : isValidDrivingLicense(licenseNumber) ? (
+                              <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid Indian DL Format.
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-slate-500 font-medium">Standard format: State + RTO + Year + unique digits (e.g. DL-1420110012345).</p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold text-slate-700">Emergency Phone</Label>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="emergencyPhone" className="text-xs font-semibold text-slate-700">Emergency Phone</Label>
+                            <span className="text-[10px] text-muted-foreground font-mono">{emergencyPhone.length} / 15</span>
+                          </div>
                           <Input
+                            id="emergencyPhone"
+                            name="emergencyPhone"
                             value={emergencyPhone}
-                            onChange={(e) => setEmergencyPhone(e.target.value)}
+                            onChange={(e) => handleEmergencyPhoneChange(e.target.value)}
+                            maxLength={15}
+                            inputMode="tel"
                             placeholder="e.g. +91 98765 43210"
-                            className="text-xs h-10 rounded-xl"
+                            className={`text-xs h-10 rounded-xl bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                              emergencyPhone && isValidEmergencyPhone(emergencyPhone)
+                                ? 'border-emerald-500'
+                                : emergencyPhone && !isValidEmergencyPhone(emergencyPhone)
+                                ? 'border-amber-400'
+                                : ''
+                            }`}
                           />
+                          <div className="min-h-[18px]">
+                            {!emergencyPhone ? (
+                              <p className="text-[11px] text-muted-foreground">Optional: Contact number in case of parking obstructions.</p>
+                            ) : isValidEmergencyPhone(emergencyPhone) ? (
+                              <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid Mobile Number.
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3 shrink-0" /> Expected 10-digit mobile number (e.g. 9876543210 or +91 98765 43210).
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1051,8 +1226,15 @@ export default function ParkingPage() {
                       Review requests from members who have a vehicle, allocate parking sector/slot, and generate official QR codes.
                     </p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={loadAllPasses} className="text-xs h-8">
-                    Refresh List
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadAllPasses(true)}
+                    disabled={refreshing}
+                    className="text-xs h-8 gap-1.5 font-medium border-slate-300 hover:bg-slate-100"
+                  >
+                    <RotateCw className={`h-3.5 w-3.5 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Refreshing...' : 'Refresh List'}
                   </Button>
                 </div>
 
@@ -1076,11 +1258,11 @@ export default function ParkingPage() {
                             <div className="font-mono text-[11px] text-slate-500">{p.employee_code}</div>
                             <div className="text-[11px] text-slate-400">{p.employee_email}</div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="font-mono font-bold text-slate-900">{p.vehicle_number}</div>
-                            <div className="text-[11px] text-slate-500">{p.vehicle_model || '—'}</div>
+                          <td className="px-4 py-3 max-w-[260px]">
+                            <div className="font-mono font-bold text-slate-900 break-all">{p.vehicle_number}</div>
+                            <div className="text-[11px] text-slate-500 break-all">{p.vehicle_model || '—'}</div>
                             {p.license_number && (
-                              <div className="text-[10px] text-slate-400">DL: {p.license_number}</div>
+                              <div className="text-[10px] text-slate-400 break-all">DL: {p.license_number}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">

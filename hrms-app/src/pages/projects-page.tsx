@@ -24,6 +24,7 @@ import {
   useEmployees,
   useDepartments,
 } from '@/hooks/use-queries'
+import { isProjectNeedingUpdate } from '@/lib/api/projects'
 import type {
   Project,
   ProjectStatus,
@@ -369,7 +370,8 @@ export default function ProjectsPage() {
       if (activeTab === 'active') {
         if (p.status === 'Completed' || p.status === 'Cancelled') return false
       } else if (activeTab === 'attention') {
-        if (p.status !== 'At Risk' && p.status !== 'On Hold') return false
+        const needsUpdate = isProjectNeedingUpdate(p)
+        if (p.status !== 'At Risk' && p.status !== 'On Hold' && !needsUpdate) return false
       } else if (activeTab === 'my-projects') {
         const empId = employee?.id
         if (!empId) return false
@@ -397,8 +399,15 @@ export default function ProjectsPage() {
       }
 
       // Status Filter
-      if (statusFilter !== 'all' && p.status !== statusFilter) {
-        return false
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'Not Started') {
+          // 'Not Started' metric card and filter represent Queue / Planning (matching stats.notStarted)
+          if (p.status !== 'Not Started' && p.status !== 'Planning') {
+            return false
+          }
+        } else if (p.status !== statusFilter) {
+          return false
+        }
       }
 
       // Priority Filter
@@ -463,6 +472,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('all')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm"
         >
@@ -481,6 +493,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('Not Started')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-slate-400 hover:shadow-sm"
         >
@@ -501,6 +516,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('In Progress')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-blue-400 hover:shadow-sm"
         >
@@ -521,6 +539,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('On Hold')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-amber-400 hover:shadow-sm"
         >
@@ -541,6 +562,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('attention')
             setStatusFilter('At Risk')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer border-rose-200 bg-rose-50/40 transition-all hover:border-rose-400 hover:shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20"
         >
@@ -561,6 +585,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('Completed')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-emerald-400 hover:shadow-sm"
         >
@@ -581,6 +608,9 @@ export default function ProjectsPage() {
           onClick={() => {
             setActiveTab('all')
             setStatusFilter('Cancelled')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer transition-all hover:border-gray-400 hover:shadow-sm"
         >
@@ -600,6 +630,10 @@ export default function ProjectsPage() {
         <Card
           onClick={() => {
             setActiveTab('attention')
+            setStatusFilter('all')
+            setPriorityFilter('all')
+            setDepartmentFilter('all')
+            setSearchQuery('')
           }}
           className="cursor-pointer border-amber-200 bg-amber-50/30 transition-all hover:border-amber-400 hover:shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20"
         >
@@ -623,7 +657,12 @@ export default function ProjectsPage() {
             {/* View Tabs */}
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as any)}
+              onValueChange={(v) => {
+                setActiveTab(v as any)
+                if (v === 'attention' && statusFilter !== 'all' && statusFilter !== 'At Risk' && statusFilter !== 'On Hold') {
+                  setStatusFilter('all')
+                }
+              }}
               className="w-full lg:w-auto"
             >
               <TabsList className="grid grid-cols-4 w-full lg:w-auto">
@@ -775,6 +814,7 @@ export default function ProjectsPage() {
                       p.status !== 'Completed' &&
                       p.status !== 'Cancelled' &&
                       new Date(p.expected_end_date).getTime() < Date.now()
+                    const needsUpdate = isProjectNeedingUpdate(p)
 
                     return (
                       <tr
@@ -911,10 +951,17 @@ export default function ProjectsPage() {
 
                         {/* Last Updated */}
                         <td className="py-3.5 px-4 whitespace-nowrap text-xs text-muted-foreground">
-                          {new Date(p.updated_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          <div>
+                            {new Date(p.updated_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </div>
+                          {needsUpdate && p.status !== 'Completed' && p.status !== 'Cancelled' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                              <AlertCircle className="h-3 w-3" /> Needs Update
+                            </span>
+                          )}
                         </td>
 
                         {/* Actions */}

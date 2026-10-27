@@ -155,6 +155,8 @@ export interface LeaveRequest {
   updated_at: string
   employee?: Employee | null
   leave_type?: LeaveType | null
+  is_half_day?: boolean | null
+  half_day_session?: 'first_half' | 'second_half' | string | null
 }
 
 export interface LeaveBalance {
@@ -212,8 +214,12 @@ export interface Document {
   file_url?: string | null
   file_size?: number | null
   uploaded_by?: string | null
+  project_id?: string | null
+  project_name?: string | null
+  project_code?: string | null
   created_at: string
   employee?: Employee | null
+  project?: Project | null
 }
 
 export interface Task {

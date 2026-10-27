@@ -9,7 +9,9 @@ import {
   Paperclip,
   ExternalLink,
   X,
+  FileSpreadsheet,
 } from 'lucide-react'
+import { PerformanceAssessmentSheet } from '@/components/performance/performance-assessment-sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,6 +88,9 @@ function GoalsTab() {
 
   const myGoals = useMemo(() => allGoals.filter((g) => g.employee_id === employee?.id), [allGoals, employee?.id])
   const visible = isManager ? allGoals : myGoals
+
+  // View Mode: Goals Assessment Sheet (IT & Non-IT) vs Custom Milestone Goals
+  const [viewMode, setViewMode] = useState<'sheet' | 'custom'>('sheet')
 
   // Create Goal Dialog State
   const [dialog, setDialog] = useState(false)
@@ -166,19 +171,51 @@ function GoalsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        {isManager && (
-          <Button onClick={() => setDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Set Goal
+      {/* Sub-navigation Switcher: Assessment Sheet vs Custom Goals */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b">
+        <div className="inline-flex p-1 bg-muted/80 rounded-xl gap-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('sheet')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'sheet'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+            <span>Goals Assessment Sheet (IT & Non-IT)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('custom')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'custom'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Target className="h-3.5 w-3.5 text-indigo-600" />
+            <span>Custom Milestone Goals ({visible.length})</span>
+          </button>
+        </div>
+
+        {viewMode === 'custom' && isManager && (
+          <Button onClick={() => setDialog(true)} size="sm" className="h-8 text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Set Custom Goal
           </Button>
         )}
       </div>
 
-      {isLoading ? (
-        <TableSkeleton rows={5} />
-      ) : visible.length === 0 ? (
-        <EmptyState title="No goals" description="Goals will be tracked here." icon={Target} />
+      {viewMode === 'sheet' ? (
+        <PerformanceAssessmentSheet />
       ) : (
+        <>
+          {isLoading ? (
+            <TableSkeleton rows={5} />
+          ) : visible.length === 0 ? (
+            <EmptyState title="No goals" description="Goals will be tracked here." icon={Target} />
+          ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((g) => {
             const goalDoc = getGoalDocument(g)
@@ -269,6 +306,8 @@ function GoalsTab() {
             )
           })}
         </div>
+      )}
+        </>
       )}
 
       {/* Set Performance Goal Dialog with Document Upload */}

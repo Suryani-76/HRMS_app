@@ -13,7 +13,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useTheme } from '@/components/providers/theme-provider'
 import { useAuth } from '@/features/auth/auth-context'
 import { initials } from '@/lib/utils'
-import { GlobalSearch } from './global-search'
 import { NotificationCenter } from './notification-center'
 
 interface TopbarProps {
@@ -30,11 +29,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex flex-1 items-center gap-3">
-        <div className="hidden sm:block">
-          <GlobalSearch />
-        </div>
-      </div>
+      <div className="flex-1" />
 
       <div className="flex items-center gap-1.5">
         <Button

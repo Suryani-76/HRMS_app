@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CalendarClock, Loader2, Check, X, CalendarPlus, ShieldCheck, Search, User } from 'lucide-react'
+import { CalendarClock, Loader2, Check, X, CalendarPlus, ShieldCheck, Search, User, Calendar, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,7 @@ import {
   useCancelLeave,
   useEmployees,
 } from '@/hooks/use-queries'
+import { getHalfDayDetails } from '@/lib/api/attendance'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, formatDateTime, daysBetween } from '@/lib/format'
 import { toast } from 'sonner'
@@ -38,6 +39,9 @@ function LeaveBalances({ employeeId }: { employeeId: string }) {
       {balances.map((b) => {
         const remaining = Math.max(0, b.allocated - b.used)
         const pct = b.allocated > 0 ? Math.min(100, (remaining / b.allocated) * 100) : 0
+        const displayRemaining = Number(remaining.toFixed(1))
+        const displayAllocated = Number(b.allocated.toFixed(1))
+        const displayUsed = Number(b.used.toFixed(1))
         return (
           <div key={b.id} className="rounded-lg border p-3.5 bg-card">
             <div className="flex items-center justify-between">
@@ -46,8 +50,8 @@ function LeaveBalances({ employeeId }: { employeeId: string }) {
                 <p className="text-xs text-muted-foreground">{b.leave_type?.is_paid ? 'Paid Leave' : 'Unpaid'}</p>
               </div>
               <div className="text-right">
-                <p className="text-base font-bold text-slate-900">{remaining}<span className="text-xs text-muted-foreground font-normal">/{b.allocated}</span></p>
-                <p className="text-[11px] text-muted-foreground">{b.used} used</p>
+                <p className="text-base font-bold text-slate-900">{displayRemaining}<span className="text-xs text-muted-foreground font-normal">/{displayAllocated}</span></p>
+                <p className="text-[11px] text-muted-foreground">{displayUsed} used</p>
               </div>
             </div>
             <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -78,38 +82,58 @@ function ApplyLeaveDialog({
   const { data: types = [] } = useLeaveTypes()
   const apply = useApplyLeave()
 
+  const [durationMode, setDurationMode] = useState<'full' | 'half'>('full')
+  const [halfSession, setHalfSession] = useState<'first_half' | 'second_half'>('first_half')
+  const [singleDate, setSingleDate] = useState('')
   const [typeId, setTypeId] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [reason, setReason] = useState('')
 
-  const days = start && end ? Math.max(1, daysBetween(start, end)) : 0
+  const days = durationMode === 'half'
+    ? (singleDate ? 0.5 : 0)
+    : (start && end ? Math.max(1, daysBetween(start, end)) : 0)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!employeeId || !typeId || !start || !end) return
+    const finalStart = durationMode === 'half' ? singleDate : start
+    const finalEnd = durationMode === 'half' ? singleDate : end
+    if (!employeeId || !typeId || !finalStart || !finalEnd) return
+
+    const sessionText = durationMode === 'half'
+      ? (halfSession === 'first_half' ? 'First Half (9:30 AM to 1:30 PM)' : 'Second Half (2:30 PM to 6:30 PM)')
+      : ''
+    const formattedReason = durationMode === 'half'
+      ? `[Half Day: ${sessionText}] ${reason.trim()}`
+      : reason.trim()
 
     await apply.mutateAsync({
       employee_id: employeeId,
       leave_type_id: typeId,
-      start_date: start,
-      end_date: end,
-      days,
-      reason,
+      start_date: finalStart,
+      end_date: finalEnd,
+      days: durationMode === 'half' ? 0.5 : days,
+      reason: formattedReason,
       status: isAdmin ? 'approved' : 'pending',
       isAdmin,
       isHr,
+      is_half_day: durationMode === 'half',
+      half_day_session: durationMode === 'half' ? halfSession : undefined,
     })
 
+    const halfDayNotice = durationMode === 'half' ? ` (${sessionText})` : ''
     if (isAdmin) {
-      toast.success('Leave recorded and automatically approved ✓')
+      toast.success(`Leave recorded and automatically approved ✓${halfDayNotice}`)
     } else if (isHrOrManager) {
-      toast.success('Leave request submitted! Routed to Admin / CEO (ceo@oklut.com) for approval.')
+      toast.success(`Leave request submitted! Routed to Admin / CEO (ceo@oklut.com) for approval.${halfDayNotice}`)
     } else {
-      toast.success('Leave request submitted to HR / Manager for approval.')
+      toast.success(`Leave request submitted to HR / Manager for approval.${halfDayNotice}`)
     }
 
     onOpenChange(false)
+    setDurationMode('full')
+    setHalfSession('first_half')
+    setSingleDate('')
     setTypeId('')
     setStart('')
     setEnd('')
@@ -118,7 +142,7 @@ function ApplyLeaveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar pr-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-indigo-600" />
@@ -127,7 +151,7 @@ function ApplyLeaveDialog({
           <DialogDescription>
             {isAdmin
               ? 'Directly log approved leave dates into company attendance records.'
-              : 'Select leave category and date range.'}
+              : 'Select leave category, duration (Full Day or Half Day), and dates.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -162,21 +186,127 @@ function ApplyLeaveDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start date *</Label>
-              <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label>End date *</Label>
-              <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} required />
+          {/* Leave Duration Option: Full Day vs Half Day */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-slate-700">Leave Duration *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDurationMode('full')}
+                className={`flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-medium transition-all ${
+                  durationMode === 'full'
+                    ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-semibold shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Full Day Leave</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDurationMode('half')}
+                className={`flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-medium transition-all ${
+                  durationMode === 'half'
+                    ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-semibold shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Clock className="h-4 w-4" />
+                <span>Half Day Leave (0.5)</span>
+              </button>
             </div>
           </div>
 
+          {durationMode === 'full' ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start date *</Label>
+                <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>End date *</Label>
+                <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} required />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Leave date *</Label>
+                <Input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} required />
+              </div>
+
+              {/* Half Day Session Cards */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700">Select Half Day Session *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* First Half */}
+                  <div
+                    onClick={() => setHalfSession('first_half')}
+                    className={`cursor-pointer rounded-xl border p-3 transition-all ${
+                      halfSession === 'first_half'
+                        ? 'border-indigo-600 bg-indigo-50/80 ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">First Half</span>
+                      <Badge variant="outline" className="text-[10px] bg-white text-indigo-700 border-indigo-200 px-1.5 py-0 font-medium">
+                        Morning
+                      </Badge>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-indigo-700">
+                      <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                      <span>9:30 AM to 1:30 PM</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Attend afternoon work starting at 2:30 PM
+                    </p>
+                  </div>
+
+                  {/* Second Half */}
+                  <div
+                    onClick={() => setHalfSession('second_half')}
+                    className={`cursor-pointer rounded-xl border p-3 transition-all ${
+                      halfSession === 'second_half'
+                        ? 'border-indigo-600 bg-indigo-50/80 ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Second Half</span>
+                      <Badge variant="outline" className="text-[10px] bg-white text-indigo-700 border-indigo-200 px-1.5 py-0 font-medium">
+                        Afternoon
+                      </Badge>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-indigo-700">
+                      <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                      <span>2:30 PM to 6:30 PM</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Attend morning work ending at 1:30 PM
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {days > 0 && (
-            <div className="rounded-lg bg-slate-50 border p-2.5 text-xs text-slate-700 font-medium flex items-center justify-between">
-              <span>Total Duration:</span>
-              <span className="font-bold text-indigo-600">{days} working day{days > 1 ? 's' : ''}</span>
+            <div className="rounded-xl bg-slate-50 border p-3 text-xs text-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-indigo-600" />
+                <span className="font-medium">Total Duration:</span>
+              </div>
+              <div className="text-right">
+                <span className="font-bold text-indigo-600 text-sm">
+                  {durationMode === 'half' ? '0.5 working day' : `${days} working day${days > 1 ? 's' : ''}`}
+                </span>
+                {durationMode === 'half' && (
+                  <span className="block text-[11px] text-slate-500 font-mono mt-0.5">
+                    {halfSession === 'first_half' ? 'First Half: 9:30 AM to 1:30 PM' : 'Second Half: 2:30 PM to 6:30 PM'}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -186,7 +316,7 @@ function ApplyLeaveDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder={isAdmin ? "e.g. Executive off-site / Annual vacation / Personal leave" : "e.g. Attending family wedding / Doctor appointment / Urgent personal work"}
+              placeholder={isAdmin ? "e.g. Executive off-site / Half day appointment / Personal leave" : "e.g. Attending family wedding / Doctor appointment / Urgent personal work"}
               required
             />
           </div>
@@ -300,6 +430,7 @@ function ManagerLeave() {
                       r.employee?.department?.name === 'HR' ||
                       (r as any).employee?.department_id === '00000000-0000-4000-8000-0000000000d2' ||
                       (r as any).employee?.department_id === 'dept-2'
+                    const halfDay = getHalfDayDetails(r)
 
                     return (
                       <tr key={r.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
@@ -336,8 +467,27 @@ function ManagerLeave() {
                         </td>
 
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-800">{formatDate(r.start_date)} → {formatDate(r.end_date)}</p>
-                          <p className="text-xs font-semibold text-indigo-600">{r.days} day{r.days > 1 ? 's' : ''}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-slate-800">
+                              {formatDate(r.start_date)}
+                              {r.start_date !== r.end_date && ` → ${formatDate(r.end_date)}`}
+                            </span>
+                            {halfDay.isHalfDay && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-200 font-semibold">
+                                Half Day
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs font-semibold text-indigo-600">
+                              {r.days} day{r.days === 1 ? '' : 's'}
+                            </span>
+                            {halfDay.isHalfDay && (
+                              <span className="text-[11px] text-slate-600 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                                {halfDay.sessionLabel}: {halfDay.timing}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-4 py-3 max-w-[200px]">
@@ -449,32 +599,45 @@ function EmployeeLeaveTab({
                 <EmptyState title="No leave records" description={isAdmin ? "You haven't recorded any leaves yet." : "You haven't submitted any leave requests yet."} icon={CalendarClock} />
               ) : (
                 <div className="divide-y">
-                  {requests.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between gap-3 p-4 hover:bg-slate-50/50 transition-colors">
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">
-                          {r.leave_type?.name} · <span className="text-indigo-600">{r.days} day{r.days > 1 ? 's' : ''}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatDate(r.start_date)} → {formatDate(r.end_date)} · {r.status === 'approved' && isAdmin ? 'Recorded on' : 'Applied on'} {formatDate(r.applied_at)}
-                        </p>
-                        {r.reason && <p className="mt-1 text-xs text-slate-600 italic">"{r.reason}"</p>}
-                        {r.admin_comment && (
-                          <p className="mt-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded inline-block font-medium">
-                            {r.admin_comment}
+                  {requests.map((r) => {
+                    const halfDay = getHalfDayDetails(r)
+                    return (
+                      <div key={r.id} className="flex items-center justify-between gap-3 p-4 hover:bg-slate-50/50 transition-colors">
+                        <div>
+                          <p className="font-semibold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
+                            <span>{r.leave_type?.name}</span>
+                            <span className="text-indigo-600">· {r.days} day{r.days === 1 ? '' : 's'}</span>
+                            {halfDay.isHalfDay && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-200 font-semibold">
+                                Half Day ({halfDay.sessionLabel})
+                              </Badge>
+                            )}
                           </p>
-                        )}
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formatDate(r.start_date)}
+                            {r.start_date !== r.end_date && ` → ${formatDate(r.end_date)}`}
+                            {halfDay.isHalfDay && ` (${halfDay.timing})`}
+                            {' · '}
+                            {r.status === 'approved' && isAdmin ? 'Recorded on' : 'Applied on'} {formatDate(r.applied_at)}
+                          </p>
+                          {r.reason && <p className="mt-1 text-xs text-slate-600 italic">"{r.reason}"</p>}
+                          {r.admin_comment && (
+                            <p className="mt-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded inline-block font-medium">
+                              {r.admin_comment}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusPill status={r.status ?? 'pending'} />
+                          {r.status === 'pending' && (
+                            <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 hover:bg-red-50" onClick={() => cancel.mutate(r.id)}>
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <StatusPill status={r.status ?? 'pending'} />
-                        {r.status === 'pending' && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 hover:bg-red-50" onClick={() => cancel.mutate(r.id)}>
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

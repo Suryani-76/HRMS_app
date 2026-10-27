@@ -56,7 +56,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const sections = isManager ? adminNav : employeeNav
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto py-4 bg-white/40 backdrop-blur-xl border-r border-slate-200/50">
+    <div className="flex h-full flex-col gap-1 overflow-y-auto custom-scrollbar py-4 bg-white/40 backdrop-blur-xl border-r border-slate-200/50">
       <div className="mb-6 px-6">
         <Logo size="lg" />
       </div>

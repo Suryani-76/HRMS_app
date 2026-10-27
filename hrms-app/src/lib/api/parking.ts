@@ -32,18 +32,31 @@ export async function fetchAllParkingPasses(): Promise<ParkingPass[]> {
       .select('*')
       .order('created_at', { ascending: false })
 
+    const local = getLocalPasses()
+
     if (error) {
       console.warn('Supabase parking_passes fetch error, falling back to local store:', error.message)
-      return getLocalPasses()
+      return local
     }
 
     if (data && data.length > 0) {
-      saveLocalPasses(data as ParkingPass[])
-      return data as ParkingPass[]
+      // Merge remote with local passes by id to avoid dropping local records
+      const remoteMap = new Map((data as ParkingPass[]).map((p) => [p.id, p]))
+      const merged: ParkingPass[] = [...(data as ParkingPass[])]
+
+      for (const lp of local) {
+        if (!remoteMap.has(lp.id)) {
+          merged.push(lp)
+        }
+      }
+
+      // Sort newest created_at first
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      saveLocalPasses(merged)
+      return merged
     }
 
     // If remote is empty, check if we have local records
-    const local = getLocalPasses()
     return local
   } catch (err) {
     console.warn('Using local fallback for parking passes:', err)
@@ -239,3 +252,79 @@ export async function toggleGateCheckIn(passId: string, isCheckedIn: boolean): P
   const local = getLocalPasses().map((p) => (p.id === passId ? { ...p, ...updates } : p))
   saveLocalPasses(local)
 }
+
+export const INDIAN_STATE_RTO_MAP: Record<string, string> = {
+  TS: 'Telangana',
+  AP: 'Andhra Pradesh',
+  MH: 'Maharashtra',
+  DL: 'Delhi',
+  KA: 'Karnataka',
+  TN: 'Tamil Nadu',
+  KL: 'Kerala',
+  GJ: 'Gujarat',
+  RJ: 'Rajasthan',
+  UP: 'Uttar Pradesh',
+  MP: 'Madhya Pradesh',
+  HR: 'Haryana',
+  PB: 'Punjab',
+  WB: 'West Bengal',
+  OD: 'Odisha',
+  BR: 'Bihar',
+  JH: 'Jharkhand',
+  CH: 'Chandigarh',
+  GA: 'Goa',
+  AS: 'Assam',
+  UK: 'Uttarakhand',
+  HP: 'Himachal Pradesh',
+  JK: 'Jammu & Kashmir',
+  PY: 'Puducherry',
+}
+
+/**
+ * Standard Indian Vehicle Registration Validation
+ * Format: 2-letter state code + 1-2 digit district + 0-3 letters series + 4 digits
+ * Or Bharat Series (BH): 2 digits + BH + 4 digits + 1-2 letters
+ */
+export function isValidVehicleNumber(vNum: string): boolean {
+  if (!vNum) return false
+  const clean = vNum.replace(/[\s-]/g, '').toUpperCase()
+  // Standard Indian plate: e.g. TS09EA1234, DL01A1234, MH12AB5678
+  const standardRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/
+  // Bharat series: e.g. 22BH1234AB
+  const bhSeriesRegex = /^[0-9]{2}BH[0-9]{4}[A-Z]{1,2}$/
+
+  return standardRegex.test(clean) || bhSeriesRegex.test(clean)
+}
+
+/**
+ * Get state name from registration plate
+ */
+export function getStateFromPlate(vNum: string): string | null {
+  if (!vNum || vNum.length < 2) return null
+  const clean = vNum.replace(/[\s-]/g, '').toUpperCase()
+  if (/^[0-9]{2}BH/.test(clean)) return 'Bharat Series (All-India BH)'
+  const stateCode = clean.slice(0, 2)
+  return INDIAN_STATE_RTO_MAP[stateCode] || null
+}
+
+/**
+ * Standard Indian Driving License Validation
+ * Typically: 2-letter state code + 2-digit RTO + 4-digit year + 7-digit unique number (13 to 16 alphanumeric characters)
+ */
+export function isValidDrivingLicense(dl: string): boolean {
+  if (!dl) return false
+  const clean = dl.replace(/[\s-]/g, '').toUpperCase()
+  const dlRegex = /^[A-Z]{2}[0-9A-Z]{11,15}$/
+  return dlRegex.test(clean)
+}
+
+/**
+ * Standard Indian Phone Number Validation (10 digits, optionally with +91)
+ */
+export function isValidEmergencyPhone(phone: string): boolean {
+  if (!phone) return false
+  const clean = phone.replace(/[\s-]/g, '')
+  const phoneRegex = /^(\+91)?[6-9]\d{9}$/
+  return phoneRegex.test(clean)
+}
+

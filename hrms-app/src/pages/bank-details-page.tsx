@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Landmark,
   Building,
@@ -20,6 +20,7 @@ import {
   Send,
   Copy,
   Check,
+  RotateCcw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'
@@ -34,6 +35,10 @@ import {
   rejectEmployeeBankDetail,
   maskAccountNumber,
   isValidIFSC,
+  isValidAccountNumber,
+  isValidPAN,
+  isValidUPI,
+  detectBankFromIFSC,
 } from '@/lib/api/bankDetails'
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,7 +109,7 @@ export default function BankDetailsPage() {
 
   // Form states for Employee View
   const [accountHolderName, setAccountHolderName] = useState('')
-  const [bankName, setBankName] = useState('')
+  const [bankName, setBankName] = useState('HDFC Bank')
   const [customBankName, setCustomBankName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('')
@@ -115,8 +120,12 @@ export default function BankDetailsPage() {
   const [panNumber, setPanNumber] = useState('')
   const [documentProofName, setDocumentProofName] = useState('')
   const [isDeclared, setIsDeclared] = useState(false)
-  const [showAccountMask, setShowAccountMask] = useState(false)
+  const [isAccountMasked, setIsAccountMasked] = useState(false)
   const [submittingForm, setSubmittingForm] = useState(false)
+
+  // Track the employee id currently loaded into form to prevent overwriting user input
+  const lastLoadedEmpIdRef = useRef<string | null>(null)
+  const isFormDirtyRef = useRef<boolean>(false)
 
   // Filter & Search states for Admin Table
   const [searchQuery, setSearchQuery] = useState('')
@@ -197,19 +206,19 @@ export default function BankDetailsPage() {
     return () => window.removeEventListener('oklut-bank-details-updated', onUpdate)
   }, [])
 
-  // Sync current employee bank detail into form
-  useEffect(() => {
-    if (!currentSelectedEmp) return
+  // Populate employee bank detail into form
+  const populateFormForEmployee = (emp: Employee | null, bankList: EmployeeBankDetail[]) => {
+    if (!emp) return
 
-    const existing = bankDetailsList.find(
+    const existing = bankList.find(
       (b) =>
-        b.employee_id === currentSelectedEmp.id ||
-        b.employee_code.toLowerCase() === currentSelectedEmp.employee_code?.toLowerCase() ||
-        b.employee_email.toLowerCase() === currentSelectedEmp.email?.toLowerCase()
+        b.employee_id === emp.id ||
+        b.employee_code.toLowerCase() === emp.employee_code?.toLowerCase() ||
+        b.employee_email.toLowerCase() === emp.email?.toLowerCase()
     )
 
     if (existing) {
-      setAccountHolderName(existing.account_holder_name)
+      setAccountHolderName(existing.account_holder_name || '')
       if (POPULAR_BANKS.includes(existing.bank_name)) {
         setBankName(existing.bank_name)
         setCustomBankName('')
@@ -217,18 +226,18 @@ export default function BankDetailsPage() {
         setBankName('Other')
         setCustomBankName(existing.bank_name)
       }
-      setAccountNumber(existing.account_number)
-      setConfirmAccountNumber(existing.account_number)
-      setIfscCode(existing.ifsc_code)
-      setBranchName(existing.branch_name)
-      setAccountType(existing.account_type)
+      setAccountNumber(existing.account_number || '')
+      setConfirmAccountNumber(existing.account_number || '')
+      setIfscCode(existing.ifsc_code || '')
+      setBranchName(existing.branch_name || '')
+      setAccountType(existing.account_type || 'Salary')
       setUpiId(existing.upi_id || '')
       setPanNumber(existing.pan_number || '')
       setDocumentProofName(existing.document_proof_name || '')
       setIsDeclared(true)
     } else {
       // Clear form with defaults for employee
-      const fullName = `${currentSelectedEmp.first_name || ''} ${currentSelectedEmp.last_name || ''}`.trim()
+      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim()
       setAccountHolderName(fullName)
       setBankName('HDFC Bank')
       setCustomBankName('')
@@ -241,6 +250,18 @@ export default function BankDetailsPage() {
       setPanNumber('')
       setDocumentProofName('')
       setIsDeclared(false)
+    }
+
+    lastLoadedEmpIdRef.current = emp.id
+    isFormDirtyRef.current = false
+  }
+
+  // Only auto-populate when switching employees or initially loaded
+  useEffect(() => {
+    if (!currentSelectedEmp) return
+
+    if (lastLoadedEmpIdRef.current !== currentSelectedEmp.id) {
+      populateFormForEmployee(currentSelectedEmp, bankDetailsList)
     }
   }, [currentSelectedEmp, bankDetailsList])
 
@@ -257,28 +278,74 @@ export default function BankDetailsPage() {
     )
   }, [currentSelectedEmp, bankDetailsList])
 
-  // Auto-fill branch / bank name clue when IFSC code changes
+  // Input limitation handlers
+  const handleAccountHolderNameChange = (val: string) => {
+    // Only letters, spaces, and periods allowed. Max 60 chars.
+    const clean = val.replace(/[^a-zA-Z\s.]/g, '').slice(0, 60)
+    setAccountHolderName(clean)
+    isFormDirtyRef.current = true
+  }
+
+  const handleAccountNumberChange = (val: string) => {
+    // Strictly numeric digits 0-9 only. Max 18 digits.
+    const clean = val.replace(/\D/g, '').slice(0, 18)
+    setAccountNumber(clean)
+    isFormDirtyRef.current = true
+  }
+
+  const handleConfirmAccountNumberChange = (val: string) => {
+    // Strictly numeric digits 0-9 only. Max 18 digits.
+    const clean = val.replace(/\D/g, '').slice(0, 18)
+    setConfirmAccountNumber(clean)
+    isFormDirtyRef.current = true
+  }
+
   const handleIfscChange = (val: string) => {
+    // Strictly 11 alphanumeric characters, uppercase only.
     const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
     setIfscCode(clean)
-    if (clean.startsWith('HDFC') && bankName !== 'HDFC Bank') {
-      setBankName('HDFC Bank')
-    } else if (clean.startsWith('SBIN') && !bankName.includes('SBI')) {
-      setBankName('State Bank of India (SBI)')
-    } else if (clean.startsWith('ICIC') && bankName !== 'ICICI Bank') {
-      setBankName('ICICI Bank')
-    } else if (clean.startsWith('UTIB') && bankName !== 'Axis Bank') {
-      setBankName('Axis Bank')
-    } else if (clean.startsWith('KKBK') && bankName !== 'Kotak Mahindra Bank') {
-      setBankName('Kotak Mahindra Bank')
+    isFormDirtyRef.current = true
+
+    // Auto-detect bank from the 4-letter prefix
+    const detected = detectBankFromIFSC(clean)
+    if (detected && detected !== bankName) {
+      setBankName(detected)
+      setCustomBankName('')
     }
   }
 
-  // Handle Form Submission
+  const handleBranchNameChange = (val: string) => {
+    // Letters, digits, spaces, and standard address punctuation. Max 80 chars.
+    const clean = val.replace(/[^a-zA-Z0-9\s,./-]/g, '').slice(0, 80)
+    setBranchName(clean)
+    isFormDirtyRef.current = true
+  }
+
+  const handlePanNumberChange = (val: string) => {
+    // Exactly 10 chars, uppercase alphanumeric only.
+    const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
+    setPanNumber(clean)
+    isFormDirtyRef.current = true
+  }
+
+  const handleUpiIdChange = (val: string) => {
+    // Up to 50 chars, no spaces, lowercase.
+    const clean = val.replace(/\s/g, '').toLowerCase().slice(0, 50)
+    setUpiId(clean)
+    isFormDirtyRef.current = true
+  }
+
+  // Handle Form Submission with comprehensive validation
   const handleBankFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentSelectedEmp) {
-      toast.error('Please select an employee.')
+      toast.error('Please select an employee profile.')
+      return
+    }
+
+    const trimmedName = accountHolderName.trim()
+    if (!trimmedName || trimmedName.length < 2) {
+      toast.error('Account holder name is required (minimum 2 characters).')
       return
     }
 
@@ -288,30 +355,45 @@ export default function BankDetailsPage() {
       return
     }
 
-    if (!accountHolderName.trim()) {
-      toast.error('Account holder name is required.')
-      return
-    }
-
     const cleanAcc = accountNumber.replace(/\D/g, '')
-    if (cleanAcc.length < 9 || cleanAcc.length > 18) {
-      toast.error('Account number must be between 9 and 18 digits.')
+    if (!isValidAccountNumber(cleanAcc)) {
+      toast.error(`Account number must be between 9 and 18 digits (currently ${cleanAcc.length} digits).`)
       return
     }
 
     if (accountNumber !== confirmAccountNumber) {
-      toast.error('Account Number and Confirm Account Number do not match.')
+      toast.error('Account Number and Confirm Account Number do not match. Please verify.')
       return
     }
 
     const cleanIfsc = ifscCode.trim().toUpperCase()
+    if (cleanIfsc.length !== 11) {
+      toast.error(`IFSC code must be exactly 11 characters (currently ${cleanIfsc.length}).`)
+      return
+    }
+
+    if (cleanIfsc[4] !== '0') {
+      toast.error("The 5th character of Indian IFSC code must always be zero ('0'). E.g. HDFC0001234, SBIN0004521.")
+      return
+    }
+
     if (!isValidIFSC(cleanIfsc)) {
-      toast.error('Invalid IFSC Code. Must be exactly 11 characters (e.g. HDFC0001234, SBIN0004521).')
+      toast.error('Invalid IFSC Code format. Must be 4 letters + 0 + 6 alphanumeric characters (e.g. HDFC0001234, SBIN0004521).')
       return
     }
 
     if (!branchName.trim()) {
-      toast.error('Please specify the Bank Branch Name.')
+      toast.error('Please specify the Bank Branch Name and City.')
+      return
+    }
+
+    if (panNumber.trim() && !isValidPAN(panNumber.trim())) {
+      toast.error('Invalid PAN Number format. Standard Indian format: 5 letters + 4 digits + 1 letter (e.g. ABCPS1234F).')
+      return
+    }
+
+    if (upiId.trim() && !isValidUPI(upiId.trim())) {
+      toast.error('Invalid UPI ID format. Expected format: username@bank (e.g. employee@okhdfcbank).')
       return
     }
 
@@ -333,7 +415,7 @@ export default function BankDetailsPage() {
         department: (currentSelectedEmp as any).department?.name || currentSelectedEmp.branch || 'Corporate',
         designation: (currentSelectedEmp as any).designation?.name || 'Staff Member',
         bank_name: effectiveBank,
-        account_holder_name: accountHolderName.trim(),
+        account_holder_name: trimmedName,
         account_number: cleanAcc,
         ifsc_code: cleanIfsc,
         branch_name: branchName.trim(),
@@ -345,6 +427,8 @@ export default function BankDetailsPage() {
       })
 
       await loadBankDetails()
+      isFormDirtyRef.current = false
+      lastLoadedEmpIdRef.current = currentSelectedEmp.id
       toast.success('Bank details submitted successfully! Your account is sent to HR for payroll direct deposit verification.')
     } catch (err: any) {
       toast.error('Failed to submit bank details: ' + (err?.message || 'Unexpected error'))
@@ -724,63 +808,90 @@ export default function BankDetailsPage() {
           {/* Bank Form Card */}
           <Card className="border shadow-md bg-card">
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-900">
-                <Landmark className="h-5 w-5 text-indigo-600" />
-                Direct Deposit Bank Account Details
-              </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
-                All details must match the beneficiary name and bank passbook/cheque leaf exactly to prevent transaction failures.
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                    <Landmark className="h-5 w-5 text-indigo-600" />
+                    Direct Deposit Bank Account Details
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    All details must match the beneficiary name and bank passbook/cheque leaf exactly to prevent transaction failures.
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="text-xs py-1 px-2.5 text-indigo-700 bg-indigo-50/50 border-indigo-200 self-start sm:self-auto">
+                  Strict NPCI / NACH Validated
+                </Badge>
+              </div>
             </CardHeader>
 
             <form onSubmit={handleBankFormSubmit}>
               <CardContent className="space-y-6 pt-6">
-                {/* 1. Account Holder Name */}
+                {/* 1. Account Holder Name & Bank Name */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      Account Holder Name <span className="text-rose-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="accountHolderName" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        Account Holder Name <span className="text-rose-500">*</span>
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{accountHolderName.length} / 60</span>
+                    </div>
                     <Input
+                      id="accountHolderName"
+                      name="accountHolderName"
                       required
                       placeholder="e.g. SANDEEP REDDY GUDA"
                       value={accountHolderName}
-                      onChange={(e) => setAccountHolderName(e.target.value)}
-                      className="text-xs uppercase font-medium bg-slate-50/50"
+                      onChange={(e) => handleAccountHolderNameChange(e.target.value)}
+                      maxLength={60}
+                      autoComplete="name"
+                      className="text-xs uppercase font-medium bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Must match the name printed on your bank statement / cheque leaf.
+                      Must match the beneficiary name on bank passbook / statement (alphabets and spaces only).
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Label htmlFor="bankName" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                       Bank Name <span className="text-rose-500">*</span>
                     </Label>
-                    <Select value={bankName} onValueChange={setBankName}>
-                      <SelectTrigger className="text-xs bg-slate-50/50">
+                    <Select
+                      value={bankName}
+                      onValueChange={(val) => {
+                        setBankName(val)
+                        isFormDirtyRef.current = true
+                      }}
+                    >
+                      <SelectTrigger id="bankName" className="text-xs bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm">
                         <SelectValue placeholder="Select Bank..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-64">
                         {POPULAR_BANKS.map((b) => (
                           <SelectItem key={b} value={b} className="text-xs">
                             {b}
                           </SelectItem>
                         ))}
-                        <SelectItem value="Other" className="text-xs">
-                          Other Bank (Type name below)
+                        <SelectItem value="Other" className="text-xs font-semibold text-indigo-600">
+                          Other Bank (Specify custom bank below)
                         </SelectItem>
                       </SelectContent>
                     </Select>
 
                     {bankName === 'Other' && (
-                      <Input
-                        required
-                        placeholder="Enter your bank name"
-                        value={customBankName}
-                        onChange={(e) => setCustomBankName(e.target.value)}
-                        className="text-xs mt-2"
-                      />
+                      <div className="space-y-1 mt-2">
+                        <Input
+                          required
+                          placeholder="Type your bank name (e.g. South Indian Bank)"
+                          value={customBankName}
+                          onChange={(e) => {
+                            setCustomBankName(e.target.value.slice(0, 50))
+                            isFormDirtyRef.current = true
+                          }}
+                          maxLength={50}
+                          className="text-xs bg-white border-slate-200 shadow-sm"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Max 50 characters allowed for custom bank name.</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -789,40 +900,89 @@ export default function BankDetailsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                      <Label htmlFor="accountNumber" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         Bank Account Number <span className="text-rose-500">*</span>
                       </Label>
-                      <button
-                        type="button"
-                        onClick={() => setShowAccountMask(!showAccountMask)}
-                        className="text-[11px] text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer font-medium"
-                      >
-                        {showAccountMask ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                        {showAccountMask ? 'Hide' : 'Reveal'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] py-0 px-1.5 font-mono ${
+                            isValidAccountNumber(accountNumber)
+                              ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                              : accountNumber.length > 0
+                              ? 'border-amber-300 text-amber-700 bg-amber-50'
+                              : 'text-slate-500'
+                          }`}
+                        >
+                          {accountNumber.length} / 18 digits (min 9)
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => setIsAccountMasked(!isAccountMasked)}
+                          className="text-[11px] text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer font-medium"
+                        >
+                          {isAccountMasked ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                          {isAccountMasked ? 'Reveal' : 'Mask'}
+                        </button>
+                      </div>
                     </div>
                     <Input
+                      id="accountNumber"
+                      name="accountNumber"
                       required
-                      type={showAccountMask ? 'text' : 'password'}
+                      type={isAccountMasked ? 'password' : 'text'}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={18}
+                      autoComplete="off"
+                      data-lpignore="true"
                       placeholder="e.g. 50100492817263"
                       value={accountNumber}
-                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                      className="text-xs font-mono tracking-wider bg-slate-50/50"
+                      onChange={(e) => handleAccountNumberChange(e.target.value)}
+                      className={`text-xs font-mono tracking-wider bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                        accountNumber.length >= 9 && accountNumber.length <= 18
+                          ? 'border-emerald-500 focus-visible:ring-emerald-500'
+                          : accountNumber.length > 0
+                          ? 'border-amber-400 focus-visible:ring-amber-400'
+                          : ''
+                      }`}
                     />
-                    <p className="text-[11px] text-muted-foreground">Numbers only (9 to 18 digits).</p>
+                    <div className="min-h-[18px]">
+                      {accountNumber.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground">Numbers only (strictly 9 to 18 digits allowed).</p>
+                      ) : accountNumber.length < 9 ? (
+                        <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> Minimum 9 digits required (currently {accountNumber.length} {accountNumber.length === 1 ? 'digit' : 'digits'}).
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid account number length ({accountNumber.length} digits).
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      Confirm Account Number <span className="text-rose-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="confirmAccountNumber" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        Confirm Account Number <span className="text-rose-500">*</span>
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{confirmAccountNumber.length} / 18</span>
+                    </div>
                     <Input
+                      id="confirmAccountNumber"
+                      name="confirmAccountNumber"
                       required
-                      type="text"
+                      type={isAccountMasked ? 'password' : 'text'}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={18}
+                      autoComplete="off"
+                      data-lpignore="true"
                       placeholder="Re-enter bank account number"
                       value={confirmAccountNumber}
-                      onChange={(e) => setConfirmAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                      className={`text-xs font-mono tracking-wider bg-slate-50/50 ${
+                      onChange={(e) => handleConfirmAccountNumberChange(e.target.value)}
+                      className={`text-xs font-mono tracking-wider bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
                         confirmAccountNumber && accountNumber !== confirmAccountNumber
                           ? 'border-rose-400 focus-visible:ring-rose-400'
                           : confirmAccountNumber && accountNumber === confirmAccountNumber
@@ -830,31 +990,52 @@ export default function BankDetailsPage() {
                           : ''
                       }`}
                     />
-                    {confirmAccountNumber && accountNumber === confirmAccountNumber && (
-                      <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Account numbers match perfectly.
-                      </p>
-                    )}
-                    {confirmAccountNumber && accountNumber !== confirmAccountNumber && (
-                      <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" /> Account numbers do not match!
-                      </p>
-                    )}
+                    <div className="min-h-[18px]">
+                      {!confirmAccountNumber ? (
+                        <p className="text-[11px] text-muted-foreground">Re-enter account number to ensure zero typographical errors.</p>
+                      ) : accountNumber === confirmAccountNumber ? (
+                        <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Account numbers match perfectly.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> Account numbers do not match!
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* 3. IFSC Code & Branch */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      IFSC Code <span className="text-rose-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="ifscCode" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        IFSC Code <span className="text-rose-500">*</span>
+                      </Label>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] py-0 px-1.5 font-mono ${
+                          isValidIFSC(ifscCode)
+                            ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                            : ifscCode.length === 11
+                            ? 'border-rose-300 text-rose-700 bg-rose-50'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {ifscCode.length} / 11 characters
+                      </Badge>
+                    </div>
                     <Input
+                      id="ifscCode"
+                      name="ifscCode"
                       required
+                      maxLength={11}
+                      autoComplete="off"
                       placeholder="e.g. HDFC0001234 or SBIN0004521"
                       value={ifscCode}
                       onChange={(e) => handleIfscChange(e.target.value)}
-                      className={`text-xs font-mono uppercase tracking-wider bg-slate-50/50 ${
+                      className={`text-xs font-mono uppercase tracking-wider bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
                         isValidIFSC(ifscCode)
                           ? 'border-emerald-500 ring-emerald-500'
                           : ifscCode.length >= 11
@@ -862,27 +1043,49 @@ export default function BankDetailsPage() {
                           : ''
                       }`}
                     />
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-muted-foreground">Standard 11-character Indian IFSC code</span>
-                      {isValidIFSC(ifscCode) && (
-                        <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Valid IFSC Format
-                        </span>
+                    <div className="min-h-[18px]">
+                      {ifscCode.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground">Standard 11-character Indian IFSC code (e.g. HDFC0001234, SBIN0004521).</p>
+                      ) : ifscCode.length >= 5 && ifscCode[4] !== '0' ? (
+                        <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> 5th character must be zero ('0'), not '{ifscCode[4]}'.
+                        </p>
+                      ) : isValidIFSC(ifscCode) ? (
+                        <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid Indian IFSC Code {detectBankFromIFSC(ifscCode) ? `(${detectBankFromIFSC(ifscCode)})` : ''}
+                        </p>
+                      ) : ifscCode.length === 11 ? (
+                        <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> Invalid IFSC structure (Expected: 4 letters + 0 + 6 alphanumeric characters).
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Format: 4-letter bank code + '0' + 6 alphanumeric characters ({11 - ifscCode.length} more needed).
+                        </p>
                       )}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      Branch Name &amp; City <span className="text-rose-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="branchName" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        Branch Name &amp; City <span className="text-rose-500">*</span>
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{branchName.length} / 80</span>
+                    </div>
                     <Input
+                      id="branchName"
+                      name="branchName"
                       required
+                      maxLength={80}
                       placeholder="e.g. Madhapur Branch, Hyderabad"
                       value={branchName}
-                      onChange={(e) => setBranchName(e.target.value)}
-                      className="text-xs bg-slate-50/50"
+                      onChange={(e) => handleBranchNameChange(e.target.value)}
+                      className="text-xs bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm"
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Specify bank branch name and city location (Max 80 characters).
+                    </p>
                   </div>
                 </div>
 
@@ -898,10 +1101,13 @@ export default function BankDetailsPage() {
                         <button
                           key={type}
                           type="button"
-                          onClick={() => setAccountType(type)}
+                          onClick={() => {
+                            setAccountType(type)
+                            isFormDirtyRef.current = true
+                          }}
                           className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                             isSelected
-                              ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600 shadow-sm'
+                              ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-2 ring-indigo-600 shadow-sm'
                               : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
                           }`}
                         >
@@ -925,30 +1131,90 @@ export default function BankDetailsPage() {
                 </div>
 
                 {/* 5. UPI ID & PAN Number (Optional) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-slate-700">UPI ID for Quick Expense Reimbursements (Optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="upiId" className="text-xs font-medium text-slate-700">
+                        UPI ID for Quick Expense Reimbursements (Optional)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{upiId.length} / 50</span>
+                    </div>
                     <Input
+                      id="upiId"
+                      name="upiId"
+                      maxLength={50}
+                      autoComplete="off"
                       placeholder="e.g. employee@okhdfcbank"
                       value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      className="text-xs bg-slate-50/50"
+                      onChange={(e) => handleUpiIdChange(e.target.value)}
+                      className={`text-xs bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                        upiId && isValidUPI(upiId)
+                          ? 'border-emerald-500'
+                          : upiId && !isValidUPI(upiId)
+                          ? 'border-amber-400'
+                          : ''
+                      }`}
                     />
+                    <div className="min-h-[18px]">
+                      {!upiId ? (
+                        <p className="text-[11px] text-muted-foreground">Optional: For instant reimbursement payouts (Max 50 chars).</p>
+                      ) : isValidUPI(upiId) ? (
+                        <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid UPI ID handle format.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> Expected UPI format: username@bankhandle (e.g. name@oksbi).
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-slate-700">Income Tax PAN Number (Optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="panNumber" className="text-xs font-medium text-slate-700">
+                        Income Tax PAN Number (Optional)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{panNumber.length} / 10</span>
+                    </div>
                     <Input
+                      id="panNumber"
+                      name="panNumber"
+                      maxLength={10}
+                      autoComplete="off"
                       placeholder="e.g. ABCPS1234F"
                       value={panNumber}
-                      onChange={(e) => setPanNumber(e.target.value.toUpperCase().slice(0, 10))}
-                      className="text-xs uppercase font-mono bg-slate-50/50"
+                      onChange={(e) => handlePanNumberChange(e.target.value)}
+                      className={`text-xs uppercase font-mono bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm ${
+                        panNumber.length === 10 && isValidPAN(panNumber)
+                          ? 'border-emerald-500'
+                          : panNumber.length === 10 && !isValidPAN(panNumber)
+                          ? 'border-rose-400'
+                          : ''
+                      }`}
                     />
+                    <div className="min-h-[18px]">
+                      {!panNumber ? (
+                        <p className="text-[11px] text-muted-foreground">Standard 10-character Indian PAN (5 letters + 4 digits + 1 letter).</p>
+                      ) : panNumber.length === 10 && isValidPAN(panNumber) ? (
+                        <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Valid Indian PAN format.
+                        </p>
+                      ) : panNumber.length === 10 && !isValidPAN(panNumber) ? (
+                        <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" /> Invalid PAN structure (Format: 5 letters + 4 digits + 1 letter).
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Enter 10-character PAN ({panNumber.length} / 10 entered).
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* 6. Cancelled Cheque / Passbook Attachment */}
-                <div className="space-y-2 pt-2">
+                <div className="space-y-2 pt-1">
                   <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     Cancelled Cheque / Passbook Copy Attachment
                   </Label>
@@ -958,10 +1224,10 @@ export default function BankDetailsPage() {
                       Upload cancelled cheque leaf or front page of bank passbook
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Accepted formats: PDF, JPG, PNG (Max 5MB)
+                      Accepted formats: PDF, JPG, PNG (Maximum file size: 5MB)
                     </p>
 
-                    <div className="mt-4 flex items-center justify-center gap-3">
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
                       <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-sm transition-all">
                         <span>Select Document</span>
                         <input
@@ -971,8 +1237,13 @@ export default function BankDetailsPage() {
                           onChange={(e) => {
                             const file = e.target.files?.[0]
                             if (file) {
+                              if (file.size > 5 * 1024 * 1024) {
+                                toast.error('File exceeds maximum size of 5MB. Please choose a smaller file.')
+                                return
+                              }
                               setDocumentProofName(file.name)
-                              toast.success(`Attached "${file.name}" successfully!`)
+                              isFormDirtyRef.current = true
+                              toast.success(`Attached "${file.name}" (${(file.size / 1024).toFixed(0)} KB) successfully!`)
                             }
                           }}
                         />
@@ -982,6 +1253,17 @@ export default function BankDetailsPage() {
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-medium">
                           <FileText className="h-3.5 w-3.5" />
                           <span>{documentProofName}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDocumentProofName('')
+                              isFormDirtyRef.current = true
+                            }}
+                            className="text-emerald-700 hover:text-rose-600 font-bold ml-1 text-xs"
+                            title="Remove attachment"
+                          >
+                            ×
+                          </button>
                         </div>
                       )}
                     </div>
@@ -990,12 +1272,15 @@ export default function BankDetailsPage() {
 
                 {/* 7. Legal Self-Declaration */}
                 <div className="rounded-xl border bg-slate-50 p-4 space-y-2">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={isDeclared}
-                      onChange={(e) => setIsDeclared(e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                      onChange={(e) => {
+                        setIsDeclared(e.target.checked)
+                        isFormDirtyRef.current = true
+                      }}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
                     />
                     <span className="text-xs text-slate-700 leading-relaxed font-medium">
                       I hereby declare and confirm that the bank account and IFSC details provided above are authentic, active, and belong exclusively to me. I authorize OKLUT Inc. to credit all salary disbursements, allowances, and approved claim reimbursements directly into this account.
@@ -1008,7 +1293,19 @@ export default function BankDetailsPage() {
                 <span className="text-xs text-muted-foreground">
                   Submissions are reviewed by HR within 1-2 business days.
                 </span>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      populateFormForEmployee(currentSelectedEmp, bankDetailsList)
+                      toast.info('Form reset to saved profile records.')
+                    }}
+                    disabled={submittingForm}
+                    className="text-xs h-9 px-3 border-slate-300 hover:bg-slate-100"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
+                  </Button>
                   <Button
                     type="submit"
                     disabled={submittingForm}

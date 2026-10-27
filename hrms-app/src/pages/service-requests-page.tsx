@@ -154,15 +154,21 @@ export default function ServiceRequestsPage() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         if (file.size > 15 * 1024 * 1024) {
-          toast.error(`File "${file.name}" exceeds 15MB limit.`)
+          toast.error(`File "${file.name}" exceeds 15MB limit. Please upload a smaller file.`)
           continue
         }
         const uploaded = await uploadServiceRequestDocument(file)
         newAttachments.push(uploaded)
       }
 
-      setAttachments((prev) => [...prev, ...newAttachments])
-      toast.success(`${newAttachments.length} document(s) attached successfully.`)
+      if (newAttachments.length > 0) {
+        setAttachments((prev) => [...prev, ...newAttachments])
+        toast.success(
+          newAttachments.length === 1
+            ? 'Document attached successfully.'
+            : `${newAttachments.length} document(s) attached successfully.`
+        )
+      }
     } catch (err: any) {
       console.error('Upload error:', err)
       toast.error(err?.message || 'Error uploading document.')
@@ -188,15 +194,21 @@ export default function ServiceRequestsPage() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         if (file.size > 15 * 1024 * 1024) {
-          toast.error(`File "${file.name}" exceeds 15MB limit.`)
+          toast.error(`File "${file.name}" exceeds 15MB limit. Please upload a smaller file.`)
           continue
         }
         const uploaded = await uploadServiceRequestDocument(file)
         newAttachments.push(uploaded)
       }
 
-      setActionAttachments((prev) => [...prev, ...newAttachments])
-      toast.success(`${newAttachments.length} HR document(s) uploaded.`)
+      if (newAttachments.length > 0) {
+        setActionAttachments((prev) => [...prev, ...newAttachments])
+        toast.success(
+          newAttachments.length === 1
+            ? 'HR document uploaded successfully.'
+            : `${newAttachments.length} HR document(s) uploaded successfully.`
+        )
+      }
     } catch (err: any) {
       console.error('HR doc upload error:', err)
       toast.error(err?.message || 'Error uploading HR file.')
@@ -1080,7 +1092,7 @@ export default function ServiceRequestsPage() {
                 <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Employee's Issue Description:
                 </Label>
-                <div className="p-3 rounded-lg border bg-card text-xs leading-relaxed whitespace-pre-wrap">
+                <div className="p-3 rounded-lg border bg-card text-xs leading-relaxed whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere]">
                   {selectedRequest.description}
                 </div>
               </div>
@@ -1282,7 +1294,7 @@ export default function ServiceRequestsPage() {
               {/* Description */}
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Your Issue Description:</Label>
-                <div className="p-3 rounded-lg border bg-slate-50/50 dark:bg-slate-900/50 leading-relaxed whitespace-pre-wrap">
+                <div className="p-3 rounded-lg border bg-slate-50/50 dark:bg-slate-900/50 leading-relaxed whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere]">
                   {selectedRequest.description}
                 </div>
               </div>

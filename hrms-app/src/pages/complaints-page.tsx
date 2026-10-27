@@ -35,7 +35,7 @@ import {
   FileText,
   AlertCircle,
   HelpCircle,
-  ShieldAlert,
+  RotateCw,
 } from 'lucide-react'
 
 const DEPARTMENTS = [
@@ -64,8 +64,8 @@ export default function ComplaintsPage() {
   )
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'submit' | 'my-complaints' | 'admin-desk'>(
-    'submit'
+  const [activeTab, setActiveTab] = useState<'submit' | 'my-complaints' | 'admin-desk'>(() =>
+    isHROrAdmin ? 'admin-desk' : 'submit'
   )
 
   // Complaints Data
@@ -116,35 +116,41 @@ export default function ComplaintsPage() {
     loadData()
   }, [isHROrAdmin, employee?.id, employee?.email])
 
-  // Security guard: non-HR/Admins cannot access admin desk tab
+  // Security guard: HR/Admins remain on admin desk, non-HR/Admins cannot access admin desk
   useEffect(() => {
-    if (!isHROrAdmin && activeTab === 'admin-desk') {
+    if (isHROrAdmin && activeTab !== 'admin-desk') {
+      setActiveTab('admin-desk')
+    } else if (!isHROrAdmin && activeTab === 'admin-desk') {
       setActiveTab('submit')
     }
   }, [isHROrAdmin, activeTab])
 
   // Word count computation
   const currentWordCount = countWords(description)
+  const isOverLimit = currentWordCount > MAX_WORD_LIMIT
   const wordsRemaining = Math.max(0, MAX_WORD_LIMIT - currentWordCount)
+  const wordsOverLimit = Math.max(0, currentWordCount - MAX_WORD_LIMIT)
 
-  // Enforce word limit on textarea change
+  // Update description on change without silent truncating
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value
-    const words = countWords(val)
+    setDescription(e.target.value)
+  }
 
-    if (words > MAX_WORD_LIMIT) {
-      // Trim to 100 words automatically
-      const clamped = trimToMaxWords(val, MAX_WORD_LIMIT)
-      setDescription(clamped)
-      toast.warning('Maximum word limit reached (100 words max)')
-    } else {
-      setDescription(val)
-    }
+  // Quick auto-trim action for user convenience
+  const handleTrimToMax = () => {
+    const clamped = trimToMaxWords(description, MAX_WORD_LIMIT)
+    setDescription(clamped)
+    toast.info('Trimmed description to exactly 100 words.')
   }
 
   // Handle Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isHROrAdmin) {
+      toast.error('HR and Administrators cannot file complaints. Your role is to review and resolve employee grievances.')
+      return
+    }
 
     if (!selectedCategory) {
       toast.error('Please select a complaint category from the dropdown.')
@@ -161,8 +167,8 @@ export default function ComplaintsPage() {
       return
     }
 
-    if (currentWordCount > MAX_WORD_LIMIT) {
-      toast.error(`Your complaint exceeds the 100-word limit (${currentWordCount}/100 words). Please shorten it.`)
+    if (isOverLimit || currentWordCount > MAX_WORD_LIMIT) {
+      toast.error(`Your complaint description exceeds the 100-word limit (${currentWordCount} words entered, ${wordsOverLimit} words over limit). Please shorten it.`)
       return
     }
 
@@ -310,34 +316,52 @@ export default function ComplaintsPage() {
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        title="Complaint Box & Grievances"
-        description="Confidential workplace grievance reporting with regular categories, anonymous option, and 100-word limit."
+        title={isHROrAdmin ? "Grievance Management Desk" : "Complaint Box & Grievances"}
+        description={
+          isHROrAdmin
+            ? "Official HR and Management review desk to investigate and resolve employee workplace grievances."
+            : "Confidential workplace grievance reporting with regular categories, anonymous option, and 100-word limit."
+        }
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant={activeTab === 'submit' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setActiveTab('submit')}
-              className="gap-2"
-            >
-              <PlusCircle className="h-4 w-4" /> File Complaint
-            </Button>
-            {isHROrAdmin && (
+            {!isHROrAdmin ? (
               <Button
-                variant={activeTab === 'admin-desk' ? 'default' : 'outline'}
+                variant={activeTab === 'submit' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setActiveTab('admin-desk')}
+                onClick={() => setActiveTab('submit')}
                 className="gap-2"
               >
-                <ShieldAlert className="h-4 w-4" /> Admin Desk ({pendingCount} New)
+                <PlusCircle className="h-4 w-4" /> File Complaint
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadData}
+                disabled={loading}
+                className="gap-2"
+              >
+                <RotateCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh Desk
               </Button>
             )}
           </div>
         }
       />
 
-      {/* Privacy Notice for Regular Employees */}
-      {!isHROrAdmin && (
+      {/* Role Notice */}
+      {isHROrAdmin ? (
+        <div className="p-3.5 bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white border border-blue-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-blue-950 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+            <span>
+              <strong>HR & Admin Review Authority:</strong> You are in official review and resolution mode. Grievance filing is reserved for employees. Your role is to examine incoming complaints, update investigation status, and record formal resolution findings.
+            </span>
+          </div>
+          <Badge variant="outline" className="bg-white border-blue-300 text-primary font-semibold shrink-0 self-start sm:self-auto">
+            Reviewer Mode
+          </Badge>
+        </div>
+      ) : (
         <div className="p-3.5 bg-gradient-to-r from-indigo-50/90 via-blue-50/60 to-white border border-indigo-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-950 shadow-xs">
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -406,21 +430,163 @@ export default function ComplaintsPage() {
         </Card>
       </div>
 
-      {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-        <TabsList className={`grid ${isHROrAdmin ? 'grid-cols-3 max-w-md' : 'grid-cols-2 max-w-xs'} w-full bg-slate-100 p-1 rounded-xl`}>
-          <TabsTrigger value="submit" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
-            <PlusCircle className="h-4 w-4" /> File Complaint
-          </TabsTrigger>
-          <TabsTrigger value="my-complaints" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
-            <FileText className="h-4 w-4" /> My Complaints ({myComplaints.length})
-          </TabsTrigger>
-          {isHROrAdmin && (
-            <TabsTrigger value="admin-desk" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
-              <ShieldCheck className="h-4 w-4" /> Grievance Desk
+      {isHROrAdmin ? (
+        /* HR / ADMIN REVIEW DESK VIEW (NO COMPLAINT FILING) */
+        <div className="mt-6 space-y-4">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-primary" /> Grievance Management Desk
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Review incoming complaints, update investigation status, and provide resolution remarks.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 text-xs">
+                    <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh List
+                  </Button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <Input
+                    placeholder="Search ticket, category, details..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-9 text-xs"
+                  />
+                </div>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="under_review">Under Investigation</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="dismissed">Dismissed</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Filter by Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {REGULAR_COMPLAINTS.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              {filteredAdminComplaints.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-3" />
+                  <h4 className="text-base font-semibold text-slate-700">No complaints matching filter</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    There are no complaints under the selected search or status criteria.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Ticket</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Employee</th>
+                        <th className="p-3">Category / Subject</th>
+                        <th className="p-3">Priority</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredAdminComplaints.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-3 font-mono font-bold text-slate-800">
+                            {item.ticket_number}
+                          </td>
+                          <td className="p-3 text-slate-500 whitespace-nowrap">
+                            {new Date(item.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <div>
+                              <span className="font-semibold text-slate-800 block">{item.employee_name}</span>
+                              <span className="text-[11px] text-slate-400 block">
+                                {item.employee_code ? `${item.employee_code} • ` : ''}{item.employee_email || item.department || ''}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-3 max-w-xs">
+                            <span className="font-semibold text-slate-800 block">
+                              {item.category === 'Other' && item.custom_subject
+                                ? `[Other] ${item.custom_subject}`
+                                : item.category}
+                            </span>
+                            <span className="text-slate-500 truncate block text-[11px] max-w-xs break-all">
+                              {item.description}
+                            </span>
+                          </td>
+                          <td className="p-3">{getPriorityBadge(item.priority)}</td>
+                          <td className="p-3">{getStatusBadge(item.status)}</td>
+                          <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1"
+                              onClick={() => {
+                                setSelectedComplaint(item)
+                                setResolutionStatus(item.status)
+                                setResolutionNote(item.resolution_note || '')
+                                setIsDetailOpen(true)
+                              }}
+                            >
+                              <Eye className="w-3 h-3" /> Review
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              onClick={() => handleDelete(item.id, item.ticket_number)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        /* REGULAR EMPLOYEE VIEW (FILE COMPLAINT & MY COMPLAINTS) */
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+          <TabsList className="grid grid-cols-2 max-w-xs w-full bg-slate-100 p-1 rounded-xl">
+            <TabsTrigger value="submit" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
+              <PlusCircle className="h-4 w-4" /> File Complaint
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger value="my-complaints" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
+              <FileText className="h-4 w-4" /> My Complaints ({myComplaints.length})
+            </TabsTrigger>
+          </TabsList>
 
         {/* TAB 1: SUBMIT COMPLAINT FORM */}
         <TabsContent value="submit" className="mt-6">
@@ -543,19 +709,27 @@ export default function ComplaintsPage() {
                       </Label>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                            currentWordCount >= 100
-                              ? 'bg-rose-100 text-rose-700 border-rose-300'
-                              : currentWordCount > 85
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border transition-colors ${
+                            isOverLimit
+                              ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
+                              : currentWordCount === MAX_WORD_LIMIT
                               ? 'bg-amber-100 text-amber-700 border-amber-300'
+                              : currentWordCount > 85
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
                               : 'bg-emerald-50 text-emerald-700 border-emerald-300'
                           }`}
                         >
                           {currentWordCount} / {MAX_WORD_LIMIT} words
                         </span>
-                        <span className="text-xs text-slate-500">
-                          ({wordsRemaining} remaining)
-                        </span>
+                        {!isOverLimit ? (
+                          <span className="text-xs text-slate-500">
+                            ({wordsRemaining} remaining)
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-rose-600">
+                            ({wordsOverLimit} {wordsOverLimit === 1 ? 'word' : 'words'} over limit)
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -566,7 +740,11 @@ export default function ComplaintsPage() {
                       rows={5}
                       placeholder="Clearly describe the incident, situation, or issue. Include dates, locations, or affected staff where applicable. (Limit: 100 words)..."
                       className={`bg-white transition-all ${
-                        currentWordCount >= 100 ? 'border-rose-400 focus-visible:ring-rose-500' : 'border-slate-300'
+                        isOverLimit
+                          ? 'border-rose-500 ring-2 ring-rose-500/20 focus-visible:ring-rose-500 bg-rose-50/10'
+                          : currentWordCount === MAX_WORD_LIMIT
+                          ? 'border-amber-400 focus-visible:ring-amber-500'
+                          : 'border-slate-300'
                       }`}
                     />
 
@@ -574,7 +752,7 @@ export default function ComplaintsPage() {
                     <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <div
                         className={`h-1.5 transition-all duration-300 ${
-                          currentWordCount >= 100
+                          isOverLimit
                             ? 'bg-rose-500'
                             : currentWordCount > 85
                             ? 'bg-amber-500'
@@ -584,12 +762,36 @@ export default function ComplaintsPage() {
                       />
                     </div>
 
-                    <p className="text-xs text-slate-500 flex items-center justify-between">
-                      <span>Strict limit of 100 words applies to ensure concise and prompt action.</span>
-                      {currentWordCount >= MAX_WORD_LIMIT && (
-                        <span className="text-rose-600 font-medium">Maximum 100-word limit reached!</span>
-                      )}
-                    </p>
+                    {/* Prominent Validation Message */}
+                    {isOverLimit ? (
+                      <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-rose-700 animate-in fade-in duration-200 shadow-sm">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block text-rose-900">Word Limit Exceeded ({currentWordCount} / {MAX_WORD_LIMIT} words)</span>
+                            <span>
+                              Your complaint description exceeds the 100-word limit by <strong className="text-rose-900 font-bold">{wordsOverLimit} {wordsOverLimit === 1 ? 'word' : 'words'}</strong>. You cannot submit this complaint until it is shortened to 100 words or fewer.
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={handleTrimToMax}
+                          className="h-7 text-xs px-3 font-semibold shrink-0 shadow-sm"
+                        >
+                          Auto-trim to 100 words
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 flex items-center justify-between">
+                        <span>Strict limit of 100 words applies to ensure concise and prompt action.</span>
+                        {currentWordCount === MAX_WORD_LIMIT && (
+                          <span className="text-amber-600 font-semibold">Maximum 100-word limit reached</span>
+                        )}
+                      </p>
+                    )}
                   </div>
 
                   {/* Complainant Identity Confirmation */}
@@ -629,7 +831,7 @@ export default function ComplaintsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={isSubmitting || !description.trim() || currentWordCount > MAX_WORD_LIMIT}
+                      disabled={isSubmitting || !description.trim() || isOverLimit}
                       className="gap-2 px-6"
                     >
                       {isSubmitting ? (
@@ -789,221 +991,78 @@ export default function ComplaintsPage() {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: ADMIN / HR GRIEVANCE DESK (HR & ADMINS ONLY) */}
-        {isHROrAdmin && (
-          <TabsContent value="admin-desk" className="mt-6 space-y-4">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-primary" /> Grievance Management Desk
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Review incoming complaints, update investigation status, and provide resolution remarks.
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={loadData}>
-                    Refresh List
-                  </Button>
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <Input
-                    placeholder="Search ticket, category, details..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 h-9 text-xs"
-                  />
-                </div>
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Filter by Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="under_review">Under Investigation</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="dismissed">Dismissed</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Filter by Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {REGULAR_COMPLAINTS.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              {filteredAdminComplaints.length === 0 ? (
-                <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-3" />
-                  <h4 className="text-base font-semibold text-slate-700">No complaints matching filter</h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    There are no complaints under the selected search or status criteria.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                      <tr>
-                        <th className="p-3">Ticket</th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Employee</th>
-                        <th className="p-3">Category / Subject</th>
-                        <th className="p-3">Priority</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredAdminComplaints.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="p-3 font-mono font-bold text-slate-800">
-                            {item.ticket_number}
-                          </td>
-                          <td className="p-3 text-slate-500 whitespace-nowrap">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="p-3 whitespace-nowrap">
-                            <div>
-                              <span className="font-semibold text-slate-800 block">{item.employee_name}</span>
-                              <span className="text-[11px] text-slate-400 block">
-                                {item.employee_code ? `${item.employee_code} • ` : ''}{item.employee_email || item.department || ''}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-3 max-w-xs">
-                            <span className="font-semibold text-slate-800 block">
-                              {item.category === 'Other' && item.custom_subject
-                                ? `[Other] ${item.custom_subject}`
-                                : item.category}
-                            </span>
-                            <span className="text-slate-500 truncate block text-[11px] max-w-xs">
-                              {item.description}
-                            </span>
-                          </td>
-                          <td className="p-3">{getPriorityBadge(item.priority)}</td>
-                          <td className="p-3">{getStatusBadge(item.status)}</td>
-                          <td className="p-3 text-right space-x-1 whitespace-nowrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-xs gap-1"
-                              onClick={() => {
-                                setSelectedComplaint(item)
-                                setResolutionStatus(item.status)
-                                setResolutionNote(item.resolution_note || '')
-                                setIsDetailOpen(true)
-                              }}
-                            >
-                              <Eye className="w-3 h-3" /> Review
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                              onClick={() => handleDelete(item.id, item.ticket_number)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        )}
-      </Tabs>
+        </Tabs>
+      )}
 
       {/* COMPLAINT DETAILS & RESOLUTION MODAL */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded">
+        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl rounded-2xl border-slate-200 bg-white">
+          <DialogHeader className="p-6 pb-4 border-b border-slate-100 shrink-0 bg-white pr-12 text-left">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-bold bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200">
                 {selectedComplaint?.ticket_number}
               </span>
               {selectedComplaint && getPriorityBadge(selectedComplaint.priority)}
             </div>
-            <DialogTitle className="text-lg mt-2">
+            <DialogTitle className="text-xl font-bold text-slate-900 mt-2 break-words text-left">
               {selectedComplaint?.category === 'Other' && selectedComplaint?.custom_subject
                 ? `[Other] ${selectedComplaint.custom_subject}`
                 : selectedComplaint?.category}
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-slate-500 mt-1 text-left">
               Submitted on {selectedComplaint ? new Date(selectedComplaint.created_at).toLocaleString() : ''}
             </DialogDescription>
           </DialogHeader>
 
           {selectedComplaint && (
-            <div className="space-y-4 py-2 text-xs">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 text-xs min-w-0 custom-scrollbar">
               {/* Meta information */}
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50/90 rounded-xl border border-slate-200/80">
+                <div className="min-w-0">
                   <span className="text-slate-400 block font-medium">Complainant:</span>
                   <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5">
-                    <UserCheck className="w-3.5 h-3.5 text-primary" /> {selectedComplaint.employee_name}
+                    <UserCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="truncate">{selectedComplaint.employee_name}</span>
                   </span>
                   {selectedComplaint.employee_code && (
-                    <span className="text-[11px] text-slate-500 block">
+                    <span className="text-[11px] text-slate-500 block truncate mt-0.5">
                       {selectedComplaint.employee_code} {selectedComplaint.employee_email ? `• ${selectedComplaint.employee_email}` : ''}
                     </span>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 block font-medium">Department:</span>
-                  <span className="font-semibold text-slate-800 mt-0.5 block">
+                  <span className="font-semibold text-slate-800 mt-0.5 block truncate">
                     {selectedComplaint.department || 'Not Specified'}
                   </span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 block font-medium">Word Count:</span>
                   <span className="font-semibold text-slate-800 mt-0.5 block">
                     {selectedComplaint.word_count} / {MAX_WORD_LIMIT} words
                   </span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 block font-medium">Current Status:</span>
-                  <div className="mt-0.5">{getStatusBadge(selectedComplaint.status)}</div>
+                  <div className="mt-1">{getStatusBadge(selectedComplaint.status)}</div>
                 </div>
               </div>
 
               {/* Description */}
-              <div className="space-y-1.5">
-                <Label className="font-semibold text-slate-700">Complaint Details / Facts:</Label>
-                <div className="p-3 bg-white border border-slate-200 rounded-xl leading-relaxed text-slate-700 whitespace-pre-wrap">
+              <div className="space-y-2 min-w-0">
+                <Label className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-slate-500" /> Complaint Details / Facts:
+                </Label>
+                <div className="p-4 bg-white border border-slate-200 rounded-xl leading-relaxed text-slate-800 whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere] max-h-56 overflow-y-auto custom-scrollbar select-text shadow-sm">
                   {selectedComplaint.description}
                 </div>
               </div>
 
               {/* Resolution / Admin update section */}
               {isHROrAdmin ? (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <Label className="font-semibold text-slate-800 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-primary" /> Admin / HR Investigation Action
+                <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-xl space-y-3 min-w-0">
+                  <Label className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+                    <ShieldCheck className="w-4 h-4 text-primary shrink-0" /> Admin / HR Investigation Action
                   </Label>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1015,7 +1074,7 @@ export default function ComplaintsPage() {
                         value={resolutionStatus}
                         onValueChange={(val: any) => setResolutionStatus(val)}
                       >
-                        <SelectTrigger id="status-select" className="bg-white h-8 text-xs">
+                        <SelectTrigger id="status-select" className="bg-white h-9 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1038,17 +1097,17 @@ export default function ComplaintsPage() {
                       onChange={(e) => setResolutionNote(e.target.value)}
                       rows={3}
                       placeholder="Enter steps taken, findings, or resolution remarks..."
-                      className="bg-white text-xs"
+                      className="bg-white text-xs leading-relaxed"
                     />
                   </div>
                 </div>
               ) : (
                 selectedComplaint.resolution_note && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 min-w-0">
                     <Label className="font-semibold text-emerald-900 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Resolution Note from HR:
                     </Label>
-                    <p className="text-emerald-800 leading-relaxed">
+                    <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap break-words break-all">
                       {selectedComplaint.resolution_note}
                     </p>
                     {selectedComplaint.resolved_by && (
@@ -1065,7 +1124,7 @@ export default function ComplaintsPage() {
             </div>
           )}
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="p-4 px-6 border-t border-slate-100 bg-slate-50/90 gap-2 shrink-0 flex items-center justify-end">
             <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
               Close
             </Button>

@@ -1185,12 +1185,21 @@ export async function submitProjectStatusUpdate(input: CreateStatusUpdateInput):
 }
 
 // -----------------------------------------------------------------------------
-// Calculate Project Dashboard Statistics
+// Calculate Project Dashboard Statistics & Update Checks
 // -----------------------------------------------------------------------------
-export async function fetchProjectDashboardStats(): Promise<ProjectDashboardStats> {
-  const projects = await fetchProjects()
+export function isProjectNeedingUpdate(p: Project): boolean {
+  if (p.status === 'Completed' || p.status === 'Cancelled') return false
   const now = new Date().getTime()
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+  const lastUpdatedMs = p.updated_at ? new Date(p.updated_at).getTime() : 0
+  const isOverdue = p.expected_end_date ? new Date(p.expected_end_date).getTime() < now : false
+  const isStale = lastUpdatedMs === 0 || now - lastUpdatedMs > sevenDaysMs
+
+  return isOverdue || isStale || p.status === 'At Risk'
+}
+
+export async function fetchProjectDashboardStats(): Promise<ProjectDashboardStats> {
+  const projects = await fetchProjects()
 
   const stats: ProjectDashboardStats = {
     total: projects.length,
@@ -1227,15 +1236,9 @@ export async function fetchProjectDashboardStats(): Promise<ProjectDashboardStat
     }
 
     // Projects requiring updates:
-    // Active project (not completed or cancelled) where last update is > 7 days old or overdue
-    if (p.status !== 'Completed' && p.status !== 'Cancelled') {
-      const lastUpdatedMs = new Date(p.updated_at).getTime()
-      const isOverdue = new Date(p.expected_end_date).getTime() < now
-      const isStale = now - lastUpdatedMs > sevenDaysMs
-
-      if (isOverdue || isStale || p.status === 'At Risk') {
-        stats.requiringUpdates++
-      }
+    // Active project (not completed or cancelled) where last update is > 7 days old, overdue, or at risk
+    if (isProjectNeedingUpdate(p)) {
+      stats.requiringUpdates++
     }
   })
 

@@ -122,7 +122,6 @@ export const employeeNav: NavSection[] = [
       { title: 'Holidays', to: '/holidays', icon: CalendarDays },
       { title: 'Insurance', to: '/insurance-enrollment', icon: HeartPulse },
       { title: 'Careers', to: '/careers', icon: UserPlus },
-      { title: 'Service Request Sector', to: '/service-requests', icon: LifeBuoy },
     ],
   },
 ]

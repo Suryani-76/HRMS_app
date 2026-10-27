@@ -209,7 +209,11 @@ export async function fetchAllEmployeeBankDetails(): Promise<EmployeeBankDetail[
       .order('submitted_at', { ascending: false })
 
     if (!error && data && data.length > 0) {
-      saveLocalBankDetails(data as EmployeeBankDetail[])
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data))
+      } catch (storageErr) {
+        console.warn('LocalStorage cache notice:', storageErr)
+      }
       return data as EmployeeBankDetail[]
     }
   } catch (err) {
@@ -392,3 +396,62 @@ export function isValidIFSC(ifsc: string): boolean {
   const regex = /^[A-Z]{4}0[A-Z0-9]{6}$/
   return regex.test(ifsc.trim().toUpperCase())
 }
+
+/**
+ * Standard Indian Bank Account Number validation (9 to 18 numeric digits)
+ */
+export function isValidAccountNumber(acc: string): boolean {
+  if (!acc) return false
+  const regex = /^\d{9,18}$/
+  return regex.test(acc.trim())
+}
+
+/**
+ * Standard Indian Income Tax PAN validation
+ * Format: 5 uppercase letters + 4 digits + 1 uppercase letter (e.g. ABCPS1234F)
+ */
+export function isValidPAN(pan: string): boolean {
+  if (!pan) return false
+  const regex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+  return regex.test(pan.trim().toUpperCase())
+}
+
+/**
+ * Standard UPI ID validation (e.g. employee@okhdfcbank, name@upi)
+ */
+export function isValidUPI(upi: string): boolean {
+  if (!upi) return false
+  const regex = /^[a-zA-Z0-9.\-_]{2,40}@[a-zA-Z0-9.\-_]{2,20}$/
+  return regex.test(upi.trim())
+}
+
+/**
+ * Map of Indian Bank 4-letter IFSC prefixes to Popular Bank names
+ */
+export const IFSC_BANK_PREFIX_MAP: Record<string, string> = {
+  HDFC: 'HDFC Bank',
+  SBIN: 'State Bank of India (SBI)',
+  ICIC: 'ICICI Bank',
+  UTIB: 'Axis Bank',
+  KKBK: 'Kotak Mahindra Bank',
+  PUNB: 'Punjab National Bank (PNB)',
+  BARB: 'Bank of Baroda',
+  CNRB: 'Canara Bank',
+  UBIN: 'Union Bank of India',
+  INDB: 'IndusInd Bank',
+  IDFB: 'IDFC FIRST Bank',
+  FDRL: 'Federal Bank',
+  YESB: 'Yes Bank',
+  IDIB: 'Indian Bank',
+  CBIN: 'Central Bank of India',
+}
+
+/**
+ * Detect popular bank name from IFSC code prefix
+ */
+export function detectBankFromIFSC(ifsc: string): string | null {
+  if (!ifsc || ifsc.length < 4) return null
+  const prefix = ifsc.slice(0, 4).toUpperCase()
+  return IFSC_BANK_PREFIX_MAP[prefix] || null
+}
+

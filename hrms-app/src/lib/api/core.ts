@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Payroll, PayrollProfile, Document, Task, Announcement, Notification } from '@/lib/database.types'
+import { mergeAndEnrichDocuments, saveLocalProjectDoc, removeLocalProjectDoc } from './projectDocuments'
 
 // ---------- Payroll ----------
 export async function fetchPayrollProfiles() {
@@ -105,7 +106,8 @@ export async function fetchDocuments(employeeId?: string) {
   if (employeeId) query = query.eq('employee_id', employeeId)
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as Document[]
+  const remoteDocs = (data ?? []) as Document[]
+  return mergeAndEnrichDocuments(remoteDocs, employeeId)
 }
 
 export async function uploadDocument(input: {
@@ -114,13 +116,54 @@ export async function uploadDocument(input: {
   doc_type?: string
   file_url?: string
   file_size?: number
+  project_id?: string | null
+  project_name?: string | null
+  project_code?: string | null
 }) {
-  const { data, error } = await supabase.from('documents').insert(input).select().single()
-  if (error) throw error
-  return data as Document
+  let created: Document
+  try {
+    const { data, error } = await supabase.from('documents').insert(input).select('*, employee:employees(first_name, last_name, employee_code)').single()
+    if (error) {
+      // Fallback: If project columns don't exist yet on remote table, tag inside name
+      if (input.project_id || input.project_code || input.project_name) {
+        const tag = ` [PRJ:${JSON.stringify({ id: input.project_id, code: input.project_code, name: input.project_name })}]`
+        const fallbackInput = {
+          employee_id: input.employee_id,
+          name: input.name + tag,
+          doc_type: input.doc_type,
+          file_url: input.file_url,
+          file_size: input.file_size,
+        }
+        const { data: fbData, error: fbError } = await supabase.from('documents').insert(fallbackInput).select('*, employee:employees(first_name, last_name, employee_code)').single()
+        if (fbError) throw fbError
+        created = fbData as Document
+      } else {
+        throw error
+      }
+    } else {
+      created = data as Document
+    }
+  } catch (err) {
+    throw err
+  }
+
+  // Ensure project properties are present and mirror to local storage
+  if (input.project_id || input.project_code || input.project_name) {
+    const enriched: Document = {
+      ...created,
+      name: input.name, // Clean name
+      project_id: input.project_id || created.project_id,
+      project_name: input.project_name || created.project_name,
+      project_code: input.project_code || created.project_code,
+    }
+    saveLocalProjectDoc(enriched)
+    return enriched
+  }
+  return created
 }
 
 export async function deleteDocument(id: string) {
+  removeLocalProjectDoc(id)
   const { error } = await supabase.from('documents').delete().eq('id', id)
   if (error) throw error
 }

@@ -483,6 +483,50 @@ export async function fetchLeaveRequests(options?: { status?: string; employeeId
   }
 }
 
+export interface HalfDayInfo {
+  isHalfDay: boolean
+  session: 'first_half' | 'second_half' | null
+  sessionLabel: string
+  timing: string
+}
+
+export function getHalfDayDetails(r: Partial<LeaveRequest>): HalfDayInfo {
+  const isHalfDay = Boolean(
+    r.is_half_day ||
+    r.days === 0.5 ||
+    (r.reason && (r.reason.includes('Half Day') || r.reason.includes('first_half') || r.reason.includes('second_half') || r.reason.includes('9.30') || r.reason.includes('9:30') || r.reason.includes('2.30') || r.reason.includes('2:30')))
+  )
+
+  if (!isHalfDay) {
+    return {
+      isHalfDay: false,
+      session: null,
+      sessionLabel: '',
+      timing: '',
+    }
+  }
+
+  const isSecondHalf =
+    r.half_day_session === 'second_half' ||
+    Boolean(r.reason && (r.reason.toLowerCase().includes('second half') || r.reason.includes('second_half') || r.reason.includes('2.30') || r.reason.includes('2:30') || r.reason.includes('afternoon')))
+
+  if (isSecondHalf) {
+    return {
+      isHalfDay: true,
+      session: 'second_half',
+      sessionLabel: 'Second Half',
+      timing: '2:30 PM to 6:30 PM',
+    }
+  }
+
+  return {
+    isHalfDay: true,
+    session: 'first_half',
+    sessionLabel: 'First Half',
+    timing: '9:30 AM to 1:30 PM',
+  }
+}
+
 export async function applyLeave(input: {
   employee_id: string
   leave_type_id: string
@@ -493,6 +537,8 @@ export async function applyLeave(input: {
   status?: 'pending' | 'approved' | 'rejected'
   isAdmin?: boolean
   isHr?: boolean
+  is_half_day?: boolean
+  half_day_session?: 'first_half' | 'second_half' | string
 }) {
   let validEmpId = input.employee_id
   if (!validEmpId || validEmpId === '00000000-0000-0000-0000-000000000010') {
@@ -521,13 +567,33 @@ export async function applyLeave(input: {
     status: finalStatus,
     admin_comment: isRoleAdmin ? 'Self-approved by Admin / CEO' : null,
     reviewed_at: isRoleAdmin ? new Date().toISOString() : null,
+    is_half_day: input.is_half_day ?? (input.days === 0.5),
+    half_day_session: input.half_day_session || null,
   }
 
-  const { data, error } = await supabase
+  let data: any = null
+  let error: any = null
+
+  const attempt = await supabase
     .from('leave_requests')
     .insert(payload)
     .select('*, employee:employees(first_name, last_name, employee_code, department_id, department:departments!department_id(name)), leave_type:leave_types(*)')
     .single()
+
+  if (attempt.error && (attempt.error.message?.includes('is_half_day') || attempt.error.code === '42703')) {
+    delete payload.is_half_day
+    delete payload.half_day_session
+    const retry = await supabase
+      .from('leave_requests')
+      .insert(payload)
+      .select('*, employee:employees(first_name, last_name, employee_code, department_id, department:departments!department_id(name)), leave_type:leave_types(*)')
+      .single()
+    data = retry.data
+    error = retry.error
+  } else {
+    data = attempt.data
+    error = attempt.error
+  }
 
   if (error) throw error
 

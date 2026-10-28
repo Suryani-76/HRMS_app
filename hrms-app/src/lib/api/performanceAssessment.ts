@@ -425,6 +425,32 @@ export async function saveAssessmentDraft(assessment: EmployeeAssessment): Promi
   const store = getStoredAssessments()
   store[updated.id] = updated
   persistAssessments(store)
+
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
+    if (isUuid) {
+      await supabase.from('employee_assessments').upsert({
+        employee_id: assessment.employeeId,
+        employee_name: assessment.employeeName,
+        employee_code: assessment.employeeCode,
+        role: assessment.role,
+        department: assessment.department,
+        track: assessment.track,
+        review_period: assessment.reviewPeriod,
+        status: 'draft',
+        items: assessment.items as any,
+        total_goals_reached: metrics.totalGoalsReached,
+        total_goals_count: metrics.totalGoalsCount,
+        overall_score: metrics.overallScore,
+        overall_percentage: metrics.overallPercentage,
+        performance_band: metrics.performanceBand,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id,review_period' })
+    }
+  } catch (err) {
+    console.warn('Supabase assessment draft save notice:', err)
+  }
+
   return updated
 }
 
@@ -445,6 +471,33 @@ export async function submitAssessmentForReview(assessment: EmployeeAssessment):
   const store = getStoredAssessments()
   store[updated.id] = updated
   persistAssessments(store)
+
+  // Direct Supabase employee_assessments persistence
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
+    if (isUuid) {
+      await supabase.from('employee_assessments').upsert({
+        employee_id: assessment.employeeId,
+        employee_name: assessment.employeeName,
+        employee_code: assessment.employeeCode,
+        role: assessment.role,
+        department: assessment.department,
+        track: assessment.track,
+        review_period: assessment.reviewPeriod,
+        status: 'submitted',
+        items: assessment.items as any,
+        total_goals_reached: metrics.totalGoalsReached,
+        total_goals_count: metrics.totalGoalsCount,
+        overall_score: metrics.overallScore,
+        overall_percentage: metrics.overallPercentage,
+        performance_band: metrics.performanceBand,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id,review_period' })
+    }
+  } catch (err) {
+    console.warn('Supabase assessment submit notice:', err)
+  }
 
   // Try sync with supabase performance_reviews if possible
   try {
@@ -487,6 +540,36 @@ export async function submitReviewerGrading(
   const store = getStoredAssessments()
   store[updated.id] = updated
   persistAssessments(store)
+
+  // Direct Supabase employee_assessments persistence for reviewed status
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
+    if (isUuid) {
+      await supabase.from('employee_assessments').upsert({
+        employee_id: assessment.employeeId,
+        employee_name: assessment.employeeName,
+        employee_code: assessment.employeeCode,
+        role: assessment.role,
+        department: assessment.department,
+        track: assessment.track,
+        review_period: assessment.reviewPeriod,
+        status: 'reviewed',
+        items: assessment.items as any,
+        total_goals_reached: metrics.totalGoalsReached,
+        total_goals_count: metrics.totalGoalsCount,
+        overall_score: metrics.overallScore,
+        overall_percentage: metrics.overallPercentage,
+        performance_band: metrics.performanceBand,
+        reviewer_id: reviewerId || null,
+        reviewer_name: reviewerName || 'HR Reviewer',
+        reviewer_feedback: reviewerFeedback || null,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id,review_period' })
+    }
+  } catch (err) {
+    console.warn('Supabase assessment reviewed save notice:', err)
+  }
 
   // Sync finalized rating to supabase performance_reviews
   try {

@@ -232,6 +232,19 @@ export async function fetchBankDetailByEmployee(
   const clean = (query || '').trim().toLowerCase()
   if (!clean) return null
 
+  try {
+    const { data, error } = await supabase
+      .from('employee_bank_details')
+      .select('*')
+      .or(`employee_id.eq.${query},employee_code.ilike.${clean},employee_email.ilike.${clean}`)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!error && data) {
+      return data as EmployeeBankDetail
+    }
+  } catch {}
+
   const list = getLocalBankDetails()
   const found = list.find(
     (d) =>

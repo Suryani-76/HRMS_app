@@ -288,6 +288,28 @@ export function useGeneratePayroll() {
     onError: toastError,
   })
 }
+export function useClearPayroll() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (period?: string) => api.clearPayroll(period),
+    onSuccess: () => {
+      invalidate([queryKeys.payroll, queryKeys.dashboardStats])
+      toast.success('Payroll cleared successfully')
+    },
+    onError: toastError,
+  })
+}
+export function useDeletePayrollRow() {
+  const { invalidate, toastError } = useInvalidate()
+  return useMutation({
+    mutationFn: (id: string) => api.deletePayrollRow(id),
+    onSuccess: () => {
+      invalidate([queryKeys.payroll, queryKeys.dashboardStats])
+      toast.success('Payroll record deleted')
+    },
+    onError: toastError,
+  })
+}
 export function useUpdatePayrollStatus() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({

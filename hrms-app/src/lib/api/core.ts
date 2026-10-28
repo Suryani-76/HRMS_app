@@ -6,19 +6,80 @@ import { mergeAndEnrichDocuments, saveLocalProjectDoc, removeLocalProjectDoc } f
 export async function fetchPayrollProfiles() {
   const { data, error } = await supabase
     .from('payroll_profiles')
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
-  if (error) throw error
+    .select('*, employee:employees(*, department:departments!department_id(name), designation:designations(name))')
+  
+  if (error) {
+    const fallback = await supabase
+      .from('payroll_profiles')
+      .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
+    if (fallback.error) throw fallback.error
+    return (fallback.data ?? []) as PayrollProfile[]
+  }
+
+  // Also query active employees to see if any are missing a payroll profile
+  try {
+    const { data: activeEmps } = await supabase
+      .from('employees')
+      .select('*, department:departments!department_id(name), designation:designations(name)')
+      .eq('status', 'Active')
+      .order('first_name', { ascending: true })
+
+    if (activeEmps && activeEmps.length > 0) {
+      const existingMap = new Map((data ?? []).map((p) => [p.employee_id, p]))
+      const merged: PayrollProfile[] = [...((data ?? []) as PayrollProfile[])]
+
+      for (const emp of activeEmps) {
+        if (!existingMap.has(emp.id)) {
+          merged.push({
+            employee_id: emp.id,
+            basic_salary: Number(emp.basic_salary) || 0,
+            hra: Number(emp.hra) || 0,
+            allowances: Number(emp.allowances) || 0,
+            bonus: Number(emp.bonus) || 0,
+            pf_percent: 12,
+            tax_percent: 5,
+            bank_name: emp.bank_name || null,
+            bank_account: emp.bank_account_number || null,
+            ifsc_code: emp.ifsc_code || null,
+            updated_at: emp.updated_at || new Date().toISOString(),
+            employee: emp as any,
+          })
+        } else {
+          const prof = existingMap.get(emp.id)!
+          if ((!prof.basic_salary || prof.basic_salary === 0) && Number(emp.basic_salary) > 0) {
+            prof.basic_salary = Number(emp.basic_salary)
+            prof.hra = Number(emp.hra) || prof.hra || 0
+            prof.allowances = Number(emp.allowances) || prof.allowances || 0
+            prof.bonus = Number(emp.bonus) || prof.bonus || 0
+          }
+        }
+      }
+      return merged
+    }
+  } catch (syncErr) {
+    console.warn('fetchPayrollProfiles active employees sync notice:', syncErr)
+  }
+
   return (data ?? []) as PayrollProfile[]
 }
 
 export async function fetchPayroll(period?: string) {
   let query = supabase
     .from('payroll')
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
+    .select('*, employee:employees(*, department:departments!department_id(name), designation:designations(name))')
     .order('created_at', { ascending: false })
   if (period) query = query.eq('pay_period', period)
   const { data, error } = await query
-  if (error) throw error
+  if (error) {
+    const fallback = await supabase
+      .from('payroll')
+      .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
+      .order('created_at', { ascending: false })
+    if (period) fallback.eq('pay_period', period)
+    const res = await fallback
+    if (res.error) throw res.error
+    return (res.data ?? []) as Payroll[]
+  }
   return (data ?? []) as Payroll[]
 }
 
@@ -81,12 +142,47 @@ export async function generatePayroll(period: string) {
     }
   })
 
+  // Ensure profiles are stored in payroll_profiles table
+  for (const p of profiles) {
+    supabase.from('payroll_profiles').upsert({
+      employee_id: p.employee_id,
+      basic_salary: Number(p.basic_salary) || 0,
+      hra: Number(p.hra) || 0,
+      allowances: Number(p.allowances) || 0,
+      bonus: Number(p.bonus) || 0,
+      pf_percent: Number(p.pf_percent) || 12,
+      tax_percent: Number(p.tax_percent) || 5,
+      bank_name: p.bank_name || null,
+      bank_account: p.bank_account || null,
+      ifsc_code: p.ifsc_code || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'employee_id' }).catch(() => {})
+  }
+
   const { data, error } = await supabase
     .from('payroll')
     .upsert(rows, { onConflict: 'employee_id,pay_period' })
-    .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
+    .select('*, employee:employees(*, department:departments!department_id(name), designation:designations(name))')
   if (error) throw error
   return (data ?? []) as Payroll[]
+}
+
+export async function clearPayroll(period?: string) {
+  let query = supabase.from('payroll').delete()
+  if (period) {
+    query = query.eq('pay_period', period)
+  } else {
+    query = query.neq('id', '00000000-0000-0000-0000-000000000000')
+  }
+  const { error } = await query
+  if (error) throw error
+  return { success: true }
+}
+
+export async function deletePayrollRow(id: string) {
+  const { error } = await supabase.from('payroll').delete().eq('id', id)
+  if (error) throw error
+  return { success: true }
 }
 
 export async function updatePayrollStatus(id: string, status: 'draft' | 'generated' | 'paid') {

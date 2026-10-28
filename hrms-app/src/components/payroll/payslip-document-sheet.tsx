@@ -11,7 +11,7 @@ interface PayslipDocumentSheetProps {
 }
 
 function formatDOJ(dateStr?: string | null): string {
-  if (!dateStr) return '16-Jul-25'
+  if (!dateStr) return '-'
   try {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return dateStr
@@ -26,48 +26,48 @@ function formatDOJ(dateStr?: string | null): string {
 }
 
 function getMonthYearHeader(payPeriod?: string): string {
-  if (!payPeriod) return 'July-2026'
+  if (!payPeriod) return '-'
   const [y, m] = payPeriod.split('-')
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
   const mIndex = parseInt(m, 10) - 1
-  const monthName = months[mIndex] || 'July'
-  return `${monthName}-${y || '2026'}`
+  const monthName = months[mIndex] || ''
+  return `${monthName}-${y || ''}`
 }
 
 export function PayslipDocumentSheet({ payroll, open, onOpenChange }: PayslipDocumentSheetProps) {
   if (!payroll) return null
 
   const emp = payroll.employee
-  const empCode = emp?.employee_code || 'OK-00201'
-  const empName = emp?.first_name ? `${emp.first_name} ${emp.last_name || ''}`.trim() : 'Narendra Kumar Jonnakuti'
+  const empCode = emp?.employee_code || (emp as any)?.id?.slice(0, 8) || '-'
+  const empName = emp?.first_name ? `${emp.first_name} ${emp.last_name || ''}`.trim() : (emp?.employee_code || '-')
   const doj = formatDOJ(emp?.joining_date)
-  const bankName = (payroll as any).bank_name || (emp as any)?.bank_name || 'HDFC Bank'
-  const panNo = (emp as any)?.pan_number || (emp as any)?.pan_no || (payroll as any).pan_no || 'CEOPN1406F'
-  const bankAccNo = (payroll as any).bank_account || (emp as any)?.bank_account || '5010 0375 9247 60'
+  const bankName = (payroll as any).bank_name || emp?.bank_name || ((emp as any)?.bank_account_number || emp?.bank_account ? (emp?.bank_name || 'Bank Account') : '-')
+  const panNo = emp?.pan_number || (emp as any)?.pan_no || (payroll as any).pan_no || '-'
+  const bankAccNo = (payroll as any).bank_account || emp?.bank_account_number || emp?.bank_account || (emp as any)?.account_number || '-'
 
   const totalDays = payroll.total_days || 31
-  const daysPaid = payroll.present_days > 0 ? payroll.present_days : totalDays
+  const daysPaid = typeof payroll.present_days === 'number' ? payroll.present_days : totalDays
   const daysLop = Math.max(0, totalDays - daysPaid)
 
-  const designation = (emp?.designation as any)?.name || (emp as any)?.designation || 'Software Developer'
-  const uanNo = (emp as any)?.uan_number || (emp as any)?.uan_no || '1022 5668 0623'
-  const department = (emp?.department as any)?.name || (emp as any)?.department || 'IT'
-  const pfNo = (emp as any)?.pf_number || (emp as any)?.pf_no || 'APHYD359368500012'
+  const designation = (emp?.designation as any)?.name || (emp as any)?.designation || '-'
+  const uanNo = emp?.uan_number || (emp as any)?.uan_no || '-'
+  const department = (emp?.department as any)?.name || (emp as any)?.department || '-'
+  const pfNo = emp?.pf_number || (emp as any)?.pf_no || '-'
 
-  // Earnings breakdown calculation
-  const basic = Number(payroll.basic_salary) || 20000
-  const hra = Number(payroll.hra) || 8000
+  // Real earnings breakdown calculation directly from payroll record - NO hardcoded fallback values
+  const basic = Number(payroll.basic_salary) || 0
+  const hra = Number(payroll.hra) || 0
   const totalAllowances = Number(payroll.allowances) || 0
   const bonus = Number(payroll.bonus) || 0
 
-  let conveyance = 2000
-  let medical = 1250
-  let special = 35750
+  let conveyance = 0
+  let medical = 0
+  let special = bonus
 
-  if (totalAllowances > 0 || bonus > 0) {
+  if (totalAllowances > 0) {
     if (totalAllowances >= 3250) {
       conveyance = 2000
       medical = 1250
@@ -81,13 +81,15 @@ export function PayslipDocumentSheet({ payroll, open, onOpenChange }: PayslipDoc
 
   const grossEarnings = basic + hra + conveyance + medical + special
 
-  // Deductions breakdown calculation
-  const pt = 200
+  // Real deductions breakdown calculation
+  const pt = (Number(payroll.deductions) > 0 || (basic + hra) >= 15000) ? 200 : 0
   const it = Number(payroll.tax) || 0
-  const pf = Number(payroll.provident_fund) || (basic > 0 ? Number((basic * 0.12).toFixed(2)) : 3600)
-  const others = Number(payroll.deductions) || 0
+  const pf = Number(payroll.provident_fund) || 0
+  const others = Math.max(0, Number(payroll.deductions) - pt)
   const grossDeductions = pt + it + pf + others
-  const netPay = grossEarnings - grossDeductions
+  const netPay = typeof payroll.net_salary === 'number' && (payroll.net_salary > 0 || (grossEarnings === 0 && grossDeductions === 0))
+    ? payroll.net_salary
+    : Math.max(0, grossEarnings - grossDeductions)
 
   const handlePrint = () => {
     const printContent = document.getElementById('oklut-payslip-sheet-container')

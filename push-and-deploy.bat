@@ -21,7 +21,7 @@ git add .
 echo.
 
 echo Committing changes...
-git commit -m "Fix TypeScript build check and verify live HRMS features"
+git commit -m "Fix identical payslip bug, add payroll clear feature, and add employee search bar at top"
 echo.
 
 echo Pushing to GitHub (origin main)...

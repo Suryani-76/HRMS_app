@@ -78,6 +78,20 @@ export interface Employee {
   status?: string | null
   profile_picture_url?: string | null
   branch?: string | null
+  basic_salary?: number | null
+  hra?: number | null
+  allowances?: number | null
+  bonus?: number | null
+  bank_name?: string | null
+  bank_account_number?: string | null
+  bank_account?: string | null
+  ifsc_code?: string | null
+  pan_number?: string | null
+  pan_no?: string | null
+  uan_number?: string | null
+  uan_no?: string | null
+  pf_number?: string | null
+  pf_no?: string | null
   created_at: string
   updated_at: string
   department?: Department | null

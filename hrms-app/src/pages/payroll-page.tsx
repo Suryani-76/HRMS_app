@@ -94,16 +94,20 @@ function ProfileEditor({
       return
     }
 
-    // Mirror to employees table for full schema synchrony
-    await supabase.from('employees').update({
-      basic_salary: Number(form.basic_salary) || 0,
-      hra: Number(form.hra) || 0,
-      allowances: Number(form.allowances) || 0,
-      bonus: Number(form.bonus) || 0,
-      bank_name: form.bank_name || null,
-      bank_account_number: form.bank_account || null,
-      ifsc_code: form.ifsc_code || null,
-    }).eq('id', profile.employee_id).catch(() => {})
+    // Mirror to employees table for full schema synchrony (best-effort)
+    try {
+      await supabase.from('employees').update({
+        basic_salary: Number(form.basic_salary) || 0,
+        hra: Number(form.hra) || 0,
+        allowances: Number(form.allowances) || 0,
+        bonus: Number(form.bonus) || 0,
+        bank_name: form.bank_name || null,
+        bank_account_number: form.bank_account || null,
+        ifsc_code: form.ifsc_code || null,
+      }).eq('id', profile.employee_id)
+    } catch {
+      // Silently ignore - employees table mirror sync is best-effort
+    }
 
     toast.success('Payroll profile updated successfully')
     qc.invalidateQueries({ queryKey: queryKeys.payrollProfiles })

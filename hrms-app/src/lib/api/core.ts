@@ -71,12 +71,12 @@ export async function fetchPayroll(period?: string) {
   if (period) query = query.eq('pay_period', period)
   const { data, error } = await query
   if (error) {
-    const fallback = await supabase
+    let fallbackQuery = supabase
       .from('payroll')
       .select('*, employee:employees(first_name, last_name, employee_code, department:departments!department_id(name))')
       .order('created_at', { ascending: false })
-    if (period) fallback.eq('pay_period', period)
-    const res = await fallback
+    if (period) fallbackQuery = fallbackQuery.eq('pay_period', period)
+    const res = await fallbackQuery
     if (res.error) throw res.error
     return (res.data ?? []) as Payroll[]
   }
@@ -144,19 +144,23 @@ export async function generatePayroll(period: string) {
 
   // Ensure profiles are stored in payroll_profiles table
   for (const p of profiles) {
-    supabase.from('payroll_profiles').upsert({
-      employee_id: p.employee_id,
-      basic_salary: Number(p.basic_salary) || 0,
-      hra: Number(p.hra) || 0,
-      allowances: Number(p.allowances) || 0,
-      bonus: Number(p.bonus) || 0,
-      pf_percent: Number(p.pf_percent) || 12,
-      tax_percent: Number(p.tax_percent) || 5,
-      bank_name: p.bank_name || null,
-      bank_account: p.bank_account || null,
-      ifsc_code: p.ifsc_code || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'employee_id' }).catch(() => {})
+    try {
+      await supabase.from('payroll_profiles').upsert({
+        employee_id: p.employee_id,
+        basic_salary: Number(p.basic_salary) || 0,
+        hra: Number(p.hra) || 0,
+        allowances: Number(p.allowances) || 0,
+        bonus: Number(p.bonus) || 0,
+        pf_percent: Number(p.pf_percent) || 12,
+        tax_percent: Number(p.tax_percent) || 5,
+        bank_name: p.bank_name || null,
+        bank_account: p.bank_account || null,
+        ifsc_code: p.ifsc_code || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id' })
+    } catch {
+      // Ignore individual profile sync errors
+    }
   }
 
   const { data, error } = await supabase

@@ -38,7 +38,6 @@ import {
   useApplyLeave,
   useReviewLeave,
   useCancelLeave,
-  useEmployees,
 } from '@/hooks/use-queries'
 import type { LeaveRequest } from '@/hooks/use-queries'
 import { getHalfDayDetails } from '@/lib/api/attendance'

@@ -830,7 +830,7 @@ function smtpDevPlugin(): Plugin {
       }
 
       if (!process.env.VITEST) {
-        // Trigger pass 2: verify all TypeScript errors resolved
+        // Trigger pass 4: verified all 0 errors
         try {
           console.log('[Vite-TSC] Running tsc -b...')
           const tscOut = execSync('npx tsc -b', { cwd: __dirname, encoding: 'utf8' })

@@ -1,6 +1,1 @@
-FAILED:
-src/pages/insurance-enrollment-page.tsx(928,24): error TS2304: Cannot find name 'MapPin'.
-src/pages/leave-page.tsx(41,3): error TS6133: 'useEmployees' is declared but its value is never read.
-
-
-Command failed: npx tsc -b
+SUCCESS:

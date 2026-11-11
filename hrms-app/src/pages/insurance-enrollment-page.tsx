@@ -26,6 +26,7 @@ import {
   Users,
   PhoneCall,
   Home,
+  MapPin,
   Building,
   CreditCard,
   CheckSquare,

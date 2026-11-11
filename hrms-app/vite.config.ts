@@ -493,6 +493,36 @@ function smtpDevPlugin(): Plugin {
         })
         throw pushErr
       }
+
+      // 5. Also push outer workspace repository if present
+      const outerRepoDir = path.resolve(__dirname, '../..')
+      if (fs.existsSync(path.resolve(outerRepoDir, '.git'))) {
+        try {
+          const outerStatus = execSync('git status --short', { cwd: outerRepoDir, encoding: 'utf8' })
+          gitResult.steps.push({ step: 'outer git status', output: outerStatus })
+          if (outerStatus.trim()) {
+            execSync('git add -A', { cwd: outerRepoDir, encoding: 'utf8' })
+            try {
+              const outerCommit = execSync('git commit -m "feat: sync database schema, leave approval view more, attendance session normalize, and SMTP diagnostics"', { cwd: outerRepoDir, encoding: 'utf8' })
+              gitResult.steps.push({ step: 'outer git commit', output: outerCommit })
+            } catch {}
+            try {
+              const outerPush = execSync('git push origin main', { cwd: outerRepoDir, encoding: 'utf8', timeout: 45000 })
+              gitResult.steps.push({ step: 'outer git push origin main', output: outerPush })
+            } catch (e: any) {
+              gitResult.steps.push({ step: 'outer git push origin main', note: e?.message })
+            }
+            try {
+              const nygenxPush = execSync('git push nygenx main', { cwd: outerRepoDir, encoding: 'utf8', timeout: 45000 })
+              gitResult.steps.push({ step: 'outer git push nygenx main', output: nygenxPush })
+            } catch (e: any) {
+              gitResult.steps.push({ step: 'outer git push nygenx main', note: e?.message })
+            }
+          }
+        } catch (outerErr: any) {
+          gitResult.steps.push({ step: 'outer repo check', note: outerErr?.message })
+        }
+      }
     } catch (err: any) {
       gitResult.error = err?.message || String(err)
       if (err?.stdout) gitResult.steps.push({ step: 'stdout', output: err.stdout.toString() })

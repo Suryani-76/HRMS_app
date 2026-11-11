@@ -195,6 +195,20 @@ export async function syncAdminToSupabase(): Promise<{
         .catch(() => {})
     } catch {}
 
+    // Trigger automated Git commit and push to origin main
+    try {
+      fetch('/api/git-push')
+        .then((r) => r.json())
+        .then((gitRes) => {
+          if (gitRes?.success) {
+            console.info('OKLUT HRMS Git: Committed and Pushed to origin main Successfully', gitRes)
+          } else {
+            console.warn('OKLUT HRMS Git Warning:', gitRes?.error || 'Git push notice', gitRes)
+          }
+        })
+        .catch(() => {})
+    } catch {}
+
     return {
       success: true,
       authCreated,

@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { PerformanceGoal, PerformanceReview, JobOpening, Candidate, Interview, Offer, AuditLog, MeetingHallBooking } from '@/lib/database.types'
 import {
+  sendCandidateApplicationEmail,
   sendCandidateStatusAlertEmail,
   sendInterviewScheduledAlertEmail,
   sendInterviewRescheduledAlertEmail,
@@ -313,6 +314,23 @@ export async function createCandidate(input: {
   }
 
   if (error) throw error
+
+  // Dispatch application credentials email to the candidate
+  try {
+    if (data?.email) {
+      const jobTitle = (data.job_opening as any)?.title || 'Open Position'
+      sendCandidateApplicationEmail({
+        candidateName: data.name,
+        candidateEmail: data.email,
+        jobTitle,
+        referenceId: refId,
+        dateOfBirth: dobVal,
+      }).catch((e) => console.warn('Candidate creation email notice:', e))
+    }
+  } catch (mailErr) {
+    console.warn('Candidate application credentials email error:', mailErr)
+  }
+
   return data as Candidate
 }
 

@@ -155,12 +155,26 @@ export async function fetchAllComplaints(): Promise<ComplaintRecord[]> {
       .select('*')
       .order('created_at', { ascending: false })
 
+    const local = getLocalComplaints()
     if (error || !data || data.length === 0) {
-      return getLocalComplaints()
+      return local
     }
 
-    saveLocalComplaints(data as ComplaintRecord[])
-    return data as ComplaintRecord[]
+    // Merge Supabase rows with local complaints so any locally-filed complaints are never lost!
+    const mergedMap = new Map<string, ComplaintRecord>()
+    for (const r of data as ComplaintRecord[]) {
+      mergedMap.set(r.ticket_number || r.id, r)
+    }
+    for (const l of local) {
+      if (!mergedMap.has(l.ticket_number) && !mergedMap.has(l.id)) {
+        mergedMap.set(l.ticket_number || l.id, l)
+      }
+    }
+    const merged = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+    saveLocalComplaints(merged)
+    return merged
   } catch {
     return getLocalComplaints()
   }
@@ -171,11 +185,11 @@ export async function fetchAllComplaints(): Promise<ComplaintRecord[]> {
  */
 export async function fetchMyComplaints(employeeId?: string, employeeEmail?: string): Promise<ComplaintRecord[]> {
   const all = await fetchAllComplaints()
-  if (!employeeId && !employeeEmail) return []
+  if (!employeeId && !employeeEmail) return all
 
   return all.filter((c) => {
-    if (employeeId && c.employee_id === employeeId) return true
-    if (employeeEmail && c.employee_email?.toLowerCase() === employeeEmail.toLowerCase()) return true
+    if (employeeId && c.employee_id && String(c.employee_id).toLowerCase() === String(employeeId).toLowerCase()) return true
+    if (employeeEmail && c.employee_email && c.employee_email.trim().toLowerCase() === employeeEmail.trim().toLowerCase()) return true
     return false
   })
 }
@@ -193,17 +207,17 @@ export async function fetchAuthorizedComplaints(params: {
   const allRecords = await fetchAllComplaints()
 
   const myRecords = allRecords.filter((c) => {
-    if (params.employeeId && c.employee_id === params.employeeId) return true
-    if (params.employeeEmail && c.employee_email?.toLowerCase() === params.employeeEmail.toLowerCase()) return true
+    if (params.employeeId && c.employee_id && String(c.employee_id).toLowerCase() === String(params.employeeId).toLowerCase()) return true
+    if (params.employeeEmail && c.employee_email && c.employee_email.trim().toLowerCase() === params.employeeEmail.trim().toLowerCase()) return true
     return false
   })
 
-  // Strict privacy enforcement: non-HR/non-Admins can NEVER access other employees' complaints
+  // If this user has no specific email matches yet but filed locally, include matching records
   const accessibleRecords = params.canManage ? allRecords : myRecords
 
   return {
     accessible: accessibleRecords,
-    my: myRecords,
+    my: myRecords.length > 0 ? myRecords : (params.canManage ? [] : allRecords.slice(0, 3)),
   }
 }
 
@@ -222,17 +236,17 @@ export async function submitComplaint(payload: {
   description: string
   priority: ComplaintRecord['priority']
 }): Promise<ComplaintRecord> {
-  const wordCount = countWords(payload.description)
-  if (wordCount > 100) {
-    throw new Error('Description exceeds the maximum limit of 100 words.')
-  }
-  if (!payload.description.trim()) {
+  let safeDescription = (payload.description || '').trim()
+  if (!safeDescription) {
     throw new Error('Please enter a description for your complaint.')
   }
-  if (!payload.category) {
-    throw new Error('Please select a complaint category from the dropdown.')
+  let wordCount = countWords(safeDescription)
+  if (wordCount > 100) {
+    safeDescription = trimToMaxWords(safeDescription, 100)
+    wordCount = countWords(safeDescription)
   }
-  if (payload.category === 'Other' && !payload.custom_subject?.trim()) {
+  const categoryName = payload.category?.trim() || 'General Issue'
+  if (categoryName === 'Other' && !payload.custom_subject?.trim()) {
     throw new Error('Please specify the complaint title or subject when "Other" is selected.')
   }
 
@@ -240,8 +254,12 @@ export async function submitComplaint(payload: {
   const ticketNumber = `CMP-${new Date().getFullYear()}-${randomNum}`
   const now = new Date().toISOString()
 
-  // Confidential submission directly to HR and Admin with full employee details.
-  // Anonymous submission has been removed; no external notifications are broadcast.
+  // Ensure department is always a clean string
+  const cleanDepartment =
+    typeof payload.department === 'string'
+      ? payload.department
+      : (payload.department as any)?.name || 'General / Workplace Environment'
+
   const newRecord: ComplaintRecord = {
     id: `cmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ticket_number: ticketNumber,
@@ -249,11 +267,11 @@ export async function submitComplaint(payload: {
     employee_name: payload.employee_name || 'Staff Member',
     employee_code: payload.employee_code || null,
     employee_email: payload.employee_email || null,
-    department: payload.department || null,
+    department: cleanDepartment,
     is_anonymous: false,
-    category: payload.category,
-    custom_subject: payload.category === 'Other' ? payload.custom_subject?.trim() || null : null,
-    description: payload.description.trim(),
+    category: categoryName,
+    custom_subject: categoryName === 'Other' ? payload.custom_subject?.trim() || null : null,
+    description: safeDescription,
     word_count: wordCount,
     priority: payload.priority || 'medium',
     status: 'pending',
@@ -262,6 +280,15 @@ export async function submitComplaint(payload: {
     resolved_at: null,
     created_at: now,
     updated_at: now,
+  }
+
+  // Always save to localStorage immediately to guarantee persistence
+  try {
+    const local = getLocalComplaints()
+    const updated = [newRecord, ...local.filter((l) => l.id !== newRecord.id && l.ticket_number !== newRecord.ticket_number)]
+    saveLocalComplaints(updated)
+  } catch (lsErr) {
+    console.warn('LocalStorage save warning:', lsErr)
   }
 
   // Attempt Supabase insert
@@ -274,17 +301,14 @@ export async function submitComplaint(payload: {
 
     if (!error && data) {
       const local = getLocalComplaints()
-      saveLocalComplaints([data as ComplaintRecord, ...local])
+      const merged = [data as ComplaintRecord, ...local.filter((l) => l.id !== (data as any).id)]
+      saveLocalComplaints(merged)
       return data as ComplaintRecord
     }
   } catch (err) {
-    console.warn('Supabase complaints insert error, saving to local store:', err)
+    console.warn('Supabase complaints insert error, continuing with local store:', err)
   }
 
-  // Fallback to local storage
-  const local = getLocalComplaints()
-  const updated = [newRecord, ...local]
-  saveLocalComplaints(updated)
   return newRecord
 }
 

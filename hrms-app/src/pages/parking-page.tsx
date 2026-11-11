@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import type { Employee, ParkingPass } from '@/lib/database.types'
 import { generateQrCodeDataUrl } from '@/lib/barcode'
@@ -43,14 +44,13 @@ import {
   PlusCircle,
   Check,
   X,
+  Search,
   RotateCw,
 } from 'lucide-react'
 
 export default function ParkingPage() {
-  const { employee: authEmployee } = useAuth()
-
-  // Active Tab
-  const [activeTab, setActiveTab] = useState<'pass' | 'request' | 'approvals' | 'gate'>('pass')
+  const navigate = useNavigate()
+  const { employee: authEmployee, isAdmin, isHR, user } = useAuth()
 
   // Authentication State for Parking Portal
   const [emailInput, setEmailInput] = useState('')
@@ -61,6 +61,80 @@ export default function ParkingPage() {
   // Current Employee's Vehicle Parking Pass Record from Database
   const [employeePass, setEmployeePass] = useState<ParkingPass | null>(null)
   const [passLoading, setPassLoading] = useState(false)
+  const [passQrImgUrl, setPassQrImgUrl] = useState('')
+
+  // Determine active personnel context
+  const activeEmployee = currentEmployee || authEmployee
+  const activeEmail = (activeEmployee?.email || user?.email || '').toLowerCase().trim()
+  const activeRole = (user?.role?.name || '').trim().toLowerCase()
+
+  const activeDept = (
+    typeof activeEmployee?.department === 'string'
+      ? activeEmployee.department
+      : activeEmployee?.department?.name || ''
+  ).toLowerCase().trim()
+
+  const activeDesig = (
+    typeof activeEmployee?.designation === 'string'
+      ? activeEmployee.designation
+      : activeEmployee?.designation?.name || ''
+  ).toLowerCase().trim()
+
+  // Strict HR & Admin Verification:
+  // ONLY real HR and Admin personnel have access to approve and view everyone's parking requests.
+  // Regular employees must ONLY see their own approval status and pass.
+  const isExactAdmin =
+    activeRole === 'admin' ||
+    activeEmail === 'ceo@oklut.com' ||
+    activeEmail === 'admin@oklut.com' ||
+    activeEmail === 'hr@oklut.in' ||
+    activeEmail.startsWith('admin@') ||
+    activeEmail.startsWith('admin.')
+
+  const isExactHR =
+    (activeRole === 'hr' ||
+      activeRole === 'human resource' ||
+      activeRole === 'human resources' ||
+      activeEmail === 'hr@oklut.com' ||
+      activeEmail.startsWith('hr@') ||
+      activeEmail.startsWith('hr.') ||
+      activeEmail.startsWith('hr_') ||
+      activeDept === 'hr' ||
+      activeDept === 'human resources' ||
+      activeDept === 'human resource' ||
+      activeDesig === 'hr manager' ||
+      activeDesig === 'hr executive' ||
+      activeDesig === 'hr generalist' ||
+      activeDesig === 'hr') &&
+    activeEmail !== 'hr@oklut.in'
+
+  const isHROrAdmin = isExactAdmin || isExactHR
+
+  // Active Tab
+  type ParkingTab = 'pass' | 'status' | 'request' | 'approvals' | 'gate'
+  const [activeTab, setActiveTab] = useState<ParkingTab>('pass')
+
+  useEffect(() => {
+    if (!isHROrAdmin && (activeTab === 'approvals' || activeTab === 'gate')) {
+      setActiveTab('status')
+    }
+  }, [isHROrAdmin, activeTab])
+
+  // Automatically ensure scannable QR pass image is always generated and ready
+  useEffect(() => {
+    if (employeePass && employeePass.status === 'Approved') {
+      if (employeePass.qr_code_image) {
+        setPassQrImgUrl(employeePass.qr_code_image)
+      } else {
+        const qrPayload =
+          employeePass.qr_code_data ||
+          `OKLUT-PARKING-PASS:${employeePass.employee_email}:${employeePass.vehicle_number}:${employeePass.allocated_slot}`
+        generateQrCodeDataUrl(qrPayload, { width: 300 }).then(setPassQrImgUrl)
+      }
+    } else {
+      setPassQrImgUrl('')
+    }
+  }, [employeePass])
 
   // Gate QR Code for parking entrance poster
   const [gateQrUrl, setGateQrUrl] = useState('')
@@ -76,6 +150,28 @@ export default function ParkingPage() {
   // HR / Admin Approval Queue
   const [allPasses, setAllPasses] = useState<ParkingPass[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [approvalSearchQuery, setApprovalSearchQuery] = useState('')
+  const [approvalStatusFilter, setApprovalStatusFilter] = useState<'all' | 'Pending' | 'Approved' | 'Rejected'>('all')
+
+  const filteredPasses = useMemo(() => {
+    return allPasses.filter((p) => {
+      const q = approvalSearchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        (p.employee_name && p.employee_name.toLowerCase().includes(q)) ||
+        (p.employee_code && p.employee_code.toLowerCase().includes(q)) ||
+        (p.employee_email && p.employee_email.toLowerCase().includes(q)) ||
+        (p.vehicle_number && p.vehicle_number.toLowerCase().includes(q)) ||
+        (p.vehicle_model && p.vehicle_model.toLowerCase().includes(q)) ||
+        (p.allocated_slot && p.allocated_slot.toLowerCase().includes(q)) ||
+        (p.parking_sector && p.parking_sector.toLowerCase().includes(q))
+
+      const matchesStatus =
+        approvalStatusFilter === 'all' || p.status === approvalStatusFilter
+
+      return matchesSearch && matchesStatus
+    })
+  }, [allPasses, approvalSearchQuery, approvalStatusFilter])
 
   // Approval Modal State
   const [selectedPassToApprove, setSelectedPassToApprove] = useState<ParkingPass | null>(null)
@@ -108,14 +204,18 @@ export default function ParkingPage() {
     }
   }, [authEmployee])
 
-  // Load All Passes for Admin
+  // Load All Passes strictly for HR & Admin only
   const loadAllPasses = async (showToast = false) => {
+    if (!isHROrAdmin) {
+      setAllPasses([])
+      return
+    }
     setRefreshing(true)
     try {
       const data = await fetchAllParkingPasses()
       setAllPasses(data)
-      if (currentEmployee) {
-        await loadEmployeePass(currentEmployee.email, currentEmployee.employee_code || undefined)
+      if (activeEmployee) {
+        await loadEmployeePass(activeEmployee.email, activeEmployee.employee_code || undefined)
       }
       if (showToast) {
         toast.success(`Vehicle pass queue refreshed (${data.length} ${data.length === 1 ? 'record' : 'records'})`)
@@ -131,8 +231,12 @@ export default function ParkingPage() {
   }
 
   useEffect(() => {
-    loadAllPasses(false)
-  }, [])
+    if (isHROrAdmin) {
+      loadAllPasses(false)
+    } else {
+      setAllPasses([])
+    }
+  }, [isHROrAdmin])
 
   // Load Employee's pass from DB
   const loadEmployeePass = async (email: string, employeeCode?: string) => {
@@ -214,11 +318,26 @@ export default function ParkingPage() {
     }
   }
 
-  const handleLogout = () => {
+  // Exit Parking Portal back to HRMS Dashboard or previous page
+  const handleExitToApp = () => {
+    toast.info('Exiting parking portal...')
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
+  // Sign out of current pass session
+  const handleSignOutPass = () => {
     setCurrentEmployee(null)
     setEmployeePass(null)
     localStorage.removeItem('oklut_parking_employee')
-    toast.info('Logged out of parking portal.')
+    toast.info('Signed out of parking pass session.')
+  }
+
+  const handleLogout = () => {
+    handleExitToApp()
   }
 
   // Input limitation handlers for Vehicle Form
@@ -302,9 +421,11 @@ export default function ParkingPage() {
       })
 
       setEmployeePass(savedPass)
-      loadAllPasses()
+      if (isHROrAdmin) {
+        loadAllPasses()
+      }
       toast.success('Vehicle registration request submitted to HR & Admin! Awaiting review.')
-      setActiveTab('pass')
+      setActiveTab(isHROrAdmin ? 'pass' : 'status')
       setVNumber('')
       setVModel('')
       setLicenseNumber('')
@@ -316,8 +437,12 @@ export default function ParkingPage() {
     }
   }
 
-  // Open Approval Dialog
+  // Open Approval Dialog (HR / Admin Only)
   const handleOpenApproveDialog = (pass: ParkingPass) => {
+    if (!isHROrAdmin) {
+      toast.error('Unauthorized: Only HR and Admin personnel have permission to approve parking requests.')
+      return
+    }
     setSelectedPassToApprove(pass)
     const defaultSector = pass.vehicle_type === '2-Wheeler' ? 'Sector 2W - Ground Bay' : 'Sector 4W - Basement 1'
     setSelectedSector(defaultSector)
@@ -326,8 +451,12 @@ export default function ParkingPage() {
     setSelectedSlot(pass.vehicle_type === '2-Wheeler' ? `Slot P-2W-${empSeq}` : `Slot P-4W-B1-${empSeq}`)
   }
 
-  // Approve Pass & Generate + Store QR in DB
+  // Approve Pass & Generate + Store QR in DB (HR / Admin Only)
   const handleConfirmApproval = async () => {
+    if (!isHROrAdmin) {
+      toast.error('Unauthorized: Only HR and Admin personnel have permission to approve parking requests.')
+      return
+    }
     if (!selectedPassToApprove) return
     if (!selectedSlot.trim()) {
       toast.error('Please specify the allocated parking slot number.')
@@ -377,8 +506,12 @@ export default function ParkingPage() {
     }
   }
 
-  // Reject Pass & Save Reason in DB
+  // Reject Pass & Save Reason in DB (HR / Admin Only)
   const handleConfirmRejection = async () => {
+    if (!isHROrAdmin) {
+      toast.error('Unauthorized: Only HR and Admin personnel have permission to reject parking requests.')
+      return
+    }
     if (!selectedPassToReject) return
     if (!rejectionReason.trim()) {
       toast.error('Please provide a reason for rejection.')
@@ -409,21 +542,111 @@ export default function ParkingPage() {
     }
   }
 
+  // Gate Exit (Vehicle departure)
+  const handleGateExit = async () => {
+    if (!employeePass || employeePass.status !== 'Approved') return
+    const now = new Date().toISOString()
+    try {
+      const updated = await toggleGateCheckIn(employeePass.id, false)
+      setEmployeePass((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(updated || {}),
+              is_checked_in: false,
+              last_check_out: now,
+              updated_at: now,
+            }
+          : null
+      )
+      toast.info('Gate Exit (Departure) recorded. Drive safely!')
+      await loadAllPasses(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Failed to record gate exit.')
+    }
+  }
+
+  // Gate Entry (Vehicle arrival)
+  const handleGateEntry = async () => {
+    if (!employeePass || employeePass.status !== 'Approved') return
+    const now = new Date().toISOString()
+    try {
+      const updated = await toggleGateCheckIn(employeePass.id, true)
+      setEmployeePass((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(updated || {}),
+              is_checked_in: true,
+              last_check_in: now,
+              updated_at: now,
+            }
+          : null
+      )
+      toast.success(`Gate Entry recorded! Welcome to ${employeePass.allocated_slot}.`)
+      await loadAllPasses(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Failed to record gate entry.')
+    }
+  }
+
   // Toggle Gate Check In / Out
   const handleToggleCheckIn = async () => {
-    if (!employeePass || employeePass.status !== 'Approved') return
-    const nextState = !employeePass.is_checked_in
+    if (!employeePass) return
+    if (employeePass.is_checked_in) {
+      await handleGateExit()
+    } else {
+      await handleGateEntry()
+    }
+  }
+
+  // Admin / HR toggle gate status directly from queue
+  const handleAdminToggleGate = async (pass: ParkingPass) => {
+    if (!isHROrAdmin) {
+      toast.error('Unauthorized: Only HR and Admin personnel can modify parking queue records.')
+      return
+    }
+    const nextState = !pass.is_checked_in
+    const now = new Date().toISOString()
     try {
-      await toggleGateCheckIn(employeePass.id, nextState)
-      setEmployeePass((prev) => (prev ? { ...prev, is_checked_in: nextState } : null))
-      if (nextState) {
-        toast.success(`Gate entry recorded! Welcome to ${employeePass.allocated_slot}.`)
-      } else {
-        toast.info('Gate departure recorded. Drive safely!')
+      await toggleGateCheckIn(pass.id, nextState)
+      setAllPasses((prev) =>
+        prev.map((item) =>
+          item.id === pass.id
+            ? {
+                ...item,
+                is_checked_in: nextState,
+                ...(nextState ? { last_check_in: now } : { last_check_out: now }),
+                updated_at: now,
+              }
+            : item
+        )
+      )
+      if (
+        currentEmployee &&
+        (currentEmployee.email.toLowerCase() === pass.employee_email.toLowerCase() ||
+          currentEmployee.employee_code === pass.employee_code)
+      ) {
+        setEmployeePass((prev) =>
+          prev && prev.id === pass.id
+            ? {
+                ...prev,
+                is_checked_in: nextState,
+                ...(nextState ? { last_check_in: now } : { last_check_out: now }),
+                updated_at: now,
+              }
+            : prev
+        )
       }
-      loadAllPasses()
+      if (nextState) {
+        toast.success(`Gate Entry recorded for ${pass.employee_name} (${pass.vehicle_number})`)
+      } else {
+        toast.info(`Gate Exit recorded for ${pass.employee_name} (${pass.vehicle_number})`)
+      }
     } catch (err) {
-      toast.error('Failed to update gate check-in status.')
+      toast.error('Failed to update vehicle gate status.')
     }
   }
 
@@ -622,48 +845,80 @@ export default function ParkingPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={printGatePoster}
-              className="text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-            >
-              <Printer className="mr-1.5 h-3.5 w-3.5" /> Print Gate Poster
-            </Button>
+            {isHROrAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={printGatePoster}
+                className="text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hidden sm:inline-flex"
+              >
+                <Printer className="mr-1.5 h-3.5 w-3.5" /> Print Gate Poster
+              </Button>
+            )}
             {currentEmployee && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout}
-                className="text-xs text-rose-600 hover:bg-rose-50 h-9"
+                onClick={handleSignOutPass}
+                className="text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 h-9 hidden sm:inline-flex"
+                title="Sign out of current employee pass session"
               >
-                <LogOut className="mr-1.5 h-3.5 w-3.5" /> Exit
+                Switch Account
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExitToApp}
+              className="text-xs font-semibold h-9 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 shadow-xs gap-1.5 cursor-pointer"
+              title="Exit Parking Section and return to HRMS Portal"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Exit
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 max-w-2xl mx-auto h-11 p-1 bg-slate-200/80 rounded-xl">
+          <TabsList className={`grid w-full ${isHROrAdmin ? 'grid-cols-2 md:grid-cols-4 max-w-2xl' : 'grid-cols-3 max-w-lg'} mx-auto h-11 p-1 bg-slate-200/80 rounded-xl`}>
             <TabsTrigger value="pass" className="rounded-lg text-xs font-semibold">
               <Car className="mr-1.5 h-3.5 w-3.5" /> My Parking Pass
             </TabsTrigger>
+            {!isHROrAdmin && (
+              <TabsTrigger value="status" className="rounded-lg text-xs font-semibold relative">
+                <FileCheck className="mr-1.5 h-3.5 w-3.5" /> My Approval Status
+                {employeePass && (
+                  <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold text-white ${
+                    employeePass.status === 'Approved'
+                      ? 'bg-emerald-500'
+                      : employeePass.status === 'Pending'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500'
+                  }`}>
+                    {employeePass.status}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="request" className="rounded-lg text-xs font-semibold">
               <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Vehicle Request
             </TabsTrigger>
-            <TabsTrigger value="approvals" className="rounded-lg text-xs font-semibold relative">
-              <FileCheck className="mr-1.5 h-3.5 w-3.5" /> HR Approvals
-              {pendingCount > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                  {pendingCount}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="gate" className="rounded-lg text-xs font-semibold">
-              <QrCode className="mr-1.5 h-3.5 w-3.5" /> Gate QR Poster
-            </TabsTrigger>
+            {isHROrAdmin && (
+              <>
+                <TabsTrigger value="approvals" className="rounded-lg text-xs font-semibold relative">
+                  <FileCheck className="mr-1.5 h-3.5 w-3.5" /> HR Approvals
+                  {pendingCount > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                      {pendingCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="gate" className="rounded-lg text-xs font-semibold">
+                  <QrCode className="mr-1.5 h-3.5 w-3.5" /> Gate QR Poster
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* ============================================================== */}
@@ -796,20 +1051,32 @@ export default function ParkingPage() {
                                   hour: '2-digit',
                                   minute: '2-digit',
                                 })}.`
-                              : 'Click to record entry or departure through security boom barrier.'}
+                              : employeePass.last_check_out
+                              ? `Last exit logged at ${new Date(employeePass.last_check_out).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}.`
+                              : 'Click to record gate entry or departure through security boom barrier.'}
                           </p>
                         </div>
 
-                        <Button
-                          onClick={handleToggleCheckIn}
-                          className={`h-10 px-5 text-xs font-bold rounded-xl shadow-sm ${
-                            employeePass.is_checked_in
-                              ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          }`}
-                        >
-                          {employeePass.is_checked_in ? 'Gate Check-Out (Depart)' : 'Gate Check-In (Enter)'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {employeePass.is_checked_in ? (
+                            <Button
+                              onClick={handleGateExit}
+                              className="h-10 px-5 text-xs font-bold rounded-xl shadow-sm bg-rose-600 hover:bg-rose-700 text-white gap-1.5 cursor-pointer"
+                            >
+                              <LogOut className="h-4 w-4" /> Gate Exit (Depart)
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={handleGateEntry}
+                              className="h-10 px-5 text-xs font-bold rounded-xl shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 cursor-pointer"
+                            >
+                              <ArrowRight className="h-4 w-4" /> Gate Entry (Check-In)
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Stored Boom Barrier QR Code from DB */}
@@ -818,9 +1085,9 @@ export default function ParkingPage() {
                           <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-center gap-1.5">
                             <QrCode className="h-4 w-4 text-indigo-600" /> Boom Barrier QR Pass
                           </div>
-                          {employeePass.qr_code_image ? (
+                          {passQrImgUrl || employeePass.qr_code_image ? (
                             <img
-                              src={employeePass.qr_code_image}
+                              src={passQrImgUrl || employeePass.qr_code_image}
                               alt="Parking Pass QR"
                               className="mx-auto w-40 h-40 rounded-xl border p-1"
                             />
@@ -904,6 +1171,12 @@ export default function ParkingPage() {
                         <span className="font-semibold text-amber-600">Withheld until HR Approval</span>
                       </div>
                     </div>
+                    <Button
+                      onClick={() => setActiveTab('status')}
+                      className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs"
+                    >
+                      <FileCheck className="mr-1.5 h-3.5 w-3.5" /> View Live Approval Status &amp; Timeline
+                    </Button>
                   </Card>
                 )}
 
@@ -919,12 +1192,21 @@ export default function ParkingPage() {
                         HR Remarks: <em>{employeePass.rejection_reason || 'Incomplete vehicle details or capacity full.'}</em>
                       </p>
                     </div>
-                    <Button
-                      onClick={() => setActiveTab('request')}
-                      className="text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
-                    >
-                      Re-submit Vehicle Application
-                    </Button>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setActiveTab('status')}
+                        className="text-xs rounded-xl border-rose-300 text-rose-700 hover:bg-rose-100/50"
+                      >
+                        <FileCheck className="mr-1.5 h-3.5 w-3.5" /> View Rejection Details
+                      </Button>
+                      <Button
+                        onClick={() => setActiveTab('request')}
+                        className="text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
+                      >
+                        Re-submit Vehicle Application
+                      </Button>
+                    </div>
                   </Card>
                 )}
 
@@ -954,6 +1236,320 @@ export default function ParkingPage() {
               </div>
             )}
           </TabsContent>
+
+          {/* ============================================================== */}
+          {/* TAB: EMPLOYEE OWN APPROVAL STATUS (EMPLOYEE ONLY)               */}
+          {/* ============================================================== */}
+          {!isHROrAdmin && (
+            <TabsContent value="status">
+              <div className="max-w-2xl mx-auto space-y-6 pt-2">
+                <Card className="border border-slate-200/80 shadow-md rounded-2xl overflow-hidden bg-white">
+                  <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                          My Vehicle Pass Status
+                        </span>
+                        {employeePass ? (
+                          <Badge
+                            className={`text-[10px] font-bold px-2.5 py-0.5 border-0 ${
+                              employeePass.status === 'Approved'
+                                ? 'bg-emerald-500 text-white'
+                                : employeePass.status === 'Pending'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-rose-500 text-white'
+                            }`}
+                          >
+                            {employeePass.status === 'Approved'
+                              ? '✓ Approved'
+                              : employeePass.status === 'Pending'
+                              ? '⏳ Pending Review'
+                              : '✕ Rejected'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-slate-300 border-slate-600">
+                            Not Applied
+                          </Badge>
+                        )}
+                      </div>
+                      <h2 className="text-xl font-bold tracking-tight text-white">
+                        {activeEmployee ? `${activeEmployee.first_name} ${activeEmployee.last_name}` : 'Employee'}
+                      </h2>
+                      <p className="text-xs text-indigo-200">
+                        {activeEmployee?.employee_code && <span className="font-mono">{activeEmployee.employee_code} · </span>}
+                        {activeEmployee?.email}
+                      </p>
+                    </div>
+
+                    {employeePass && employeePass.status === 'Approved' && (
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveTab('pass')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 rounded-xl shadow-sm gap-1.5 shrink-0"
+                      >
+                        <QrCode className="h-4 w-4" /> View QR Pass
+                      </Button>
+                    )}
+                  </div>
+
+                  <CardContent className="p-6 space-y-6">
+                    {/* CASE 1: APPROVED */}
+                    {employeePass && employeePass.status === 'Approved' && (
+                      <div className="space-y-6">
+                        {/* Approval banner */}
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                              <CheckCircle2 className="h-6 w-6" />
+                            </div>
+                            <div className="space-y-1">
+                              <h3 className="text-base font-bold text-emerald-950">
+                                Parking Pass Approved by HR &amp; Admin
+                              </h3>
+                              <p className="text-xs text-emerald-800 leading-relaxed">
+                                Your vehicle registration request has been verified and granted official access to company parking. Your boom barrier QR code is active and ready for gate scanning.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-emerald-200/80 text-xs">
+                            <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                              <span className="text-[11px] text-slate-500 block">Allocated Slot</span>
+                              <span className="text-sm font-black font-mono text-indigo-700">{employeePass.allocated_slot}</span>
+                            </div>
+                            <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                              <span className="text-[11px] text-slate-500 block">Parking Sector</span>
+                              <span className="text-xs font-semibold text-slate-800">{employeePass.allocated_sector}</span>
+                            </div>
+                            <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200 col-span-2 sm:col-span-1">
+                              <span className="text-[11px] text-slate-500 block">Gate Status</span>
+                              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                {employeePass.is_checked_in ? 'Inside Premises' : 'Outside'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lifecycle steps */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Approval Process History
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border text-xs">
+                              <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Check className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-slate-900">Step 1: Application Submitted</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Plate: {employeePass.vehicle_number} ({employeePass.vehicle_type}) · Submitted {new Date(employeePass.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Complete</Badge>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border text-xs">
+                              <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Check className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-slate-900">Step 2: HR &amp; Admin Review</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Approved by HR Administration
+                                </p>
+                              </div>
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Approved</Badge>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border text-xs">
+                              <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Check className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-slate-900">Step 3: Slot Allocated &amp; QR Pass Active</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Slot: {employeePass.allocated_slot} ({employeePass.allocated_sector})
+                                </p>
+                              </div>
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Active</Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                          <Button
+                            variant="outline"
+                            onClick={printEmployeePass}
+                            className="text-xs h-9 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                          >
+                            <Printer className="mr-1.5 h-3.5 w-3.5" /> Print Windshield Pass
+                          </Button>
+                          <Button
+                            onClick={() => setActiveTab('pass')}
+                            className="text-xs h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                          >
+                            Go to My Pass &amp; Gate Entry <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CASE 2: PENDING REVIEW */}
+                    {employeePass && employeePass.status === 'Pending' && (
+                      <div className="space-y-6">
+                        {/* Pending banner */}
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+                              <Clock className="h-6 w-6 animate-pulse" />
+                            </div>
+                            <div className="space-y-1">
+                              <h3 className="text-base font-bold text-amber-950">
+                                Your Request is Under Review by HR &amp; Admin
+                              </h3>
+                              <p className="text-xs text-amber-800 leading-relaxed">
+                                Your vehicle pass application for <strong>{employeePass.vehicle_number} ({employeePass.vehicle_type})</strong> has been received and is waiting in the HR review queue.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/80 p-3 rounded-xl border border-amber-200 text-xs space-y-1 text-slate-600">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Vehicle Number:</span>
+                              <span className="font-mono font-bold text-slate-900">{employeePass.vehicle_number}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Make / Model:</span>
+                              <span className="font-medium text-slate-800">{employeePass.vehicle_model || '—'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Category:</span>
+                              <span className="font-semibold text-slate-800">{employeePass.vehicle_type}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Submitted Date:</span>
+                              <span className="text-slate-700">{new Date(employeePass.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex justify-between border-t border-amber-100 pt-1">
+                              <span className="text-slate-500">Current Status:</span>
+                              <span className="font-bold text-amber-700">Awaiting HR Slot Allocation</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lifecycle steps */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Application Progress
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                              <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Check className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-slate-900">Step 1: Application Received</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Your vehicle details were submitted on {new Date(employeePass.created_at).toLocaleDateString()}.
+                                </p>
+                              </div>
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Complete</Badge>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/60 border border-amber-300 text-xs">
+                              <div className="h-6 w-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                                <Clock className="h-3.5 w-3.5 animate-spin" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-bold text-amber-950">Step 2: HR &amp; Admin Review</span>
+                                <p className="text-[11px] text-amber-700">
+                                  HR is reviewing available parking capacity in your vehicle sector.
+                                </p>
+                              </div>
+                              <Badge className="bg-amber-500 text-white text-[10px]">In Progress</Badge>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs opacity-60">
+                              <div className="h-6 w-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center shrink-0">
+                                <Lock className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-slate-700">Step 3: Bay Allocation &amp; Official QR Pass</span>
+                                <p className="text-[11px] text-slate-400">
+                                  QR pass will unlock once HR approves and assigns your parking bay.
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] text-slate-400">Awaiting Step 2</Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CASE 3: REJECTED */}
+                    {employeePass && employeePass.status === 'Rejected' && (
+                      <div className="space-y-6">
+                        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-5 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm">
+                              <XCircle className="h-6 w-6" />
+                            </div>
+                            <div className="space-y-1">
+                              <h3 className="text-base font-bold text-rose-950">
+                                Application Rejected
+                              </h3>
+                              <p className="text-xs text-rose-800 leading-relaxed">
+                                Your vehicle pass application for <strong>{employeePass.vehicle_number}</strong> was reviewed by HR and could not be approved at this time.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-3.5 rounded-xl border border-rose-200 text-xs space-y-1.5">
+                            <span className="font-bold text-rose-900 block">HR Reason / Feedback:</span>
+                            <p className="text-slate-700 italic bg-rose-50/50 p-2.5 rounded-lg border border-rose-100">
+                              "{employeePass.rejection_reason || 'Incomplete vehicle documents or sector bays currently at maximum capacity.'}"
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-center pt-2">
+                          <Button
+                            onClick={() => setActiveTab('request')}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-10 px-6 rounded-xl font-semibold shadow-md gap-2"
+                          >
+                            <PlusCircle className="h-4 w-4" /> Re-apply with Correct Details
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CASE 4: NOT APPLIED */}
+                    {!employeePass && !passLoading && (
+                      <div className="text-center py-8 space-y-4">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                          <Car className="h-7 w-7" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-base font-bold text-slate-900">No Vehicle Pass Application Found</h3>
+                          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                            You have not submitted a vehicle parking application yet. Submit your vehicle details to HR to receive an allocated slot and QR pass.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => setActiveTab('request')}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-10 px-6 rounded-xl font-semibold shadow-md gap-2"
+                        >
+                          <PlusCircle className="h-4 w-4" /> Apply for Vehicle Pass
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          )}
 
           {/* ============================================================== */}
           {/* TAB 2: EMPLOYEE VEHICLE REGISTRATION REQUEST SECTOR             */}
@@ -1193,9 +1789,10 @@ export default function ParkingPage() {
           </TabsContent>
 
           {/* ============================================================== */}
-          {/* TAB 3: HR & ADMIN APPROVAL SECTOR                               */}
+          {/* TAB 3: HR & ADMIN APPROVAL SECTOR (HR/ADMIN ONLY)               */}
           {/* ============================================================== */}
-          <TabsContent value="approvals">
+          {isHROrAdmin && (
+            <TabsContent value="approvals">
             <div className="space-y-6">
               {/* Stat Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1219,7 +1816,7 @@ export default function ParkingPage() {
 
               {/* Review Queue Table */}
               <Card className="border shadow-sm rounded-2xl bg-white overflow-hidden">
-                <div className="p-4 border-b bg-slate-50/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="p-4 border-b bg-slate-50/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900">Vehicle Pass Application Queue</h3>
                     <p className="text-xs text-slate-500">
@@ -1231,11 +1828,50 @@ export default function ParkingPage() {
                     size="sm"
                     onClick={() => loadAllPasses(true)}
                     disabled={refreshing}
-                    className="text-xs h-8 gap-1.5 font-medium border-slate-300 hover:bg-slate-100"
+                    className="text-xs h-8 gap-1.5 font-medium border-slate-300 hover:bg-slate-100 shrink-0"
                   >
                     <RotateCw className={`h-3.5 w-3.5 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
                     {refreshing ? 'Refreshing...' : 'Refresh List'}
                   </Button>
+                </div>
+
+                {/* Search & Status Filter Toolbar */}
+                <div className="px-4 py-3 bg-white border-b flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by employee name, code, vehicle plate, or slot..."
+                      value={approvalSearchQuery}
+                      onChange={(e) => setApprovalSearchQuery(e.target.value)}
+                      className="pl-8 pr-8 h-8 text-xs bg-slate-50 border-slate-200"
+                    />
+                    {approvalSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setApprovalSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={approvalStatusFilter}
+                      onValueChange={(v: any) => setApprovalStatusFilter(v)}
+                    >
+                      <SelectTrigger className="w-40 h-8 text-xs">
+                        <SelectValue placeholder="Status Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses ({allPasses.length})</SelectItem>
+                        <SelectItem value="Pending">Pending ({pendingCount})</SelectItem>
+                        <SelectItem value="Approved">Approved ({approvedCount})</SelectItem>
+                        <SelectItem value="Rejected">Rejected ({rejectedCount})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1251,7 +1887,16 @@ export default function ParkingPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {allPasses.map((p) => (
+                      {filteredPasses.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                            <Car className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                            <p className="font-semibold text-xs text-slate-700">No vehicle passes match your search.</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Try searching by another employee name, plate number, or clearing filters.</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredPasses.map((p) => (
                         <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900">{p.employee_name}</div>
@@ -1314,9 +1959,39 @@ export default function ParkingPage() {
                               </div>
                             )}
                             {p.status === 'Approved' && (
-                              <span className="text-emerald-600 font-semibold text-[11px] flex items-center justify-end gap-1">
-                                <CheckCircle2 className="h-3.5 w-3.5" /> QR Active in DB
-                              </span>
+                              <div className="flex items-center justify-end gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${
+                                    p.is_checked_in
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}
+                                >
+                                  {p.is_checked_in ? 'Inside Gate' : 'Outside'}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAdminToggleGate(p)}
+                                  className={`h-7 text-[11px] font-semibold gap-1 ${
+                                    p.is_checked_in
+                                      ? 'text-rose-600 border-rose-200 hover:bg-rose-50'
+                                      : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                                  }`}
+                                  title={p.is_checked_in ? 'Log Gate Exit (Depart)' : 'Log Gate Entry (Check-In)'}
+                                >
+                                  {p.is_checked_in ? (
+                                    <>
+                                      <LogOut className="h-3 w-3" /> Gate Exit
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ArrowRight className="h-3 w-3" /> Gate Entry
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             )}
                             {p.status === 'Rejected' && (
                               <Button
@@ -1330,24 +2005,20 @@ export default function ParkingPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
-                      {allPasses.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="text-center py-8 text-slate-400">
-                            No vehicle pass requests submitted yet.
-                          </td>
-                        </tr>
-                      )}
+                      ))
+                    )}
                     </tbody>
                   </table>
                 </div>
               </Card>
             </div>
           </TabsContent>
+        )}
 
-          {/* ============================================================== */}
-          {/* TAB 4: ENTRANCE GATE QR POSTER                                  */}
-          {/* ============================================================== */}
+        {/* ============================================================== */}
+        {/* TAB 4: ENTRANCE GATE QR POSTER (HR/ADMIN ONLY)                  */}
+        {/* ============================================================== */}
+        {isHROrAdmin && (
           <TabsContent value="gate">
             <div className="max-w-lg mx-auto pt-2">
               <Card className="border border-slate-200/80 shadow-xl rounded-2xl overflow-hidden bg-white text-center">
@@ -1394,124 +2065,129 @@ export default function ParkingPage() {
               </Card>
             </div>
           </TabsContent>
+        )}
         </Tabs>
       </main>
 
       {/* ============================================================== */}
       {/* APPROVAL DIALOG (HR Sector - Assign Sector & Slot & Generate QR)*/}
       {/* ============================================================== */}
-      <Dialog open={!!selectedPassToApprove} onOpenChange={(open) => !open && setSelectedPassToApprove(null)}>
-        {selectedPassToApprove && (
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-indigo-950">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                Approve Vehicle Pass &amp; Issue QR Code
-              </DialogTitle>
-              <DialogDescription>
-                Assign the parking sector and slot for{' '}
-                <strong>{selectedPassToApprove.employee_name}</strong> ({selectedPassToApprove.vehicle_number}).
-              </DialogDescription>
-            </DialogHeader>
+      {isHROrAdmin && (
+        <Dialog open={!!selectedPassToApprove} onOpenChange={(open) => !open && setSelectedPassToApprove(null)}>
+          {selectedPassToApprove && (
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-indigo-950">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  Approve Vehicle Pass &amp; Issue QR Code
+                </DialogTitle>
+                <DialogDescription>
+                  Assign the parking sector and slot for{' '}
+                  <strong>{selectedPassToApprove.employee_name}</strong> ({selectedPassToApprove.vehicle_number}).
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Parking Sector</Label>
-                <Select value={selectedSector} onValueChange={setSelectedSector}>
-                  <SelectTrigger className="h-10 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sector 2W - Ground Bay">Sector 2W - Ground Bay (Bikes &amp; Scooters)</SelectItem>
-                    <SelectItem value="Sector 4W - Basement 1">Sector 4W - Basement 1 (Priority Cars &amp; EVs)</SelectItem>
-                    <SelectItem value="Sector 4W - Basement 2">Sector 4W - Basement 2 (Standard Cars)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Allocated Slot Number *</Label>
-                <Input
-                  value={selectedSlot}
-                  onChange={(e) => setSelectedSlot(e.target.value)}
-                  placeholder="e.g. Slot P-4W-B1-18 or Slot P-2W-45"
-                  className="font-mono text-xs h-10"
-                />
-              </div>
-
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900 space-y-1">
-                <div className="font-semibold flex items-center gap-1">
-                  <QrCode className="h-4 w-4 text-emerald-700" /> Automatic Database Action:
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Parking Sector</Label>
+                  <Select value={selectedSector} onValueChange={setSelectedSector}>
+                    <SelectTrigger className="h-10 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sector 2W - Ground Bay">Sector 2W - Ground Bay (Bikes &amp; Scooters)</SelectItem>
+                      <SelectItem value="Sector 4W - Basement 1">Sector 4W - Basement 1 (Priority Cars &amp; EVs)</SelectItem>
+                      <SelectItem value="Sector 4W - Basement 2">Sector 4W - Basement 2 (Standard Cars)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <p className="text-[11px] text-emerald-700">
-                  On approval, the system will generate the official 2D QR code and store it directly in the database. The employee will immediately receive access to their boom barrier pass.
-                </p>
-              </div>
-            </div>
 
-            <DialogFooter className="pt-3">
-              <Button variant="outline" size="sm" onClick={() => setSelectedPassToApprove(null)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={actionLoading}
-                onClick={handleConfirmApproval}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-              >
-                {actionLoading ? 'Generating QR & Saving...' : 'Confirm Approval & Generate QR'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Allocated Slot Number *</Label>
+                  <Input
+                    value={selectedSlot}
+                    onChange={(e) => setSelectedSlot(e.target.value)}
+                    placeholder="e.g. Slot P-4W-B1-18 or Slot P-2W-45"
+                    className="font-mono text-xs h-10"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900 space-y-1">
+                  <div className="font-semibold flex items-center gap-1">
+                    <QrCode className="h-4 w-4 text-emerald-700" /> Automatic Database Action:
+                  </div>
+                  <p className="text-[11px] text-emerald-700">
+                    On approval, the system will generate the official 2D QR code and store it directly in the database. The employee will immediately receive access to their boom barrier pass.
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-3">
+                <Button variant="outline" size="sm" onClick={() => setSelectedPassToApprove(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={actionLoading}
+                  onClick={handleConfirmApproval}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  {actionLoading ? 'Generating QR & Saving...' : 'Confirm Approval & Generate QR'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          )}
+        </Dialog>
+      )}
 
       {/* ============================================================== */}
       {/* REJECTION DIALOG (HR Sector - Enter Reason)                    */}
       {/* ============================================================== */}
-      <Dialog open={!!selectedPassToReject} onOpenChange={(open) => !open && setSelectedPassToReject(null)}>
-        {selectedPassToReject && (
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-rose-950">
-                <XCircle className="h-5 w-5 text-rose-600" />
-                Reject Vehicle Parking Request
-              </DialogTitle>
-              <DialogDescription>
-                Provide a reason for rejecting the request for{' '}
-                <strong>{selectedPassToReject.employee_name}</strong> ({selectedPassToReject.vehicle_number}).
-              </DialogDescription>
-            </DialogHeader>
+      {isHROrAdmin && (
+        <Dialog open={!!selectedPassToReject} onOpenChange={(open) => !open && setSelectedPassToReject(null)}>
+          {selectedPassToReject && (
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-rose-950">
+                  <XCircle className="h-5 w-5 text-rose-600" />
+                  Reject Vehicle Parking Request
+                </DialogTitle>
+                <DialogDescription>
+                  Provide a reason for rejecting the request for{' '}
+                  <strong>{selectedPassToReject.employee_name}</strong> ({selectedPassToReject.vehicle_number}).
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Rejection Reason / Remarks *</Label>
-                <Textarea
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="e.g. Basement 1 4-Wheeler capacity full / Invalid driving license details"
-                  rows={3}
-                  className="text-xs"
-                />
+              <div className="space-y-3 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Rejection Reason / Remarks *</Label>
+                  <Textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="e.g. Basement 1 4-Wheeler capacity full / Invalid driving license details"
+                    rows={3}
+                    className="text-xs"
+                  />
+                </div>
               </div>
-            </div>
 
-            <DialogFooter className="pt-3">
-              <Button variant="outline" size="sm" onClick={() => setSelectedPassToReject(null)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={actionLoading}
-                onClick={handleConfirmRejection}
-              >
-                {actionLoading ? 'Saving...' : 'Reject Request'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
+              <DialogFooter className="pt-3">
+                <Button variant="outline" size="sm" onClick={() => setSelectedPassToReject(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={actionLoading}
+                  onClick={handleConfirmRejection}
+                >
+                  {actionLoading ? 'Saving...' : 'Reject Request'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          )}
+        </Dialog>
+      )}
     </div>
   )
 }

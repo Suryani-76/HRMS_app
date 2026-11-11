@@ -11,6 +11,12 @@ import {
   generateFullAssetBarcodeText,
   extractEmployeeNumber,
 } from '@/lib/barcode'
+import {
+  decodeBarcodeOrQrFromBlob,
+  decodeQrFromImage,
+  decodeCode128FromImage,
+  extractAssetCodeFromText,
+} from '@/lib/qr-decoder'
 import { useAuth } from '@/features/auth/auth-context'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -92,10 +98,13 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
 
   const isHROrAdmin =
     isAdmin ||
+    _isManager ||
     roleName === 'admin' ||
     roleName === 'hr' ||
+    roleName === 'manager' ||
     roleName.includes('admin') ||
     roleName.includes('hr') ||
+    roleName.includes('manager') ||
     userEmail.startsWith('admin') ||
     userEmail.startsWith('hr') ||
     userEmail === 'ceo@oklut.com'
@@ -148,7 +157,7 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
       (item) =>
         item.laptopCode.toLowerCase().includes('136') ||
         (item.employee.employee_code && item.employee.employee_code.toLowerCase().includes('136')) ||
-        item.employee.email?.toLowerCase().includes('suryani')
+        item.employee.id === 'emp-suryani-136'
     )
 
     if (!has136) {
@@ -307,8 +316,16 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
       ]
     }
 
-    // Fallback: Show only 1 personal card
-    return allAllocations.slice(0, 1)
+    // Fallback: If user has an email, find or generate ONLY for this logged in user
+    if (user?.email) {
+      const emailMatch = allAllocations.find(
+        (a) => a.employee.email?.toLowerCase().trim() === user.email?.toLowerCase().trim()
+      )
+      if (emailMatch) return [emailMatch]
+    }
+
+    // Never return other employees' cards as fallback
+    return []
   }, [allAllocations, isHROrAdmin, currentAuthEmployee, user])
 
   // Apply search filter (if HR/Admin is searching)
@@ -393,27 +410,60 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
   }
 
   const detectFromVideo = () => {
-    if (!videoRef.current || !('BarcodeDetector' in window)) return
-    try {
-      const detector = new (window as any).BarcodeDetector({
-        formats: ['code_128', 'code_39', 'qr_code', 'ean_13'],
-      })
-      const interval = setInterval(async () => {
-        if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
-          clearInterval(interval)
-          return
-        }
+    if (!videoRef.current) return
+
+    const video = videoRef.current
+    const hasNativeDetector = 'BarcodeDetector' in window
+
+    let nativeDetector: any = null
+    if (hasNativeDetector) {
+      try {
+        nativeDetector = new (window as any).BarcodeDetector({
+          formats: ['code_128', 'code_39', 'qr_code', 'ean_13'],
+        })
+      } catch {
+        nativeDetector = null
+      }
+    }
+
+    const offscreenCanvas = document.createElement('canvas')
+    offscreenCanvas.width = 400
+    offscreenCanvas.height = 300
+    const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true })
+
+    const interval = setInterval(async () => {
+      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
+        clearInterval(interval)
+        return
+      }
+
+      // Method 1: Native BarcodeDetector if available
+      if (nativeDetector) {
         try {
-          const detected = await detector.detect(videoRef.current)
-          if (detected && detected.length > 0) {
-            const rawVal = detected[0].rawValue
+          const detected = await nativeDetector.detect(videoRef.current)
+          if (detected && detected.length > 0 && detected[0].rawValue) {
             clearInterval(interval)
             stopCamera()
-            handleBarcodeScanned(rawVal)
+            handleBarcodeScanned(detected[0].rawValue)
+            return
           }
         } catch {}
-      }, 400)
-    } catch {}
+      }
+
+      // Method 2: Pure-JS frame capture fallback
+      if (offscreenCtx && video.videoWidth > 0 && video.videoHeight > 0) {
+        try {
+          offscreenCtx.drawImage(video, 0, 0, 400, 300)
+          const qr = decodeQrFromImage(offscreenCanvas) || decodeCode128FromImage(offscreenCanvas)
+          if (qr) {
+            clearInterval(interval)
+            stopCamera()
+            handleBarcodeScanned(qr)
+            return
+          }
+        } catch {}
+      }
+    }, 350)
   }
 
   useEffect(() => {
@@ -422,34 +472,58 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
     }
   }, [scanModalOpen])
 
-  // Handle barcode image file upload
+  // Handle barcode / QR code image file upload with pure-JS decoders & fallbacks
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if ('BarcodeDetector' in window) {
-      try {
-        const img = new Image()
-        img.src = URL.createObjectURL(file)
-        await img.decode()
-        const detector = new (window as any).BarcodeDetector({
-          formats: ['code_128', 'code_39', 'qr_code'],
-        })
-        const detected = await detector.detect(img)
-        if (detected && detected.length > 0) {
-          handleBarcodeScanned(detected[0].rawValue)
-          return
-        }
-      } catch {}
+
+    // Clear file input value so user can upload the same image again if re-attempting
+    e.target.value = ''
+
+    const toastId = toast.loading('Analyzing image for QR code or barcode...')
+
+    try {
+      const detected = await decodeBarcodeOrQrFromBlob(file, allAllocations)
+      if (detected && detected.trim()) {
+        toast.dismiss(toastId)
+        const assetCode = extractAssetCodeFromText(detected)
+        setScanInput(assetCode || detected.trim())
+        handleBarcodeScanned(detected.trim())
+        return
+      }
+    } catch (err: any) {
+      console.warn('[BarcodeTab] Image scan error:', err)
     }
-    toast.info('Barcode image uploaded. If not detected automatically, please type the code.')
+
+    toast.dismiss(toastId)
+    toast.error('No QR code or barcode detected in image. Please ensure the image is clear or type the code manually.')
   }
 
-  // Handle barcode scanner submission (searches across all company barcodes)
+  // Handle barcode scanner submission
   const handleBarcodeScanned = (scannedCode: string) => {
     const raw = (scannedCode || '').trim()
     if (!raw) return
 
     const normalized = raw.toLowerCase().replace(/\s+/g, '')
+    const assetCode = extractAssetCodeFromText(raw)
+    const assetNorm = assetCode.toLowerCase().replace(/\s+/g, '')
+
+    // Security: Regular employees can ONLY scan or view their own assigned QR code!
+    if (!isHROrAdmin) {
+      const myItem = userVisibleAllocations[0]
+      const myLp = myItem?.laptopCode?.toLowerCase().trim().replace(/\s+/g, '')
+      const myEmpCode = myItem?.employee?.employee_code?.toLowerCase().trim().replace(/\s+/g, '')
+      const myEmail = myItem?.employee?.email?.toLowerCase().trim()
+
+      const isMyLp = myLp && (normalized === myLp || normalized.includes(myLp) || assetNorm === myLp)
+      const isMyEmp = myEmpCode && (normalized === myEmpCode || normalized.includes(myEmpCode) || assetNorm === myEmpCode)
+      const isMyMail = myEmail && (raw.toLowerCase().trim() === myEmail || raw.toLowerCase().includes(myEmail))
+
+      if (!myItem || (!isMyLp && !isMyEmp && !isMyMail)) {
+        toast.error('Access restricted. Employees are only permitted to view their own assigned hardware QR code.')
+        return
+      }
+    }
 
     // 1. Search across ALL allocations so scanning any hardware sticker works
     let found = allAllocations.find((a) => {
@@ -459,7 +533,12 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
       const fullName = `${a.employee.first_name} ${a.employee.last_name}`.toLowerCase()
       const seatNorm = a.seating.seatId.toLowerCase()
 
+      // Exact matches
       if (lpNorm === normalized || empCodeNorm === normalized || emailNorm === raw.toLowerCase().trim()) return true
+      if (assetNorm && (lpNorm === assetNorm || empCodeNorm === assetNorm)) return true
+
+      // Substring matches (e.g. scanning multiline QR text containing LP-2026-136 or OKL-GEN-2026-136)
+      if (normalized.includes(lpNorm) || normalized.includes(empCodeNorm)) return true
       if (lpNorm.endsWith(normalized) || empCodeNorm.endsWith(normalized)) return true
       if (normalized.length >= 2 && (empCodeNorm.includes(normalized) || lpNorm.includes(normalized))) return true
       if (fullName.includes(raw.toLowerCase().trim()) || seatNorm.includes(normalized)) return true
@@ -468,8 +547,8 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
 
     // 2. Deterministic fallback if scanning an unknown or direct code like "LP-2026-136" or "136"
     if (!found) {
-      const num = extractEmployeeNumber(raw)
-      const is136 = num === 136 || raw.toLowerCase().includes('136')
+      const num = extractEmployeeNumber(assetCode || raw)
+      const is136 = num === 136 || raw.toLowerCase().includes('136') || assetCode.toLowerCase().includes('136')
       const laptopCode = `LP-2026-${String(num).padStart(3, '0')}`
       const empCode = is136 ? 'OKL-GEN-2026-136' : `OKL-GEN-2026-${String(num).padStart(3, '0')}`
       const seating = generateSeatingNumber(empCode)
@@ -527,14 +606,14 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
     }
   }
 
-  // Auto-lookup if ?code= or ?scan= is in the URL (e.g. from Google Lens or scan redirect)
+  // Auto-lookup if ?code= or ?scan= is in the URL (Admin/HR only)
   useEffect(() => {
     const codeParam = searchParams.get('code') || searchParams.get('scan')
-    if (codeParam && allAllocations.length > 0) {
+    if (codeParam && isHROrAdmin && allAllocations.length > 0) {
       setQuickLookupCode(codeParam)
       handleBarcodeScanned(codeParam)
     }
-  }, [searchParams, allAllocations])
+  }, [searchParams, allAllocations, isHROrAdmin])
 
   // Print asset QR code sticker encoding full employee & laptop details for mobile phone camera scanning
   const printSticker = async (item: AllocatedLaptopItem) => {
@@ -743,126 +822,153 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link to="/verify-asset">
+        {isHROrAdmin ? (
+          <div className="flex items-center gap-2">
+            <Link to="/verify-asset">
+              <Button
+                variant="outline"
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs h-10 px-3"
+              >
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Mobile Verify Portal
+              </Button>
+            </Link>
             <Button
-              variant="outline"
-              className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs h-10 px-3"
+              onClick={() => setScanModalOpen(true)}
+              className="bg-white text-indigo-950 hover:bg-indigo-50 font-semibold text-xs shadow-sm h-10 px-4"
             >
-              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Mobile Verify Portal
+              <QrCode className="mr-2 h-4 w-4 text-indigo-600" /> Camera &amp; QR Scanner
             </Button>
-          </Link>
-          <Button
-            onClick={() => setScanModalOpen(true)}
-            className="bg-white text-indigo-950 hover:bg-indigo-50 font-semibold text-xs shadow-sm h-10 px-4"
-          >
-            <QrCode className="mr-2 h-4 w-4 text-indigo-600" /> Camera &amp; QR Scanner
-          </Button>
-        </div>
+          </div>
+        ) : (
+          userVisibleAllocations[0] && (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => printSticker(userVisibleAllocations[0])}
+                className="bg-white text-indigo-950 hover:bg-indigo-50 font-semibold text-xs shadow-sm h-10 px-4"
+              >
+                <Printer className="mr-2 h-4 w-4 text-indigo-600" /> Print My Laptop Tag
+              </Button>
+            </div>
+          )
+        )}
       </div>
 
       {/* ============================================================== */}
-      {/* INSTANT LAPTOP NUMBER LOOKUP / SCANNER BANNER                  */}
+      {/* INSTANT LAPTOP NUMBER LOOKUP / SCANNER BANNER (HR/ADMIN ONLY)   */}
       {/* ============================================================== */}
-      <Card className="border-2 border-indigo-200/80 shadow-md rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 p-4 sm:p-5">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleBarcodeScanned(quickLookupCode)
-          }}
-          className="space-y-3"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <label className="text-xs font-bold text-slate-900 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-black shadow-xs">
-                ⚡
+      {isHROrAdmin && (
+        <Card className="border-2 border-indigo-200/80 shadow-md rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 p-4 sm:p-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleBarcodeScanned(quickLookupCode)
+            }}
+            className="space-y-3"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-black shadow-xs">
+                  ⚡
+                </span>
+                <span>Instant Laptop QR Code Scan &amp; Details Lookup</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Scan QR code or enter code (e.g. <strong className="text-slate-700">LP-2026-136</strong>) to instantly get Laptop ID, Employee Name, ID, Mail &amp; Seating Number
               </span>
-              <span>Instant Laptop QR Code Scan &amp; Details Lookup</span>
-            </label>
-            <span className="text-[11px] text-slate-500">
-              Scan QR code or enter code (e.g. <strong className="text-slate-700">LP-2026-136</strong>) to instantly get Laptop ID, Employee Name, ID, Mail &amp; Seating Number
-            </span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                value={quickLookupCode}
-                onChange={(e) => setQuickLookupCode(e.target.value)}
-                placeholder="Scan QR code or enter laptop number, e.g. LP-2026-136 or 136..."
-                className="pl-9 font-mono text-sm h-11 rounded-xl bg-white border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
-                required
-              />
             </div>
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-11 px-5 rounded-xl shadow-sm flex items-center gap-1.5"
-              >
-                <Search className="h-4 w-4" /> Get All Details
-              </Button>
-              <Button
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  value={quickLookupCode}
+                  onChange={(e) => setQuickLookupCode(e.target.value)}
+                  placeholder="Scan QR code or enter laptop number, e.g. LP-2026-136 or 136..."
+                  className="pl-9 font-mono text-sm h-11 rounded-xl bg-white border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-11 px-5 rounded-xl shadow-sm flex items-center gap-1.5"
+                >
+                  <Search className="h-4 w-4" /> Get All Details
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setScanModalOpen(true)}
+                  className="text-xs h-11 px-3.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100"
+                  title="Camera scan or barcode gun"
+                >
+                  <Camera className="h-4 w-4 text-indigo-600" />
+                </Button>
+                <label
+                  className="cursor-pointer inline-flex items-center justify-center text-xs h-11 px-3.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 bg-white shadow-xs"
+                  title="Upload QR Code or Barcode image"
+                >
+                  <Upload className="h-4 w-4 text-indigo-600" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Quick Click Test Chips */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-1">
+              <span className="font-semibold text-slate-700 flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-indigo-600" /> Quick Scan Test:
+              </span>
+              <button
                 type="button"
-                variant="outline"
-                onClick={() => setScanModalOpen(true)}
-                className="text-xs h-11 px-3.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100"
-                title="Camera scan or barcode gun"
+                onClick={() => {
+                  setQuickLookupCode('LP-2026-136')
+                  handleBarcodeScanned('LP-2026-136')
+                }}
+                className="font-mono bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <Camera className="h-4 w-4 text-indigo-600" />
-              </Button>
+                <span>LP-2026-136 (Suryani Gouda)</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickLookupCode(myOwnLaptopCode)
+                  handleBarcodeScanned(myOwnLaptopCode)
+                }}
+                className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+              >
+                {myOwnLaptopCode}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickLookupCode('LP-2026-093')
+                  handleBarcodeScanned('LP-2026-093')
+                }}
+                className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+              >
+                LP-2026-093
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickLookupCode('LP-2026-094')
+                  handleBarcodeScanned('LP-2026-094')
+                }}
+                className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+              >
+                LP-2026-094
+              </button>
             </div>
-          </div>
-
-          {/* Quick Click Test Chips */}
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-1">
-            <span className="font-semibold text-slate-700 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-indigo-600" /> Quick Scan Test:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setQuickLookupCode('LP-2026-136')
-                handleBarcodeScanned('LP-2026-136')
-              }}
-              className="font-mono bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>LP-2026-136 (Suryani Gouda)</span>
-              <ArrowRight className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setQuickLookupCode(myOwnLaptopCode)
-                handleBarcodeScanned(myOwnLaptopCode)
-              }}
-              className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
-            >
-              {myOwnLaptopCode}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setQuickLookupCode('LP-2026-093')
-                handleBarcodeScanned('LP-2026-093')
-              }}
-              className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
-            >
-              LP-2026-093
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setQuickLookupCode('LP-2026-094')
-                handleBarcodeScanned('LP-2026-094')
-              }}
-              className="font-mono bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
-            >
-              LP-2026-094
-            </button>
-          </div>
-        </form>
-      </Card>
+          </form>
+        </Card>
+      )}
 
       {/* Search and Stats bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -902,7 +1008,7 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
       >
         {filtered.map((item) => (
           <Card
-            key={item.employee.id}
+            key={`${item.employee.id}-${item.laptopCode}-${item.employee.employee_code || ''}`}
             className="group relative overflow-hidden border border-slate-200/80 hover:border-indigo-400 hover:shadow-lg transition-all duration-300 bg-white"
           >
             <CardContent className="p-5 space-y-4">
@@ -1013,119 +1119,121 @@ export function LaptopBarcodeTab({ employees, assets, isManager: _isManager }: L
       </div>
 
       {/* ============================================================== */}
-      {/* QR CODE / BARCODE SCANNER / INPUT MODAL                        */}
+      {/* QR CODE / BARCODE SCANNER / INPUT MODAL (HR/ADMIN ONLY)        */}
       {/* ============================================================== */}
-      <Dialog open={scanModalOpen} onOpenChange={setScanModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-indigo-950">
-              <QrCode className="h-5 w-5 text-indigo-600" />
-              Scan or Enter Laptop QR Code / Barcode
-            </DialogTitle>
-            <DialogDescription>
-              Point camera at the QR code, use a barcode scanner, or enter the Laptop ID (e.g. <code>LP-2026-136</code>).
-            </DialogDescription>
-          </DialogHeader>
+      {isHROrAdmin && (
+        <Dialog open={scanModalOpen} onOpenChange={setScanModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-indigo-950">
+                <QrCode className="h-5 w-5 text-indigo-600" />
+                Scan or Enter Laptop QR Code / Barcode
+              </DialogTitle>
+              <DialogDescription>
+                Point camera at the QR code, use a barcode scanner, or enter the Laptop ID (e.g. <code>LP-2026-136</code>).
+              </DialogDescription>
+            </DialogHeader>
 
-          {/* Camera Viewfinder if Camera Active */}
-          {cameraActive && (
-            <div className="relative rounded-xl overflow-hidden border-2 border-indigo-500 bg-black aspect-video flex items-center justify-center">
-              <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-              <div className="absolute inset-x-8 inset-y-6 border-2 border-dashed border-red-500 rounded-lg pointer-events-none animate-pulse" />
-              <div className="absolute bottom-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded">
-                Align QR code within target box
-              </div>
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleBarcodeScanned(scanInput)
-            }}
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700">QR / Laptop Code Input</label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={cameraActive ? stopCamera : startCamera}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
-                  >
-                    <Camera className="h-3.5 w-3.5" /> {cameraActive ? 'Stop Camera' : 'Camera Scan'}
-                  </button>
-                  <label className="text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer flex items-center gap-1">
-                    <Upload className="h-3.5 w-3.5" /> Upload Image
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+            {/* Camera Viewfinder if Camera Active */}
+            {cameraActive && (
+              <div className="relative rounded-xl overflow-hidden border-2 border-indigo-500 bg-black aspect-video flex items-center justify-center">
+                <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+                <div className="absolute inset-x-8 inset-y-6 border-2 border-dashed border-red-500 rounded-lg pointer-events-none animate-pulse" />
+                <div className="absolute bottom-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded">
+                  Align QR code within target box
                 </div>
               </div>
+            )}
 
-              <div className="relative">
-                <QrCode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  ref={scanInputRef}
-                  value={scanInput}
-                  onChange={(e) => {
-                    setScanInput(e.target.value)
-                    // Auto-scan if exact match is entered
-                    if (e.target.value.trim().length >= 10) {
-                      handleBarcodeScanned(e.target.value)
-                    }
-                  }}
-                  placeholder="Scan QR code or type LP-2026-136..."
-                  className="pl-9 font-mono text-sm h-11 border-indigo-300 focus:ring-indigo-500"
-                />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleBarcodeScanned(scanInput)
+              }}
+              className="space-y-4 pt-2"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700">QR / Laptop Code Input</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={cameraActive ? stopCamera : startCamera}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                    >
+                      <Camera className="h-3.5 w-3.5" /> {cameraActive ? 'Stop Camera' : 'Camera Scan'}
+                    </button>
+                    <label className="text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer flex items-center gap-1">
+                      <Upload className="h-3.5 w-3.5" /> Upload Image
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <QrCode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    ref={scanInputRef}
+                    value={scanInput}
+                    onChange={(e) => {
+                      setScanInput(e.target.value)
+                      // Auto-scan if exact match is entered
+                      if (e.target.value.trim().length >= 10) {
+                        handleBarcodeScanned(e.target.value)
+                      }
+                    }}
+                    placeholder="Scan QR code or type LP-2026-136..."
+                    className="pl-9 font-mono text-sm h-11 border-indigo-300 focus:ring-indigo-500"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Tip: Point phone camera or handheld scanner to look up laptop ID &amp; employee details instantly.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Tip: Point phone camera or handheld scanner to look up laptop ID &amp; employee details instantly.
-              </p>
-            </div>
 
-            {/* Quick Test Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-              <span>Quick test:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setScanInput(myOwnLaptopCode)
-                  handleBarcodeScanned(myOwnLaptopCode)
-                }}
-                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-mono px-2 py-0.5 rounded border border-indigo-200 transition-colors"
-              >
-                Scan {myOwnLaptopCode}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setScanInput('LP-2026-093')
-                  handleBarcodeScanned('LP-2026-093')
-                }}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-mono px-2 py-0.5 rounded border border-slate-200 transition-colors"
-              >
-                Scan LP-2026-093
-              </button>
-            </div>
+              {/* Quick Test Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                <span>Quick test:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanInput(myOwnLaptopCode)
+                    handleBarcodeScanned(myOwnLaptopCode)
+                  }}
+                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-mono px-2 py-0.5 rounded border border-indigo-200 transition-colors"
+                >
+                  Scan {myOwnLaptopCode}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanInput('LP-2026-093')
+                    handleBarcodeScanned('LP-2026-093')
+                  }}
+                  className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-mono px-2 py-0.5 rounded border border-slate-200 transition-colors"
+                >
+                  Scan LP-2026-093
+                </button>
+              </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setScanModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
-                Look Up Details <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setScanModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+                  Look Up Details <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ============================================================== */}
       {/* DETAILED VERIFIED ASSET MODAL ON SCAN WITH CLEAN SCROLLBAR     */}

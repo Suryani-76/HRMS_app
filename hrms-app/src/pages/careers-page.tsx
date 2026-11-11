@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   Briefcase, MapPin, Building, ArrowRight, UploadCloud,
-  Heart, Zap, CalendarClock, Globe, CheckCircle2, ChevronDown, ChevronUp
+  Zap, CalendarClock, CheckCircle2, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import type { JobOpening } from '@/lib/database.types'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Logo } from '@/components/ui/logo'
-import { sendCandidateApplicationEmail, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
+import { sendCandidateApplicationEmail, getEffectivePortalUrl, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
 
 export default function CareersPage() {
   const [jobs, setJobs] = useState<JobOpening[]>([])
@@ -140,7 +140,7 @@ export default function CareersPage() {
       jobTitle: selectedJob.title,
       referenceId: refId,
       dateOfBirth: dob,
-      candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+      candidatePortalUrl: getEffectivePortalUrl(),
     })
 
     setSubmittedSuccess({
@@ -200,39 +200,6 @@ export default function CareersPage() {
               Explore Open Roles <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </a>
-        </div>
-      </section>
-
-      {/* Why Join Us */}
-      <section className="py-24 bg-white border-t border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Why work with us?</h2>
-            <p className="text-slate-500 max-w-2xl mx-auto">We believe in creating an environment where our team can thrive both personally and professionally.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-10">
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-6">
-                <Globe className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Work from Anywhere</h3>
-              <p className="text-slate-600 leading-relaxed">We are a remote-first company. Work from the comfort of your home or any of our global co-working spaces.</p>
-            </div>
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <div className="h-12 w-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-6">
-                <Heart className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Comprehensive Health</h3>
-              <p className="text-slate-600 leading-relaxed">100% covered premium medical, dental, and vision insurance for you and your dependents.</p>
-            </div>
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-6">
-                <Zap className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Continuous Growth</h3>
-              <p className="text-slate-600 leading-relaxed">Annual learning stipends, mentorship programs, and clear pathways for career progression.</p>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -512,7 +479,7 @@ export default function CareersPage() {
 
             <div className="pt-2 flex flex-col gap-2">
               <a
-                href={DEFAULT_CANDIDATE_PORTAL_URL}
+                href={getEffectivePortalUrl()}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center shadow-lg shadow-indigo-100 transition-all text-sm"

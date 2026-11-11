@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Loader2, User, PhoneCall, Home, MapPin, Briefcase, DollarSign, CheckSquare, Square } from 'lucide-react'
+import { Loader2, User, PhoneCall, Home, MapPin, Briefcase, DollarSign, CheckSquare, Square, AlertCircle } from 'lucide-react'
+import { validateCity, validateState, validateCountry, validatePostalCode } from '@/lib/addressValidation'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -88,6 +90,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
     password: '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (open) {
@@ -244,6 +247,14 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
     }
   }, [open, employee, initialValues, designations])
 
+  const validateField = (key: string, value: string): string | null => {
+    if (key === 'current_city' || key === 'permanent_city') return validateCity(value)
+    if (key === 'current_state' || key === 'permanent_state') return validateState(value)
+    if (key === 'current_country' || key === 'permanent_country') return validateCountry(value)
+    if (key === 'current_postal_code' || key === 'permanent_postal_code') return validatePostalCode(value)
+    return null
+  }
+
   const set = <K extends keyof typeof form>(key: K, value: string) => {
     setForm((f) => {
       const next = { ...f, [key]: value }
@@ -254,6 +265,43 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
         if (key === 'current_country') next.permanent_country = value
         if (key === 'current_postal_code') next.permanent_postal_code = value
       }
+      return next
+    })
+
+    const err = validateField(key as string, value)
+    setFieldErrors((prev) => {
+      const next = { ...prev }
+      if (err) next[key as string] = err
+      else delete next[key as string]
+
+      if (sameAsCurrent) {
+        if (key === 'current_city') {
+          if (err) next.permanent_city = err
+          else delete next.permanent_city
+        }
+        if (key === 'current_state') {
+          if (err) next.permanent_state = err
+          else delete next.permanent_state
+        }
+        if (key === 'current_country') {
+          if (err) next.permanent_country = err
+          else delete next.permanent_country
+        }
+        if (key === 'current_postal_code') {
+          if (err) next.permanent_postal_code = err
+          else delete next.permanent_postal_code
+        }
+      }
+      return next
+    })
+  }
+
+  const handleBlur = (key: string, value: string) => {
+    const err = validateField(key, value)
+    setFieldErrors((prev) => {
+      const next = { ...prev }
+      if (err) next[key] = err
+      else delete next[key]
       return next
     })
   }
@@ -269,6 +317,18 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
         permanent_country: f.current_country,
         permanent_postal_code: f.current_postal_code,
       }))
+      setFieldErrors((prev) => {
+        const next = { ...prev }
+        delete next.permanent_city
+        delete next.permanent_state
+        delete next.permanent_country
+        delete next.permanent_postal_code
+        if (prev.current_city) next.permanent_city = prev.current_city
+        if (prev.current_state) next.permanent_state = prev.current_state
+        if (prev.current_country) next.permanent_country = prev.current_country
+        if (prev.current_postal_code) next.permanent_postal_code = prev.current_postal_code
+        return next
+      })
     }
   }
 
@@ -324,6 +384,34 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
         setError(`Employee ID "${form.employee_code.trim()}" is already assigned to ${duplicate.first_name} ${duplicate.last_name}. Please choose a unique Employee ID.`)
         return
       }
+    }
+
+    // Address fields validation
+    const addrErrors: Record<string, string> = {}
+    const cCityErr = validateCity(form.current_city)
+    if (cCityErr) addrErrors.current_city = cCityErr
+    const cStateErr = validateState(form.current_state)
+    if (cStateErr) addrErrors.current_state = cStateErr
+    const cCountryErr = validateCountry(form.current_country)
+    if (cCountryErr) addrErrors.current_country = cCountryErr
+    const cPostalErr = validatePostalCode(form.current_postal_code)
+    if (cPostalErr) addrErrors.current_postal_code = cPostalErr
+
+    if (!sameAsCurrent) {
+      const pCityErr = validateCity(form.permanent_city)
+      if (pCityErr) addrErrors.permanent_city = pCityErr
+      const pStateErr = validateState(form.permanent_state)
+      if (pStateErr) addrErrors.permanent_state = pStateErr
+      const pCountryErr = validateCountry(form.permanent_country)
+      if (pCountryErr) addrErrors.permanent_country = pCountryErr
+      const pPostalErr = validatePostalCode(form.permanent_postal_code)
+      if (pPostalErr) addrErrors.permanent_postal_code = pPostalErr
+    }
+
+    if (Object.keys(addrErrors).length > 0) {
+      setFieldErrors((prev) => ({ ...prev, ...addrErrors }))
+      setError(Object.values(addrErrors)[0])
+      return
     }
 
     const payload = {
@@ -575,19 +663,67 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
             <div className="grid gap-4 sm:grid-cols-4">
               <div className="space-y-2">
                 <Label>City</Label>
-                <Input value={form.current_city} onChange={(e) => set('current_city', e.target.value)} placeholder="e.g. Noida" />
+                <Input
+                  value={form.current_city}
+                  onChange={(e) => set('current_city', e.target.value)}
+                  onBlur={(e) => handleBlur('current_city', e.target.value)}
+                  className={cn(fieldErrors.current_city ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
+                  placeholder="e.g. Noida"
+                />
+                {fieldErrors.current_city && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.current_city}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <Input value={form.current_state} onChange={(e) => set('current_state', e.target.value)} placeholder="e.g. Uttar Pradesh" />
+                <Input
+                  value={form.current_state}
+                  onChange={(e) => set('current_state', e.target.value)}
+                  onBlur={(e) => handleBlur('current_state', e.target.value)}
+                  className={cn(fieldErrors.current_state ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
+                  placeholder="e.g. Uttar Pradesh"
+                />
+                {fieldErrors.current_state && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.current_state}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Country</Label>
-                <Input value={form.current_country} onChange={(e) => set('current_country', e.target.value)} placeholder="India" />
+                <Input
+                  value={form.current_country}
+                  onChange={(e) => set('current_country', e.target.value)}
+                  onBlur={(e) => handleBlur('current_country', e.target.value)}
+                  className={cn(fieldErrors.current_country ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
+                  placeholder="India"
+                />
+                {fieldErrors.current_country && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.current_country}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Postal code</Label>
-                <Input value={form.current_postal_code} onChange={(e) => set('current_postal_code', e.target.value)} placeholder="201301" />
+                <Input
+                  value={form.current_postal_code}
+                  onChange={(e) => set('current_postal_code', e.target.value)}
+                  onBlur={(e) => handleBlur('current_postal_code', e.target.value)}
+                  className={cn(fieldErrors.current_postal_code ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
+                  placeholder="201301"
+                />
+                {fieldErrors.current_postal_code && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.current_postal_code}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -624,36 +760,68 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, initialValues
                 <Input
                   value={form.permanent_city}
                   onChange={(e) => set('permanent_city', e.target.value)}
+                  onBlur={(e) => handleBlur('permanent_city', e.target.value)}
+                  className={cn(fieldErrors.permanent_city ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
                   placeholder="e.g. Jaipur"
                   disabled={sameAsCurrent}
                 />
+                {!sameAsCurrent && fieldErrors.permanent_city && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.permanent_city}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
                 <Input
                   value={form.permanent_state}
                   onChange={(e) => set('permanent_state', e.target.value)}
+                  onBlur={(e) => handleBlur('permanent_state', e.target.value)}
+                  className={cn(fieldErrors.permanent_state ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
                   placeholder="e.g. Rajasthan"
                   disabled={sameAsCurrent}
                 />
+                {!sameAsCurrent && fieldErrors.permanent_state && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.permanent_state}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Country</Label>
                 <Input
                   value={form.permanent_country}
                   onChange={(e) => set('permanent_country', e.target.value)}
+                  onBlur={(e) => handleBlur('permanent_country', e.target.value)}
+                  className={cn(fieldErrors.permanent_country ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
                   placeholder="India"
                   disabled={sameAsCurrent}
                 />
+                {!sameAsCurrent && fieldErrors.permanent_country && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.permanent_country}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Postal code</Label>
                 <Input
                   value={form.permanent_postal_code}
                   onChange={(e) => set('permanent_postal_code', e.target.value)}
+                  onBlur={(e) => handleBlur('permanent_postal_code', e.target.value)}
+                  className={cn(fieldErrors.permanent_postal_code ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20' : '')}
                   placeholder="302006"
                   disabled={sameAsCurrent}
                 />
+                {!sameAsCurrent && fieldErrors.permanent_postal_code && (
+                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <span>{fieldErrors.permanent_postal_code}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>

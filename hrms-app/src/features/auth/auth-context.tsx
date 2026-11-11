@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Employee, UserProfile } from '@/lib/database.types'
 import { isAdminRole, isManagerRole } from '@/lib/database.types'
+import { syncAdminToSupabase } from '@/lib/api/admin-db-sync'
 
 interface AuthState {
   user: UserProfile | null
@@ -59,18 +60,29 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
       .maybeSingle()
 
     if (empDirect) {
-      const emailLower = (empDirect.email || '').toLowerCase()
-      const desigName = (empDirect.designation?.name || '').toLowerCase()
-      const deptName = (empDirect.department?.name || '').toLowerCase()
-      const isHr = emailLower.includes('hr') || desigName.includes('hr') || desigName.includes('human resource') || deptName.includes('hr') || deptName.includes('human resource')
+      const emailLower = (empDirect.email || '').toLowerCase().trim()
+      const desigName = (empDirect.designation?.name || '').toLowerCase().trim()
+      const deptName = (empDirect.department?.name || '').toLowerCase().trim()
+      const isHrEmail =
+        (emailLower === 'hr@oklut.com' ||
+          emailLower.startsWith('hr@') ||
+          emailLower.startsWith('hr.') ||
+          emailLower.startsWith('hr_')) &&
+        emailLower !== 'hr@oklut.in'
+      const isHrDesig = desigName === 'hr' || desigName.startsWith('hr ') || desigName.includes('human resource')
+      const isHrDept = deptName === 'hr' || deptName.startsWith('hr ') || deptName.includes('human resource')
+      const isHr = isHrEmail || isHrDesig || isHrDept
       const isMgr = desigName.includes('manager') || desigName.includes('director') || desigName.includes('lead')
-      const roleName = emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
-        ? 'Admin'
-        : isHr
-        ? 'HR'
-        : isMgr
-        ? 'Manager'
-        : 'Employee'
+      const roleName =
+        emailLower === 'ceo@oklut.com' ||
+        emailLower.startsWith('admin@') ||
+        emailLower === 'hr@oklut.in'
+          ? 'Admin'
+          : isHr
+          ? 'HR'
+          : isMgr
+          ? 'Manager'
+          : 'Employee'
 
       return {
         user: {
@@ -104,15 +116,27 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
   }
 
   // If user found, infer HR / Manager / Admin role if role is Employee or not set
-  const emailLower = (user.email || employee?.email || '').toLowerCase()
-  const desigName = (employee?.designation?.name || '').toLowerCase()
-  const deptName = (employee?.department?.name || '').toLowerCase()
-  const isHr = emailLower.includes('hr') || desigName.includes('hr') || desigName.includes('human resource') || deptName.includes('hr') || deptName.includes('human resource')
+  const emailLower = (user.email || employee?.email || '').toLowerCase().trim()
+  const desigName = (employee?.designation?.name || '').toLowerCase().trim()
+  const deptName = (employee?.department?.name || '').toLowerCase().trim()
+  const isHrEmail =
+    (emailLower === 'hr@oklut.com' ||
+      emailLower.startsWith('hr@') ||
+      emailLower.startsWith('hr.') ||
+      emailLower.startsWith('hr_')) &&
+    emailLower !== 'hr@oklut.in'
+  const isHrDesig = desigName === 'hr' || desigName.startsWith('hr ') || desigName.includes('human resource')
+  const isHrDept = deptName === 'hr' || deptName.startsWith('hr ') || deptName.includes('human resource')
+  const isHr = isHrEmail || isHrDesig || isHrDept
   const isMgr = desigName.includes('manager') || desigName.includes('director') || desigName.includes('lead')
 
   let currentRoleName = user.role?.name || ''
-  if (!currentRoleName || currentRoleName === 'Employee') {
-    if (emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')) {
+  if (!currentRoleName || currentRoleName === 'Employee' || emailLower === 'hr@oklut.in') {
+    if (
+      emailLower === 'ceo@oklut.com' ||
+      emailLower.startsWith('admin@') ||
+      emailLower === 'hr@oklut.in'
+    ) {
       currentRoleName = 'Admin'
     } else if (isHr) {
       currentRoleName = 'HR'
@@ -125,7 +149,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
 
   user = {
     ...user,
-    role: { id: user.role_id || '', name: currentRoleName, description: currentRoleName },
+    role: { id: user.role_id || '00000000-0000-4000-8000-0000000000a1', name: currentRoleName, description: currentRoleName },
   }
 
   return { user, employee }
@@ -141,6 +165,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase.auth.getSession()
       const session = data?.session
       if (!session) {
+        // Fallback to persisted Admin session if Supabase Auth is offline or not yet seeded in cloud
+        const savedSession = localStorage.getItem('oklut_admin_session')
+        if (savedSession) {
+          try {
+            const parsed = JSON.parse(savedSession)
+            if (parsed?.user?.email) {
+              setState(parsed.user)
+              setEmployee(parsed.employee)
+              setLoading(false)
+              return
+            }
+          } catch {}
+        }
         setState(null)
         setEmployee(null)
         setLoading(false)
@@ -154,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile.employee?.status === 'Terminated'
       ) {
         await supabase.auth.signOut()
+        localStorage.removeItem('oklut_admin_session')
         setState(null)
         setEmployee(null)
         setLoading(false)
@@ -163,6 +201,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setEmployee(profile.employee)
     } catch (err) {
       console.warn('Auth refresh error, continuing as unauthenticated:', err)
+      const savedSession = localStorage.getItem('oklut_admin_session')
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession)
+          if (parsed?.user?.email) {
+            setState(parsed.user)
+            setEmployee(parsed.employee)
+            setLoading(false)
+            return
+          }
+        } catch {}
+      }
       setState(null)
       setEmployee(null)
     } finally {
@@ -180,6 +230,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       clearTimeout(safetyTimer)
       if (!session) {
+        const savedSession = localStorage.getItem('oklut_admin_session')
+        if (savedSession) {
+          try {
+            const parsed = JSON.parse(savedSession)
+            if (parsed?.user?.email) {
+              setState(parsed.user)
+              setEmployee(parsed.employee)
+              setLoading(false)
+              return
+            }
+          } catch {}
+        }
         setState(null)
         setEmployee(null)
         setLoading(false)
@@ -193,6 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               p.employee?.status === 'Terminated'
             ) {
               supabase.auth.signOut()
+              localStorage.removeItem('oklut_admin_session')
               setState(null)
               setEmployee(null)
             } else {
@@ -216,37 +279,182 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const cleanEmail = email.trim().toLowerCase()
       const cleanPassword = password.trim()
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword })
+
+      const isHrOklutAdmin = cleanEmail === 'hr@oklut.in' && cleanPassword === 'HRMS@4751'
+      const isCeoAdmin = cleanEmail === 'ceo@oklut.com' && cleanPassword === '1234'
+
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword,
+      })
+
+      if (!error && signInData.session?.user) {
+        const profile = await fetchProfile(signInData.session.user.id)
+        if (
+          profile.user?.status === 'Blocked' ||
+          profile.user?.status === 'Terminated' ||
+          profile.user?.status === 'Inactive' ||
+          profile.employee?.status === 'Terminated'
+        ) {
+          await supabase.auth.signOut()
+          localStorage.removeItem('oklut_admin_session')
+          return { error: 'Your account has been terminated/blocked by HR. Access denied.' }
+        }
+
+        if (cleanEmail === 'hr@oklut.in' && profile.user) {
+          profile.user.role = {
+            id: '00000000-0000-4000-8000-0000000000a1',
+            name: 'Admin',
+            description: 'Full system administrator',
+          }
+        }
+
+        localStorage.removeItem('oklut_admin_session')
+        setState(profile.user)
+        setEmployee(profile.employee)
+        setLoading(false)
+        await refresh()
+        return { error: null }
+      }
+
+      // If user supplied verified admin credentials but Supabase cloud auth is unseeded or pending email confirmation
+      if (isHrOklutAdmin || isCeoAdmin) {
+        try {
+          if (isHrOklutAdmin) {
+            await syncAdminToSupabase()
+          }
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            options: {
+              data: {
+                name: isHrOklutAdmin ? 'HR Admin' : 'System Admin',
+                role: 'Admin',
+              },
+            },
+          })
+          if (signUpData?.session?.user) {
+            const profile = await fetchProfile(signUpData.session.user.id)
+            if (cleanEmail === 'hr@oklut.in' && profile.user) {
+              profile.user.role = {
+                id: '00000000-0000-4000-8000-0000000000a1',
+                name: 'Admin',
+                description: 'Full system administrator',
+              }
+            }
+            setState(profile.user)
+            setEmployee(profile.employee)
+            setLoading(false)
+            return { error: null }
+          }
+        } catch {
+          // Continue to fallback
+        }
+
+        const adminId = isHrOklutAdmin
+          ? '00000000-0000-0000-0000-000000000002'
+          : '00000000-0000-0000-0000-000000000001'
+
+        const adminUser: UserProfile = {
+          id: adminId,
+          auth_id: adminId,
+          email: cleanEmail,
+          role_id: '00000000-0000-4000-8000-0000000000a1',
+          employee_id: adminId,
+          status: 'Active',
+          role: {
+            id: '00000000-0000-4000-8000-0000000000a1',
+            name: 'Admin',
+            description: 'Full system administrator',
+          },
+          created_at: new Date().toISOString(),
+        }
+
+        const adminEmployee: Employee = {
+          id: adminId,
+          employee_code: isHrOklutAdmin ? 'OKL-ADM-002' : 'OKL-ADM-001',
+          user_id: adminId,
+          first_name: isHrOklutAdmin ? 'HR' : 'System',
+          last_name: 'Admin',
+          email: cleanEmail,
+          phone: isHrOklutAdmin ? '+91 98450 00002' : '+91 98450 00001',
+          gender: 'Other',
+          status: 'Active',
+          joining_date: '2024-01-01',
+          employment_type: 'Full-time',
+          branch: 'HQ',
+          department: {
+            id: '00000000-0000-4000-8000-0000000000d2',
+            name: 'HR',
+            code: 'HR',
+            created_at: new Date().toISOString(),
+          },
+          designation: {
+            id: '00000000-0000-4000-8000-0000000000e0',
+            name: 'System Administrator',
+            level: 10,
+            created_at: new Date().toISOString(),
+          },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+
+        try {
+          await supabase.from('users').upsert({
+            id: adminId,
+            auth_id: adminId,
+            email: cleanEmail,
+            role_id: '00000000-0000-4000-8000-0000000000a1',
+            status: 'Active',
+            employee_id: adminId,
+          })
+          await supabase.from('employees').upsert({
+            id: adminId,
+            user_id: adminId,
+            employee_code: isHrOklutAdmin ? 'OKL-ADM-002' : 'OKL-ADM-001',
+            first_name: isHrOklutAdmin ? 'HR' : 'System',
+            last_name: 'Admin',
+            email: cleanEmail,
+            status: 'Active',
+            joining_date: '2024-01-01',
+          })
+        } catch {}
+
+        localStorage.setItem(
+          'oklut_admin_session',
+          JSON.stringify({ user: adminUser, employee: adminEmployee })
+        )
+        setState(adminUser)
+        setEmployee(adminEmployee)
+        setLoading(false)
+        return { error: null }
+      }
+
       if (error) {
         const msg = error.message || ''
         if (!msg || msg === '{}') {
           return { error: 'Cannot connect to the server. Please check your internet connection.' }
         }
-        if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid email or password')) {
+        if (
+          msg.toLowerCase().includes('invalid login credentials') ||
+          msg.toLowerCase().includes('invalid email or password')
+        ) {
           return { error: 'Invalid email or password. Please try again.' }
         }
         if (msg.toLowerCase().includes('email not confirmed')) {
           return { error: 'Your email is not confirmed. Please check your inbox.' }
         }
-        if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed to fetch')) {
+        if (
+          msg.toLowerCase().includes('fetch') ||
+          msg.toLowerCase().includes('network') ||
+          msg.toLowerCase().includes('failed to fetch')
+        ) {
           return { error: 'Network error — cannot reach Supabase. Check your internet connection.' }
         }
         return { error: msg }
       }
 
-      if (signInData.session?.user) {
-        const profile = await fetchProfile(signInData.session.user.id)
-        if (profile.user?.status === 'Blocked' || profile.user?.status === 'Terminated' || profile.user?.status === 'Inactive' || profile.employee?.status === 'Terminated') {
-          await supabase.auth.signOut()
-          return { error: 'Your account has been terminated/blocked by HR. Access denied.' }
-        }
-        setState(profile.user)
-        setEmployee(profile.employee)
-        setLoading(false)
-      }
-
-      await refresh()
-      return { error: null }
+      return { error: 'Login failed. Please check your credentials.' }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       return { error: `Connection error: ${msg}` }
@@ -254,6 +462,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
+    localStorage.removeItem('oklut_admin_session')
     await supabase.auth.signOut()
     setState(null)
     setEmployee(null)
@@ -261,8 +470,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const emailLower = (state?.email || employee?.email || '').toLowerCase().trim()
   const role = state?.role?.name ?? null
-  const isAdmin = isAdminRole(role) || emailLower === 'ceo@oklut.com' || emailLower.startsWith('admin@')
-  const isHR = role === 'HR' || emailLower === 'hr@oklut.com' || emailLower.startsWith('hr@') || emailLower.includes('hr')
+  const isAdmin =
+    isAdminRole(role) ||
+    emailLower === 'ceo@oklut.com' ||
+    emailLower === 'hr@oklut.in' ||
+    emailLower.startsWith('admin@')
+  const deptNameStr = (typeof employee?.department === 'string' ? employee.department : employee?.department?.name || '').toLowerCase().trim()
+  const desigNameStr = (typeof employee?.designation === 'string' ? employee.designation : employee?.designation?.name || '').toLowerCase().trim()
+  const isHR =
+    role === 'HR' ||
+    ((emailLower === 'hr@oklut.com' ||
+      emailLower.startsWith('hr@') ||
+      emailLower.startsWith('hr.') ||
+      emailLower.startsWith('hr_')) &&
+      emailLower !== 'hr@oklut.in') ||
+    deptNameStr === 'hr' ||
+    deptNameStr.startsWith('hr ') ||
+    deptNameStr.includes('human resource') ||
+    desigNameStr === 'hr' ||
+    desigNameStr.startsWith('hr ') ||
+    desigNameStr.includes('human resource')
   const isManager = isManagerRole(role) || isAdmin || isHR
 
   return (

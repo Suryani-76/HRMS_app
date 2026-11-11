@@ -48,7 +48,9 @@ import {
 } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, timeAgo } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { TodayAttendanceCard } from '@/components/dashboard/today-attendance-card'
+import type { SubmittedReviewSummary } from '@/lib/api/dashboard'
 
 const DEPT_COLORS = ['#51459d', '#7c6fd6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6']
 
@@ -239,13 +241,96 @@ function ScheduledMeetingsCard() {
   )
 }
 
+function SubmittedPerformanceReviewsCard({ reviews }: { reviews: SubmittedReviewSummary[] }) {
+  return (
+    <Card className="border-indigo-100 shadow-sm">
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+        <div className="space-y-0.5">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+            Submitted Performance Reviews
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Employee performance assessment submissions awaiting evaluation &amp; grading.
+          </p>
+        </div>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/performance" className="flex items-center gap-1 text-xs text-primary font-medium">
+            Evaluate All <ChevronRight className="h-3 w-3" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {reviews.length === 0 ? (
+          <EmptyState
+            title="No pending performance reviews"
+            description="All employee reviews have been evaluated and finalized."
+            icon={Star}
+          />
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {reviews.slice(0, 5).map((r) => (
+              <div key={r.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 font-bold text-indigo-700 text-xs border border-indigo-200">
+                    {r.employeeName?.[0] || 'E'}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{r.employeeName}</p>
+                      <Badge variant="outline" className="text-[10px] font-mono py-0">
+                        {r.employeeCode}
+                      </Badge>
+                      {r.track && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'text-[10px] py-0',
+                            r.track === 'IT' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                          )}
+                        >
+                          {r.track} Track
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {r.department ? `${r.department} · ` : ''}
+                      {r.period}
+                      {r.goalsReached !== undefined ? ` · ${r.goalsReached}/${r.goalsTotal || 14} goals reached` : ''}
+                      {r.submittedAt ? ` · ${timeAgo(r.submittedAt)}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-xs font-medium">
+                    Pending Evaluation
+                  </Badge>
+                  <Button asChild size="sm" variant="outline" className="h-8 text-xs font-semibold border-indigo-200 hover:bg-indigo-50 text-indigo-700">
+                    <Link to="/performance">Review &amp; Grade</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function ManagerDashboard() {
+  const { employee, isAdmin } = useAuth()
   const { data: stats, isLoading } = useDashboardStats()
   const { data: pendingLeaves = [] } = useLeaveRequests({ status: 'pending' })
   const { data: employees = [] } = useEmployees()
 
   return (
     <div className="space-y-6">
+      {/* Attendance & Office Premises Status: only for employees and managers who require check-in / check-out, NOT for Admins */}
+      {!isAdmin && employee && (
+        <TodayAttendanceCard employeeId={employee.id} />
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Employees" value={stats?.totalEmployees ?? 0} icon={Users} loading={isLoading} subtitle={`${stats?.newJoiners30 ?? 0} joined in 30 days`} />
         <StatCard title="Present Today" value={stats?.presentToday ?? 0} icon={CalendarCheck} iconClassName="bg-success/10 text-success" loading={isLoading} subtitle={`${stats?.absentToday ?? 0} absent`} />
@@ -416,7 +501,11 @@ function ManagerDashboard() {
         </Card>
       </div>
 
-      <div>
+      {/* Submitted Performance Reviews & Recent Employees Row */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <SubmittedPerformanceReviewsCard reviews={stats?.recentSubmittedReviews ?? []} />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Recent Employees</CardTitle>
@@ -425,14 +514,14 @@ function ManagerDashboard() {
             {employees.length === 0 ? (
               <EmptyState title="No employees yet" description="Add your first employee to get started." />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {employees.slice(0, 6).map((e) => (
+              <div className="space-y-3">
+                {employees.slice(0, 5).map((e) => (
                   <Link
                     key={e.id}
                     to={`/employees/${e.id}`}
-                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent"
+                    className="flex items-center gap-3 rounded-lg border p-2.5 transition-colors hover:bg-accent"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">
                       {e.first_name[0]}
                       {e.last_name[0]}
                     </div>
@@ -456,7 +545,7 @@ function ManagerDashboard() {
 }
 
 function EmployeeDashboard() {
-  const { employee } = useAuth()
+  const { employee, isAdmin } = useAuth()
   const { data: stats, isLoading } = useDashboardStats()
   const { data: tasks = [] } = useTasks()
 
@@ -465,7 +554,9 @@ function EmployeeDashboard() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
-        <TodayAttendanceCard employeeId={employee.id} className="lg:col-span-2" />
+        {!isAdmin ? (
+          <TodayAttendanceCard employeeId={employee.id} className="lg:col-span-2" />
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Leave Balances</CardTitle>

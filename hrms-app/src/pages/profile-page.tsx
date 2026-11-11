@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Mail, Phone, Building2, Briefcase, Cake, MapPin, BadgeCheck, CalendarDays, PhoneCall, Home, CheckSquare, Square, Hash } from 'lucide-react'
+import { Loader2, Mail, Phone, Building2, Briefcase, Cake, MapPin, BadgeCheck, CalendarDays, PhoneCall, Home, CheckSquare, Square, Hash, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,9 +13,10 @@ import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/shared/page-header'
 import { useEmployee, useUpdateEmployee } from '@/hooks/use-queries'
 import { useAuth } from '@/features/auth/auth-context'
-import { initials } from '@/lib/utils'
+import { initials, cn } from '@/lib/utils'
 import { formatDate } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
+import { validateCity, validateState, validateCountry, validatePostalCode } from '@/lib/addressValidation'
 
 const RELATIONSHIPS = ['Father', 'Mother', 'Spouse', 'Guardian', 'Brother', 'Sister', 'Son', 'Daughter', 'Friend', 'Other']
 
@@ -27,6 +28,7 @@ export default function ProfilePage() {
   const [editOpen, setEditOpen] = useState(false)
   const [sameAsCurrent, setSameAsCurrent] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
   const e = employee ?? contextEmployee
@@ -55,6 +57,28 @@ export default function ProfilePage() {
 
     setSameAsCurrent(isSame)
 
+    const initialErrors: Record<string, string> = {}
+    const cErr = validateCity(curCity)
+    if (cErr) initialErrors.current_city = cErr
+    const sErr = validateState(curState)
+    if (sErr) initialErrors.current_state = sErr
+    const cntErr = validateCountry(curCountry)
+    if (cntErr) initialErrors.current_country = cntErr
+    const zErr = validatePostalCode(curZip)
+    if (zErr) initialErrors.current_postal_code = zErr
+
+    if (!isSame) {
+      const pcErr = validateCity(permCity)
+      if (pcErr) initialErrors.permanent_city = pcErr
+      const psErr = validateState(permState)
+      if (psErr) initialErrors.permanent_state = psErr
+      const pcntErr = validateCountry(permCountry)
+      if (pcntErr) initialErrors.permanent_country = pcntErr
+      const pzErr = validatePostalCode(permZip)
+      if (pzErr) initialErrors.permanent_postal_code = pzErr
+    }
+    setErrors(initialErrors)
+
     setForm({
       employee_code: e.employee_code ?? '',
       phone: e.phone ?? '',
@@ -78,6 +102,24 @@ export default function ProfilePage() {
     setEditOpen(true)
   }
 
+  const validateField = (key: string, value: string): string | null => {
+    if (key === 'current_city' || key === 'permanent_city') return validateCity(value)
+    if (key === 'current_state' || key === 'permanent_state') return validateState(value)
+    if (key === 'current_country' || key === 'permanent_country') return validateCountry(value)
+    if (key === 'current_postal_code' || key === 'permanent_postal_code') return validatePostalCode(value)
+    return null
+  }
+
+  const handleBlur = (key: string, value: string) => {
+    const err = validateField(key, value)
+    setErrors((prev) => {
+      const next = { ...prev }
+      if (err) next[key] = err
+      else delete next[key]
+      return next
+    })
+  }
+
   const setField = (key: string, value: string) => {
     setForm((f) => {
       const next = { ...f, [key]: value }
@@ -87,6 +129,33 @@ export default function ProfilePage() {
         if (key === 'current_state') next.permanent_state = value
         if (key === 'current_country') next.permanent_country = value
         if (key === 'current_postal_code') next.permanent_postal_code = value
+      }
+      return next
+    })
+
+    const err = validateField(key, value)
+    setErrors((prev) => {
+      const next = { ...prev }
+      if (err) next[key] = err
+      else delete next[key]
+
+      if (sameAsCurrent) {
+        if (key === 'current_city') {
+          if (err) next.permanent_city = err
+          else delete next.permanent_city
+        }
+        if (key === 'current_state') {
+          if (err) next.permanent_state = err
+          else delete next.permanent_state
+        }
+        if (key === 'current_country') {
+          if (err) next.permanent_country = err
+          else delete next.permanent_country
+        }
+        if (key === 'current_postal_code') {
+          if (err) next.permanent_postal_code = err
+          else delete next.permanent_postal_code
+        }
       }
       return next
     })
@@ -103,11 +172,58 @@ export default function ProfilePage() {
         permanent_country: f.current_country || 'India',
         permanent_postal_code: f.current_postal_code || '',
       }))
+      setErrors((prev) => {
+        const next = { ...prev }
+        delete next.permanent_city
+        delete next.permanent_state
+        delete next.permanent_country
+        delete next.permanent_postal_code
+        if (prev.current_city) next.permanent_city = prev.current_city
+        if (prev.current_state) next.permanent_state = prev.current_state
+        if (prev.current_country) next.permanent_country = prev.current_country
+        if (prev.current_postal_code) next.permanent_postal_code = prev.current_postal_code
+        return next
+      })
     }
   }
 
   const submit = async (e2: React.FormEvent) => {
     e2.preventDefault()
+
+    const newErrors: Record<string, string> = {}
+    const curCityErr = validateCity(form.current_city)
+    if (curCityErr) newErrors.current_city = curCityErr
+
+    const curStateErr = validateState(form.current_state)
+    if (curStateErr) newErrors.current_state = curStateErr
+
+    const curCountryErr = validateCountry(form.current_country)
+    if (curCountryErr) newErrors.current_country = curCountryErr
+
+    const curZipErr = validatePostalCode(form.current_postal_code)
+    if (curZipErr) newErrors.current_postal_code = curZipErr
+
+    if (!sameAsCurrent) {
+      const permCityErr = validateCity(form.permanent_city)
+      if (permCityErr) newErrors.permanent_city = permCityErr
+
+      const permStateErr = validateState(form.permanent_state)
+      if (permStateErr) newErrors.permanent_state = permStateErr
+
+      const permCountryErr = validateCountry(form.permanent_country)
+      if (permCountryErr) newErrors.permanent_country = permCountryErr
+
+      const permZipErr = validatePostalCode(form.permanent_postal_code)
+      if (permZipErr) newErrors.permanent_postal_code = permZipErr
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      const firstError = Object.values(newErrors)[0]
+      toast.error(`Validation Error: ${firstError}`)
+      return
+    }
+
     await update.mutateAsync({
       employee_code: form.employee_code?.trim() || undefined,
       phone: form.phone || undefined,
@@ -329,22 +445,30 @@ export default function ProfilePage() {
               <h4 className="text-sm font-semibold flex items-center gap-2 text-amber-900">
                 <PhoneCall className="h-4 w-4 text-amber-600" /> Guardian / Emergency Contact
               </h4>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
                 <div className="space-y-2">
-                  <Label>Contact Name</Label>
-                  <Input value={form.emergency_contact_name ?? ''} onChange={(e) => setField('emergency_contact_name', e.target.value)} placeholder="Guardian / Contact Name" />
+                  <Label className="text-sm font-medium text-slate-900 block truncate">Contact Name</Label>
+                  <Input
+                    value={form.emergency_contact_name ?? ''}
+                    onChange={(e) => setField('emergency_contact_name', e.target.value)}
+                    placeholder="Guardian / Contact Name"
+                    className="h-10 bg-white"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Relationship</Label>
+                  <Label className="text-sm font-medium text-slate-900 block truncate">Relationship</Label>
                   <Select value={form.emergency_contact_relation || undefined} onValueChange={(v) => setField('emergency_contact_relation', v)}>
-                    <SelectTrigger><SelectValue placeholder="Select relation" /></SelectTrigger>
+                    <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Select relation" /></SelectTrigger>
                     <SelectContent>
                       {RELATIONSHIPS.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Emergency Phone <span className="text-xs text-muted-foreground font-normal">(10 digits)</span></Label>
+                  <Label className="text-sm font-medium text-slate-900 flex items-center justify-between">
+                    <span>Emergency Phone</span>
+                    <span className="text-xs text-muted-foreground font-normal">(10 digits)</span>
+                  </Label>
                   <Input
                     type="tel"
                     inputMode="numeric"
@@ -353,6 +477,7 @@ export default function ProfilePage() {
                     value={form.emergency_contact_phone ?? ''}
                     onChange={(e) => setField('emergency_contact_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
                     placeholder="e.g. 9876500000"
+                    className="h-10 bg-white font-mono"
                   />
                 </div>
               </div>
@@ -363,12 +488,105 @@ export default function ProfilePage() {
               <h4 className="text-sm font-semibold flex items-center gap-2 text-slate-900">
                 <Home className="h-4 w-4 text-blue-600" /> Current Address
               </h4>
-              <div className="space-y-2"><Label>Street Address</Label><Textarea value={form.current_address ?? ''} onChange={(e) => setField('current_address', e.target.value)} rows={2} /></div>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="space-y-2"><Label>City</Label><Input value={form.current_city ?? ''} onChange={(e) => setField('current_city', e.target.value)} /></div>
-                <div className="space-y-2"><Label>State</Label><Input value={form.current_state ?? ''} onChange={(e) => setField('current_state', e.target.value)} /></div>
-                <div className="space-y-2"><Label>Country</Label><Input value={form.current_country ?? ''} onChange={(e) => setField('current_country', e.target.value)} /></div>
-                <div className="space-y-2"><Label>Postal Code</Label><Input value={form.current_postal_code ?? ''} onChange={(e) => setField('current_postal_code', e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="prof_cur_addr">Street Address</Label>
+                <Textarea
+                  id="prof_cur_addr"
+                  value={form.current_address ?? ''}
+                  onChange={(e) => setField('current_address', e.target.value)}
+                  rows={2}
+                  placeholder="House/Flat No., Building, Street, Area"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_cur_city" className={cn(errors.current_city && 'text-red-600 font-semibold')}>City</Label>
+                  <Input
+                    id="prof_cur_city"
+                    value={form.current_city ?? ''}
+                    onChange={(e) => setField('current_city', e.target.value)}
+                    onBlur={(e) => handleBlur('current_city', e.target.value)}
+                    placeholder="e.g. Hyderabad"
+                    className={cn(
+                      'h-10 transition-colors',
+                      errors.current_city
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {errors.current_city && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.current_city}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_cur_state" className={cn(errors.current_state && 'text-red-600 font-semibold')}>State</Label>
+                  <Input
+                    id="prof_cur_state"
+                    value={form.current_state ?? ''}
+                    onChange={(e) => setField('current_state', e.target.value)}
+                    onBlur={(e) => handleBlur('current_state', e.target.value)}
+                    placeholder="e.g. Telangana"
+                    className={cn(
+                      'h-10 transition-colors',
+                      errors.current_state
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {errors.current_state && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.current_state}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_cur_country" className={cn(errors.current_country && 'text-red-600 font-semibold')}>Country</Label>
+                  <Input
+                    id="prof_cur_country"
+                    value={form.current_country ?? ''}
+                    onChange={(e) => setField('current_country', e.target.value)}
+                    onBlur={(e) => handleBlur('current_country', e.target.value)}
+                    placeholder="India"
+                    className={cn(
+                      'h-10 transition-colors',
+                      errors.current_country
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {errors.current_country && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.current_country}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_cur_zip" className={cn(errors.current_postal_code && 'text-red-600 font-semibold')}>Postal Code</Label>
+                  <Input
+                    id="prof_cur_zip"
+                    value={form.current_postal_code ?? ''}
+                    onChange={(e) => setField('current_postal_code', e.target.value)}
+                    onBlur={(e) => handleBlur('current_postal_code', e.target.value)}
+                    placeholder="e.g. 500081"
+                    className={cn(
+                      'h-10 transition-colors',
+                      errors.current_postal_code
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {errors.current_postal_code && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.current_postal_code}</span>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -387,12 +605,110 @@ export default function ProfilePage() {
                   Same as Current Address
                 </button>
               </div>
-              <div className="space-y-2"><Label>Street Address</Label><Textarea value={form.permanent_address ?? ''} onChange={(e) => setField('permanent_address', e.target.value)} rows={2} disabled={sameAsCurrent} /></div>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="space-y-2"><Label>City</Label><Input value={form.permanent_city ?? ''} onChange={(e) => setField('permanent_city', e.target.value)} disabled={sameAsCurrent} /></div>
-                <div className="space-y-2"><Label>State</Label><Input value={form.permanent_state ?? ''} onChange={(e) => setField('permanent_state', e.target.value)} disabled={sameAsCurrent} /></div>
-                <div className="space-y-2"><Label>Country</Label><Input value={form.permanent_country ?? ''} onChange={(e) => setField('permanent_country', e.target.value)} disabled={sameAsCurrent} /></div>
-                <div className="space-y-2"><Label>Postal Code</Label><Input value={form.permanent_postal_code ?? ''} onChange={(e) => setField('permanent_postal_code', e.target.value)} disabled={sameAsCurrent} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="prof_perm_addr">Street Address</Label>
+                <Textarea
+                  id="prof_perm_addr"
+                  value={form.permanent_address ?? ''}
+                  onChange={(e) => setField('permanent_address', e.target.value)}
+                  rows={2}
+                  disabled={sameAsCurrent}
+                  placeholder="House/Flat No., Building, Street, Area"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_perm_city" className={cn(!sameAsCurrent && errors.permanent_city && 'text-red-600 font-semibold')}>City</Label>
+                  <Input
+                    id="prof_perm_city"
+                    value={form.permanent_city ?? ''}
+                    onChange={(e) => setField('permanent_city', e.target.value)}
+                    onBlur={(e) => handleBlur('permanent_city', e.target.value)}
+                    disabled={sameAsCurrent}
+                    placeholder="e.g. Hyderabad"
+                    className={cn(
+                      'h-10 transition-colors',
+                      !sameAsCurrent && errors.permanent_city
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {!sameAsCurrent && errors.permanent_city && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.permanent_city}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_perm_state" className={cn(!sameAsCurrent && errors.permanent_state && 'text-red-600 font-semibold')}>State</Label>
+                  <Input
+                    id="prof_perm_state"
+                    value={form.permanent_state ?? ''}
+                    onChange={(e) => setField('permanent_state', e.target.value)}
+                    onBlur={(e) => handleBlur('permanent_state', e.target.value)}
+                    disabled={sameAsCurrent}
+                    placeholder="e.g. Telangana"
+                    className={cn(
+                      'h-10 transition-colors',
+                      !sameAsCurrent && errors.permanent_state
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {!sameAsCurrent && errors.permanent_state && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.permanent_state}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_perm_country" className={cn(!sameAsCurrent && errors.permanent_country && 'text-red-600 font-semibold')}>Country</Label>
+                  <Input
+                    id="prof_perm_country"
+                    value={form.permanent_country ?? ''}
+                    onChange={(e) => setField('permanent_country', e.target.value)}
+                    onBlur={(e) => handleBlur('permanent_country', e.target.value)}
+                    disabled={sameAsCurrent}
+                    placeholder="India"
+                    className={cn(
+                      'h-10 transition-colors',
+                      !sameAsCurrent && errors.permanent_country
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {!sameAsCurrent && errors.permanent_country && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.permanent_country}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prof_perm_zip" className={cn(!sameAsCurrent && errors.permanent_postal_code && 'text-red-600 font-semibold')}>Postal Code</Label>
+                  <Input
+                    id="prof_perm_zip"
+                    value={form.permanent_postal_code ?? ''}
+                    onChange={(e) => setField('permanent_postal_code', e.target.value)}
+                    onBlur={(e) => handleBlur('permanent_postal_code', e.target.value)}
+                    disabled={sameAsCurrent}
+                    placeholder="e.g. 500081"
+                    className={cn(
+                      'h-10 transition-colors',
+                      !sameAsCurrent && errors.permanent_postal_code
+                        ? '!border-red-500 !ring-red-500 !ring-1 !focus-visible:ring-red-500 bg-red-50/20'
+                        : 'border-slate-200'
+                    )}
+                  />
+                  {!sameAsCurrent && errors.permanent_postal_code && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span>{errors.permanent_postal_code}</span>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

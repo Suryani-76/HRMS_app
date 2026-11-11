@@ -79,7 +79,11 @@ import {
   CandidateDocumentUploadSection,
   SubmittedDocumentsStatusCard,
 } from '@/components/shared/candidate-verification-docs'
-import { sendDocsRequiredAlertEmail } from '@/lib/api/email'
+import {
+  sendDocsRequiredAlertEmail,
+  sendInterviewScheduledAlertEmail,
+  sendInterviewRescheduledAlertEmail,
+} from '@/lib/api/email'
 import type { Candidate, JobOpening, Interview, InterviewSlot, Offer } from '@/lib/database.types'
 import {
   DEFAULT_SCENARIO,
@@ -1354,6 +1358,16 @@ export default function CandidatePortalPage() {
         `Your interview has been rescheduled to ${formatDateTime(slot.scheduled_at)}.`,
         'info'
       )
+      if (candidate?.email) {
+        sendInterviewRescheduledAlertEmail({
+          candidateName: candidate.name,
+          candidateEmail: candidate.email,
+          referenceId: candidate.candidate_id || candidate.id,
+          jobTitle: job?.title || 'Open Position',
+          roundName: `${roundLabel} Round`,
+          scheduledAt: formatDateTime(slot.scheduled_at),
+        }).catch((e) => console.warn('Interview reschedule email alert notice:', e))
+      }
     } else {
       toast.success(`Interview scheduled for ${formatDateTime(slot.scheduled_at)}`, { duration: 5000 })
       pushNotification(
@@ -1362,6 +1376,18 @@ export default function CandidatePortalPage() {
         'Your interview has been scheduled for ' + formatReadableUtcDate(slot.scheduled_at) + '. Note: You can reschedule this appointment until ' + formatRescheduleCutoff(slot.scheduled_at) + ' (2 hours prior to start time).',
         'success'
       )
+      if (candidate?.email) {
+        sendInterviewScheduledAlertEmail({
+          candidateName: candidate.name,
+          candidateEmail: candidate.email,
+          referenceId: candidate.candidate_id || candidate.id,
+          dateOfBirth: (candidate as any).date_of_birth,
+          jobTitle: job?.title || 'Open Position',
+          roundName: `${roundLabel} Round`,
+          scheduledAt: formatDateTime(slot.scheduled_at),
+          mode: 'online',
+        }).catch((e) => console.warn('Interview scheduled email alert notice:', e))
+      }
     }
     setIsSlotModalOpen(false)
     setSelectedSlot('')

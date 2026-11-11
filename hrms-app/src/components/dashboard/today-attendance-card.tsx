@@ -32,6 +32,7 @@ import {
   parseAttendanceSessions,
   calculateCumulativeLoginHours,
 } from '@/lib/attendance-sessions'
+import { useAuth } from '@/features/auth/auth-context'
 
 interface TodayAttendanceCardProps {
   employeeId: string
@@ -39,10 +40,15 @@ interface TodayAttendanceCardProps {
 }
 
 export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCardProps) {
+  const { isAdmin } = useAuth()
   const { data: records = [], isLoading } = useTodayAttendance(employeeId)
   const { data: employee } = useEmployee(employeeId)
   const checkIn = useCheckIn()
   const checkOut = useCheckOut()
+
+  if (isAdmin) {
+    return null
+  }
 
   const [faceModalOpen, setFaceModalOpen] = useState(false)
   const [faceModalAction, setFaceModalAction] = useState<'check-in' | 'check-out'>('check-in')
@@ -91,7 +97,12 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
         refreshLocation()
       }
     })
-    return () => unwatch()
+    const handleLocChange = () => refreshLocation()
+    window.addEventListener('oklut-location-mode-changed', handleLocChange)
+    return () => {
+      unwatch()
+      window.removeEventListener('oklut-location-mode-changed', handleLocChange)
+    }
   }, [refreshLocation])
 
   // Sync stored Face ID profile
@@ -200,21 +211,21 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
             {/* Live GPS Status Pill in Header */}
             <Badge
               variant="outline"
-              className={`hidden md:inline-flex items-center gap-1 text-[11px] font-normal cursor-pointer ${
+              className={`hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer ${
                 currentLocation
                   ? currentLocation.isOfficeLocation
-                    ? 'border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20'
-                    : 'border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20'
+                    ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/30'
+                    : 'border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/30'
                   : 'border-slate-300 text-slate-500'
               }`}
               onClick={() => currentLocation && handleOpenLocationDialog(currentLocation)}
               title={currentLocation ? 'Click to inspect GPS details' : 'GPS locating'}
             >
-              <Navigation className={`h-3 w-3 ${locating ? 'animate-spin text-indigo-500' : 'text-emerald-500'}`} />
+              <Navigation className={`h-3 w-3 ${locating ? 'animate-spin text-indigo-500' : currentLocation?.isOfficeLocation ? 'text-emerald-500' : 'text-amber-500'}`} />
               {locating
                 ? 'Acquiring GPS...'
                 : currentLocation
-                ? `${currentLocation.city || 'GPS Active'} (${currentLocation.isOfficeLocation ? 'On-site' : 'Remote'})`
+                ? `${currentLocation.isOfficeLocation ? '🏢 Office Premises' : '🏠 WFH'} (${currentLocation.city || 'Hyderabad'})`
                 : 'GPS Standby'}
             </Badge>
           </div>
@@ -392,9 +403,11 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
                         Punch Location Tracked
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1 py-0 border-emerald-300 dark:border-emerald-700 bg-white dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
+                          className="text-[10px] px-1.5 py-0 border-emerald-300 dark:border-emerald-700 bg-white dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold"
                         >
-                          {punchLocation.mode || 'On-site'}
+                          {punchLocation.mode === 'Office Premises' || punchLocation.mode?.toLowerCase().includes('office') || punchLocation.mode?.toLowerCase().includes('on-site')
+                            ? 'Office Premises'
+                            : 'WFH'}
                         </Badge>
                       </p>
                       <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5">
@@ -417,15 +430,21 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
               {/* Live Real-time GPS Tracking Info Bar */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-md bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <div className={`h-6 w-6 rounded-md flex items-center justify-center shrink-0 ${
+                    currentLocation?.isOfficeLocation
+                      ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
+                  }`}>
                     <Navigation className={`h-3.5 w-3.5 ${locating ? 'animate-spin' : ''}`} />
                   </div>
                   <div>
                     <span className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
-                      Live Location Tracking:
+                      <span>Status:</span>
                       {currentLocation ? (
-                        <span className="font-semibold text-slate-900 dark:text-white">
-                          {currentLocation.address || `${currentLocation.city || 'Location Identified'}, ${currentLocation.state || ''}`}
+                        <span className={`font-bold ${currentLocation.isOfficeLocation ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                          {currentLocation.isOfficeLocation
+                            ? '🏢 In Office Premises (17°27\'00.6"N 78°23\'13.2"E)'
+                            : '🏠 WFH (Work From Home · Outside Office Geofence)'}
                         </span>
                       ) : locating ? (
                         <span className="text-slate-400 italic">Detecting device GPS...</span>
@@ -440,13 +459,13 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
                   {currentLocation && (
                     <Badge
                       variant="outline"
-                      className={`text-[10px] py-0 px-1.5 ${
+                      className={`text-[10px] py-0 px-2 font-semibold ${
                         currentLocation.isOfficeLocation
-                          ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-300 bg-emerald-500/10'
-                          : 'border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10'
+                          ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10'
+                          : 'border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10'
                       }`}
                     >
-                      {currentLocation.isOfficeLocation ? 'HQ Office' : 'Remote'} (±{currentLocation.accuracy}m)
+                      {currentLocation.isOfficeLocation ? 'Office Premises' : 'WFH'} (±{currentLocation.accuracy}m)
                     </Badge>
                   )}
                   <Button
@@ -468,15 +487,20 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
                   onClick={() => handleOpenFaceModal('check-in')}
                   disabled={isOnShift || busy}
                   className={`flex-1 font-semibold text-white shadow-sm transition-all py-5 ${
-                    storedProfile
+                    isOnShift
+                      ? 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-75'
+                      : storedProfile
                       ? 'bg-indigo-600 hover:bg-indigo-700'
                       : 'bg-amber-600 hover:bg-amber-700'
                   }`}
+                  title={isOnShift ? 'You are already checked in. Please check out first before checking in again.' : undefined}
                 >
                   <ScanFace className="mr-2 h-4 w-4" />
-                  {storedProfile
+                  {isOnShift
+                    ? 'Already Checked In (Active on Shift)'
+                    : storedProfile
                     ? isCheckedOut
-                      ? 'Face ID Check In Again'
+                      ? 'Face ID Check In Again (New Session)'
                       : 'Face ID Check In'
                     : 'Initial Face Scan & Check In'}
                 </Button>
@@ -484,9 +508,19 @@ export function TodayAttendanceCard({ employeeId, className }: TodayAttendanceCa
                   variant="secondary"
                   onClick={() => handleOpenFaceModal('check-out')}
                   disabled={!isOnShift || busy}
-                  className="flex-1 font-semibold border hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 dark:hover:bg-rose-950/30 dark:hover:text-rose-300 transition-colors py-5"
+                  className={`flex-1 font-semibold border transition-colors py-5 ${
+                    !isOnShift
+                      ? 'opacity-60 cursor-not-allowed text-muted-foreground'
+                      : 'hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 dark:hover:bg-rose-950/30 dark:hover:text-rose-300'
+                  }`}
+                  title={!isOnShift ? (isCheckedOut ? 'Already checked out for today. Check in first.' : 'Check-in is required before checking out.') : undefined}
                 >
-                  <LogOut className="mr-2 h-4 w-4" /> Face ID Check Out
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {!isOnShift
+                    ? isCheckedOut
+                      ? 'Already Checked Out'
+                      : 'Check In Required First'
+                    : 'Face ID Check Out'}
                 </Button>
               </div>
 

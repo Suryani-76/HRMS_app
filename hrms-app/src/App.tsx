@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
@@ -7,6 +8,7 @@ import { router } from '@/router'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { SetupScreen } from '@/components/setup-screen'
 import { ErrorBoundary } from '@/components/shared/error-boundary'
+import { triggerAdminSync } from '@/lib/api/admin-db-sync'
 
 import { LaptopAutoCheckoutMonitor } from '@/components/shared/laptop-auto-checkout-monitor'
 
@@ -21,6 +23,9 @@ const queryClient = new QueryClient({
 })
 
 export default function App() {
+  useEffect(() => {
+    triggerAdminSync()
+  }, [])
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

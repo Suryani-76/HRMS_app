@@ -580,17 +580,77 @@ export async function deleteAnnouncement(id: string) {
 // ---------- Notifications ----------
 export async function fetchNotifications(limit = 30) {
   const { data: session } = await supabase.auth.getSession()
-  const uid = session.session?.user.id
-  if (!uid) return []
+  let uid = session.session?.user?.id ?? null
+  let userEmail = session.session?.user?.email?.toLowerCase().trim() ?? null
+  let employeeId: string | null = null
+  let roleName = ''
 
-  // Resolve employee_id and role for this user so we can match employee-addressed notifications
-  const { data: profile } = await supabase
-    .from('users')
-    .select('employee_id, role:roles(name)')
-    .eq('id', uid)
-    .single()
-  const employeeId = profile?.employee_id ?? null
-  const roleName = ((profile as any)?.role?.name ?? '').toUpperCase()
+  // Fallback for simulated or local admin session
+  if (!uid) {
+    const saved = localStorage.getItem('oklut_admin_session')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        uid = parsed?.user?.id || parsed?.user?.auth_id || null
+        userEmail = parsed?.user?.email?.toLowerCase().trim() || null
+        employeeId = parsed?.employee?.id || parsed?.user?.employee_id || null
+        roleName = ((parsed?.user?.role?.name || '') as string).toUpperCase()
+      } catch {}
+    }
+  }
+
+  // Resolve employee_id and role from database
+  if (uid || userEmail) {
+    try {
+      const orCondition = [
+        uid ? `id.eq.${uid}` : null,
+        uid ? `auth_id.eq.${uid}` : null,
+        userEmail ? `email.ilike.${userEmail}` : null,
+      ]
+        .filter(Boolean)
+        .join(',')
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('id, employee_id, role:roles(name)')
+        .or(orCondition)
+        .maybeSingle()
+
+      if (profile) {
+        if (!employeeId && profile.employee_id) {
+          employeeId = profile.employee_id
+        }
+        if (!roleName && (profile as any)?.role?.name) {
+          roleName = String((profile as any).role.name).toUpperCase()
+        }
+      }
+
+      // If employee_id still not resolved, query employees table
+      if (!employeeId && (uid || userEmail)) {
+        const empOr = [
+          uid ? `user_id.eq.${uid}` : null,
+          uid ? `id.eq.${uid}` : null,
+          userEmail ? `email.ilike.${userEmail}` : null,
+        ]
+          .filter(Boolean)
+          .join(',')
+
+        const { data: empDirect } = await supabase
+          .from('employees')
+          .select('id')
+          .or(empOr)
+          .maybeSingle()
+
+        if (empDirect?.id) {
+          employeeId = empDirect.id
+        }
+      }
+    } catch (profileErr) {
+      console.warn('fetchNotifications profile resolution notice:', profileErr)
+    }
+  }
+
+  if (!uid && !employeeId) return []
 
   let query = supabase
     .from('notifications')
@@ -598,9 +658,11 @@ export async function fetchNotifications(limit = 30) {
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (employeeId) {
+  if (employeeId && uid) {
     query = query.or(`user_id.eq.${uid},employee_id.eq.${employeeId},user_id.is.null`)
-  } else {
+  } else if (employeeId) {
+    query = query.or(`employee_id.eq.${employeeId},user_id.is.null`)
+  } else if (uid) {
     query = query.or(`user_id.eq.${uid},user_id.is.null`)
   }
 
@@ -608,21 +670,110 @@ export async function fetchNotifications(limit = 30) {
   if (error) throw error
   let items = (data ?? []) as Notification[]
 
-  // Security & visibility filtering:
-  // - When an employee applies for leave, the notification is visible ONLY to HR's and Admin portal (never to regular employees).
-  // - When an HR applies for leave, the notification is visible ONLY to Admin portal.
-  if (roleName !== 'ADMIN' && roleName !== 'HR') {
-    // Regular employees must NOT see leave request notifications
-    items = items.filter((n) => !n.title?.toLowerCase().includes('new leave request'))
-  } else if (roleName === 'HR') {
-    // HR only sees leave request notifications explicitly addressed to them (user_id === uid)
-    items = items.filter((n) => {
-      if (n.title?.toLowerCase().includes('new leave request')) {
-        return n.user_id === uid
+  const currentEmpId = employeeId ? String(employeeId).toLowerCase() : null
+  const currentUid = uid ? String(uid).toLowerCase() : null
+
+  // Query actual leave requests submitted by this employee to verify genuine applications
+  let appliedLeaves: { start_date: string; end_date: string }[] = []
+  if (employeeId) {
+    try {
+      const { data: lData } = await supabase
+        .from('leave_requests')
+        .select('start_date, end_date')
+        .eq('employee_id', employeeId)
+      if (lData) {
+        appliedLeaves = lData
       }
-      return true
-    })
+    } catch {}
   }
+
+  // Strict privacy and recipient verification:
+  items = items.filter((n) => {
+    const notifEmpId = n.employee_id ? String(n.employee_id).toLowerCase() : null
+    const notifUserId = n.user_id ? String(n.user_id).toLowerCase() : null
+    const titleLower = (n.title || '').toLowerCase()
+    const msgLower = (n.message || '').toLowerCase()
+
+    // 1. Leave Approval / Rejection notifications:
+    // MUST ONLY be shown to the employee who actually applied for that leave!
+    const isLeaveStatusNotification =
+      titleLower.includes('leave request approved') ||
+      titleLower.includes('leave request rejected') ||
+      msgLower.includes('your leave request for') ||
+      msgLower.includes('leave request for')
+
+    if (isLeaveStatusNotification) {
+      // Must explicitly match this employee's ID or user ID
+      const matchesEmp = Boolean(currentEmpId && notifEmpId && notifEmpId === currentEmpId)
+      const matchesUser = Boolean(currentUid && notifUserId && notifUserId === currentUid)
+
+      if (!matchesEmp && !matchesUser) {
+        // Current user is NOT the applicant who applied for this leave!
+        return false
+      }
+
+      // Check against actual applied leave requests:
+      // If the employee never applied for leave, or has no leave matching the dates mentioned in the notification,
+      // reject this notification as it does not belong to any leave applied by the user!
+      if (appliedLeaves.length === 0) {
+        // Asynchronously clean up the orphan notification from the DB
+        supabase.from('notifications').delete().eq('id', n.id).then(() => {}).catch(() => {})
+        return false
+      }
+
+      const hasMatchingLeave = appliedLeaves.some(
+        (l) => (l.start_date && msgLower.includes(l.start_date)) || (l.end_date && msgLower.includes(l.end_date))
+      )
+      if (!hasMatchingLeave) {
+        supabase.from('notifications').delete().eq('id', n.id).then(() => {}).catch(() => {})
+        return false
+      }
+    }
+
+    // 2. Personal employee notifications (addressed by employee_id):
+    if (notifEmpId) {
+      if (!currentEmpId || notifEmpId !== currentEmpId) {
+        return false
+      }
+    }
+
+    // 3. Personal user notifications (addressed by user_id):
+    if (notifUserId) {
+      if (!currentUid || notifUserId !== currentUid) {
+        return false
+      }
+    }
+
+    // 4. Leave Request applied notifications (for approval):
+    // - Visible ONLY to HR and Admin
+    // - Regular employees must NEVER see it
+    if (titleLower.includes('new leave request')) {
+      if (roleName !== 'ADMIN' && roleName !== 'HR') {
+        return false
+      }
+      if (roleName === 'HR') {
+        return notifUserId === currentUid || !notifUserId
+      }
+    }
+
+    // 5. Broadcast notifications (both user_id and employee_id are null):
+    // Only allow general broadcast announcements, NEVER personal employee updates!
+    if (!notifUserId && !notifEmpId) {
+      if (isLeaveStatusNotification) {
+        return false
+      }
+      const isGeneralBroadcast =
+        titleLower.includes('announcement') ||
+        titleLower.includes('holiday') ||
+        (n.link && (n.link.startsWith('/announcements') || n.link.startsWith('/holidays')))
+
+      if (!isGeneralBroadcast) {
+        return false
+      }
+    }
+
+    return true
+  })
 
   return items
 }
@@ -634,24 +785,68 @@ export async function markNotificationRead(id: string) {
 
 export async function markAllNotificationsRead() {
   const { data: session } = await supabase.auth.getSession()
-  const uid = session.session?.user.id
+  let uid = session.session?.user?.id ?? null
+  if (!uid) {
+    const saved = localStorage.getItem('oklut_admin_session')
+    if (saved) {
+      try {
+        uid = JSON.parse(saved)?.user?.id ?? null
+      } catch {}
+    }
+  }
   if (!uid) return
 
   const { data: profile } = await supabase
     .from('users')
     .select('employee_id')
-    .eq('id', uid)
-    .single()
+    .or(`id.eq.${uid},auth_id.eq.${uid}`)
+    .maybeSingle()
   const employeeId = profile?.employee_id ?? null
 
   const filter = employeeId
-    ? `user_id.eq.${uid},employee_id.eq.${employeeId},user_id.is.null`
-    : `user_id.eq.${uid},user_id.is.null`
+    ? `user_id.eq.${uid},employee_id.eq.${employeeId}`
+    : `user_id.eq.${uid}`
 
   const { error } = await supabase
     .from('notifications')
     .update({ is_read: true })
     .or(filter)
     .eq('is_read', false)
+  if (error) throw error
+}
+
+export async function deleteNotification(id: string) {
+  const { error } = await supabase.from('notifications').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function clearAllNotifications() {
+  const { data: session } = await supabase.auth.getSession()
+  let uid = session.session?.user?.id ?? null
+  if (!uid) {
+    const saved = localStorage.getItem('oklut_admin_session')
+    if (saved) {
+      try {
+        uid = JSON.parse(saved)?.user?.id ?? null
+      } catch {}
+    }
+  }
+  if (!uid) return
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('employee_id')
+    .or(`id.eq.${uid},auth_id.eq.${uid}`)
+    .maybeSingle()
+  const employeeId = profile?.employee_id ?? null
+
+  const filter = employeeId
+    ? `user_id.eq.${uid},employee_id.eq.${employeeId}`
+    : `user_id.eq.${uid}`
+
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .or(filter)
   if (error) throw error
 }

@@ -273,6 +273,72 @@ export const NON_IT_ASSESSMENT_TEMPLATE: Omit<AssessmentItem, 'goalReached'>[] =
   },
 ]
 
+/**
+ * Automatically classifies an employee or candidate into 'IT' or 'NON_IT'
+ * based on their designation, role, department, and employee code.
+ */
+export function getEmployeeCategory(employee: any): TrackType {
+  if (!employee) return 'IT'
+
+  const desigName = (
+    (employee.designation?.name ||
+      employee.designation?.title ||
+      employee.role ||
+      employee.title ||
+      '') as string
+  ).toLowerCase()
+
+  const deptName = (employee.department?.name || '').toLowerCase()
+  const deptCode = (employee.department?.code || '').toLowerCase()
+  const roleName = ((employee.role?.name || employee.role_id || '') as string).toLowerCase()
+  const empCode = (employee.employee_code || '').toLowerCase()
+
+  // 1. Explicit IT keywords in designation
+  const itDesigKeywords = [
+    'software', 'developer', 'engineer', 'frontend', 'backend', 'full stack', 'fullstack',
+    'devops', 'cloud', 'qa', 'quality assurance', 'tester', 'test', 'architect', 'data engineer',
+    'data scientist', 'machine learning', 'ai engineer', 'cyber', 'security engineer', 'network',
+    'system admin', 'sysadmin', 'database', 'dba', 'programmer', 'coder', 'tech lead', 'technical',
+    'sap', 'salesforce', 'ui/ux', 'ui designer', 'ux designer', 'web developer', 'it support',
+    'solution architect', 'lead engineer', 'consultant', 'tech'
+  ]
+
+  // 2. Explicit Non-IT keywords in designation
+  const nonItDesigKeywords = [
+    'hr', 'human resource', 'recruiter', 'talent', 'sales', 'business development', 'bde',
+    'marketing', 'content', 'copywriter', 'seo', 'finance', 'accountant', 'accounts',
+    'auditor', 'operations', 'admin', 'administrative', 'office manager', 'facility', 'legal',
+    'counselor', 'executive assistant', 'receptionist', 'customer care', 'customer service',
+    'customer support', 'payroll', 'billing', 'financial', 'clerk', 'cashier'
+  ]
+
+  // Priority 1: Check designation
+  if (itDesigKeywords.some((k) => desigName.includes(k))) return 'IT'
+  if (nonItDesigKeywords.some((k) => desigName.includes(k))) return 'NON_IT'
+
+  // Priority 2: Check department
+  const itDeptKeywords = [
+    'tech', 'it', 'information technology', 'software', 'eng', 'engineering', 'development',
+    'dev', 'infra', 'infrastructure', 'cyber', 'security', 'rnd', 'r&d', 'data', 'qa', 'design'
+  ]
+  const nonItDeptKeywords = [
+    'hr', 'human resource', 'sales', 'marketing', 'fin', 'finance', 'account', 'ops',
+    'operation', 'operations', 'admin', 'administration', 'legal', 'support', 'business'
+  ]
+
+  if (itDeptKeywords.some((k) => deptName.includes(k) || deptCode.includes(k))) return 'IT'
+  if (nonItDeptKeywords.some((k) => deptName.includes(k) || deptCode.includes(k))) return 'NON_IT'
+
+  // Priority 3: Employee code (e.g. OKL-TECH-..., OKL-ENG-..., OKL-SAL-..., OKL-HR-...)
+  if (empCode.includes('tech') || empCode.includes('eng') || empCode.includes('dev') || empCode.includes('it')) return 'IT'
+  if (empCode.includes('sal') || empCode.includes('hr') || empCode.includes('mkt') || empCode.includes('fin') || empCode.includes('ops')) return 'NON_IT'
+
+  // Priority 4: Role
+  if (roleName.includes('hr') || roleName.includes('recruiter')) return 'NON_IT'
+
+  return 'IT'
+}
+
 export function getTemplateForTrack(track: TrackType): AssessmentItem[] {
   const source = track === 'IT' ? IT_ASSESSMENT_TEMPLATE : NON_IT_ASSESSMENT_TEMPLATE
   return source.map((item) => ({
@@ -359,6 +425,140 @@ function persistAssessments(data: Record<string, EmployeeAssessment>) {
   }
 }
 
+function mapDbToAssessment(row: any, fallbackKey: string): EmployeeAssessment {
+  return {
+    id: row.id || fallbackKey,
+    employeeId: row.employee_id,
+    employeeName: row.employee_name || 'Employee',
+    employeeCode: row.employee_code || 'EMP',
+    role: row.role || 'Software Engineer',
+    department: row.department || 'Technology',
+    track: (row.track as TrackType) || 'IT',
+    reviewPeriod: row.review_period,
+    status: row.status || 'draft',
+    items: Array.isArray(row.items) ? row.items : [],
+    totalGoalsReached: row.total_goals_reached || 0,
+    totalGoalsCount: row.total_goals_count || 14,
+    overallScore: row.overall_score != null ? Number(row.overall_score) : undefined,
+    overallPercentage: row.overall_percentage != null ? Number(row.overall_percentage) : undefined,
+    performanceBand: row.performance_band || undefined,
+    reviewerId: row.reviewer_id || undefined,
+    reviewerName: row.reviewer_name || undefined,
+    reviewerFeedback: row.reviewer_feedback || undefined,
+    submittedAt: row.submitted_at || undefined,
+    reviewedAt: row.reviewed_at || undefined,
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  }
+}
+
+export function createSampleCandidateAssessment(
+  employeeId: string = '00000000-0000-0000-0000-000000000020',
+  employeeName: string = 'Meera Sharma',
+  employeeCode: string = 'EMP-0002',
+  track: TrackType = 'IT',
+  period: string = 'Q4 2026'
+): EmployeeAssessment {
+  const key = buildAssessmentId(employeeId, track, period)
+  const template = getTemplateForTrack(track)
+
+  const sampleResponses: Record<number, { comment: string; evidence: string }> = {
+    1: {
+      comment: 'Enforced TypeScript strict mode and clean architecture. Conducted 18 peer code reviews with zero SonarQube blocker issues.',
+      evidence: 'PR #142, PR #168, PR #189 (GitHub)',
+    },
+    2: {
+      comment: 'Delivered all sprint commitments for Sprint 18 to 24 with 98% on-time velocity and zero scope spillover.',
+      evidence: 'JIRA Sprint Burndown & Velocity Dashboard',
+    },
+    3: {
+      comment: 'Diagnosed and fixed real-time WebSocket memory leak in attendance notification service, reducing client disconnects by 42%.',
+      evidence: 'Bug ticket PROD-1092 & Post-mortem doc',
+    },
+    4: {
+      comment: 'Coordinated actively across frontend and backend squads. Mentored 2 junior engineers during onboarding.',
+      evidence: 'Slack #eng-frontend & Confluence KT Notes',
+    },
+    5: {
+      comment: 'Completed TanStack Query v5 and Tailwind CSS component architecture training and implemented optimistic cache updates.',
+      evidence: 'Certificate ID: TSTK-84920',
+    },
+    6: {
+      comment: 'Took end-to-end responsibility for the Payslip PDF & Barcode generator feature from requirements to deployment.',
+      evidence: 'Feature Epic FEAT-301 in JIRA',
+    },
+    7: {
+      comment: 'Maintained zero P1/P2 production regressions across all 6 releases this quarter with automated test gates.',
+      evidence: 'QA Release Sign-off Reports',
+    },
+    8: {
+      comment: 'Implemented security hardening on authentication sessions and input sanitization across candidate forms.',
+      evidence: 'Security Audit SARIF Report',
+    },
+    9: {
+      comment: 'Wrote unit and integration test suites achieving 88% branch coverage on core payroll and attendance calculators.',
+      evidence: 'Vitest Coverage Report (88.4%)',
+    },
+    10: {
+      comment: 'Proposed and implemented client-side state caching reducing redundant API queries by 35%.',
+      evidence: 'Architecture RFC-04 in Confluence',
+    },
+    11: {
+      comment: 'Documented all public API contracts, component props and deployment steps in markdown docs.',
+      evidence: 'docs/api-and-interface-design.md',
+    },
+  }
+
+  const items = template.map((item) => {
+    const sample = sampleResponses[item.id]
+    if (sample) {
+      return {
+        ...item,
+        goalReached: true,
+        selfRating: 4,
+        employeeComment: sample.comment,
+        evidenceSource: sample.evidence,
+        reviewerComment: '',
+        reviewerRating: undefined,
+        weightedScore: 0,
+      }
+    }
+    return {
+      ...item,
+      goalReached: false,
+      selfRating: undefined,
+      employeeComment: '',
+      evidenceSource: '',
+      reviewerComment: '',
+      reviewerRating: undefined,
+      weightedScore: 0,
+    }
+  })
+
+  const metrics = calculateAssessmentMetrics(items)
+
+  return {
+    id: key,
+    employeeId,
+    employeeName,
+    employeeCode,
+    role: track === 'IT' ? 'Software Engineer' : 'Operations Specialist',
+    department: track === 'IT' ? 'Information Technology' : 'Operations',
+    track,
+    reviewPeriod: period,
+    status: 'submitted',
+    submittedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    items,
+    totalGoalsReached: metrics.totalGoalsReached,
+    totalGoalsCount: metrics.totalGoalsCount,
+    overallScore: metrics.overallScore,
+    overallPercentage: metrics.overallPercentage,
+    performanceBand: metrics.performanceBand,
+    createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+}
+
 export function buildAssessmentId(employeeId: string, track: TrackType, period: string): string {
   return `${employeeId}_${track}_${period}`
 }
@@ -374,6 +574,24 @@ export function getEmployeeAssessment(
 
   if (store[key]) {
     return store[key]
+  }
+
+  // Pre-seed sample candidate submission for Meera Sharma so HR immediately sees a submitted assessment with checked goals and comments
+  if (
+    employeeId === '00000000-0000-0000-0000-000000000020' ||
+    employeeDetails?.code === 'EMP-0002' ||
+    (employeeDetails?.name && employeeDetails.name.toLowerCase().includes('meera'))
+  ) {
+    const sample = createSampleCandidateAssessment(
+      employeeId,
+      employeeDetails?.name || 'Meera Sharma',
+      employeeDetails?.code || 'EMP-0002',
+      track,
+      period
+    )
+    store[key] = sample
+    persistAssessments(store)
+    return sample
   }
 
   // Create new blank assessment
@@ -405,6 +623,78 @@ export function getEmployeeAssessment(
   return newAssessment
 }
 
+export async function fetchEmployeeAssessmentRemote(
+  employeeId: string,
+  track: TrackType = 'IT',
+  period: string = 'Q4 2026',
+  employeeDetails?: { name?: string | null; code?: string | null; role?: string | null; department?: string | null }
+): Promise<EmployeeAssessment> {
+  const key = buildAssessmentId(employeeId, track, period)
+  const store = getStoredAssessments()
+
+  // 1. Try Supabase remote table first
+  try {
+    if (employeeId) {
+      const { data, error } = await supabase
+        .from('employee_assessments')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .eq('review_period', period)
+        .maybeSingle()
+
+      if (!error && data && data.items && Array.isArray(data.items) && data.items.length > 0) {
+        const remote = mapDbToAssessment(data, key)
+        store[key] = remote
+        persistAssessments(store)
+        return remote
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch remote assessment from Supabase:', err)
+  }
+
+  // 2. Return local storage if present
+  if (store[key]) {
+    return store[key]
+  }
+
+  // 3. Fallback to template or sample
+  return getEmployeeAssessment(employeeId, track, period, employeeDetails)
+}
+
+export async function fetchAllEmployeeAssessmentsRemote(): Promise<EmployeeAssessment[]> {
+  try {
+    const { data, error } = await supabase
+      .from('employee_assessments')
+      .select('*')
+      .order('updated_at', { ascending: false })
+
+    if (!error && data && data.length > 0) {
+      const store = getStoredAssessments()
+      const remoteList = data.map((row: any) => {
+        const key = buildAssessmentId(row.employee_id, row.track || 'IT', row.review_period)
+        const mapped = mapDbToAssessment(row, key)
+        store[key] = mapped
+        return mapped
+      })
+      persistAssessments(store)
+      return remoteList
+    }
+  } catch (err) {
+    console.warn('Failed to fetch all remote employee assessments:', err)
+  }
+
+  // Ensure sample for Meera Sharma exists in store
+  const meeraKey = buildAssessmentId('00000000-0000-0000-0000-000000000020', 'IT', 'Q4 2026')
+  const store = getStoredAssessments()
+  if (!store[meeraKey]) {
+    store[meeraKey] = createSampleCandidateAssessment()
+    persistAssessments(store)
+  }
+
+  return Object.values(store)
+}
+
 export function getAllEmployeeAssessments(): EmployeeAssessment[] {
   const store = getStoredAssessments()
   return Object.values(store)
@@ -427,9 +717,9 @@ export async function saveAssessmentDraft(assessment: EmployeeAssessment): Promi
   persistAssessments(store)
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
-    if (isUuid) {
+    if (assessment.employeeId) {
       await supabase.from('employee_assessments').upsert({
+        id: assessment.id,
         employee_id: assessment.employeeId,
         employee_name: assessment.employeeName,
         employee_code: assessment.employeeCode,
@@ -474,9 +764,9 @@ export async function submitAssessmentForReview(assessment: EmployeeAssessment):
 
   // Direct Supabase employee_assessments persistence
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
-    if (isUuid) {
+    if (assessment.employeeId) {
       await supabase.from('employee_assessments').upsert({
+        id: assessment.id,
         employee_id: assessment.employeeId,
         employee_name: assessment.employeeName,
         employee_code: assessment.employeeCode,
@@ -499,18 +789,59 @@ export async function submitAssessmentForReview(assessment: EmployeeAssessment):
     console.warn('Supabase assessment submit notice:', err)
   }
 
-  // Try sync with supabase performance_reviews if possible
+  // Sync with Supabase performance_reviews table (upsert or update existing)
   try {
-    await supabase.from('performance_reviews').insert({
-      employee_id: assessment.employeeId,
-      period: assessment.reviewPeriod,
-      goals: `Assessment Sheet (${assessment.track}): ${metrics.totalGoalsReached}/${metrics.totalGoalsCount} goals reached (${metrics.reachedWeight}%)`,
-      status: 'submitted',
-      comments: `Candidate self-assessment submitted with ${metrics.totalGoalsReached} reached goals.`,
-    })
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
+    if (isUuid) {
+      const { data: existingRev } = await supabase
+        .from('performance_reviews')
+        .select('id')
+        .eq('employee_id', assessment.employeeId)
+        .eq('period', assessment.reviewPeriod)
+        .maybeSingle()
+
+      if (existingRev?.id) {
+        await supabase
+          .from('performance_reviews')
+          .update({
+            status: 'submitted',
+            goals: `Assessment Sheet (${assessment.track}): ${metrics.totalGoalsReached}/${metrics.totalGoalsCount} goals reached (${metrics.reachedWeight}%)`,
+            comments: `Candidate self-assessment submitted with ${metrics.totalGoalsReached} reached goals.`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingRev.id)
+      } else {
+        await supabase
+          .from('performance_reviews')
+          .insert({
+            employee_id: assessment.employeeId,
+            period: assessment.reviewPeriod,
+            goals: `Assessment Sheet (${assessment.track}): ${metrics.totalGoalsReached}/${metrics.totalGoalsCount} goals reached (${metrics.reachedWeight}%)`,
+            status: 'submitted',
+            comments: `Candidate self-assessment submitted with ${metrics.totalGoalsReached} reached goals.`,
+          })
+      }
+    }
   } catch (err) {
-    console.warn('Optional Supabase performance review sync skipped:', err)
+    console.warn('Supabase performance review sync notice:', err)
   }
+
+  // Create organization notification for HR and CEO review
+  try {
+    await supabase.from('notifications').insert({
+      title: 'Performance Review Submitted',
+      message: `${assessment.employeeName} (${assessment.employeeCode}) has submitted their ${assessment.reviewPeriod} Performance Review (${assessment.track} Track) awaiting evaluation.`,
+      type: 'info',
+      link: '/performance',
+    })
+  } catch {}
+
+  // Dispatch global event for live tab updates
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hrms_review_submitted', { detail: updated }))
+    }
+  } catch {}
 
   return updated
 }
@@ -543,9 +874,9 @@ export async function submitReviewerGrading(
 
   // Direct Supabase employee_assessments persistence for reviewed status
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.employeeId)
-    if (isUuid) {
+    if (assessment.employeeId) {
       await supabase.from('employee_assessments').upsert({
+        id: assessment.id,
         employee_id: assessment.employeeId,
         employee_name: assessment.employeeName,
         employee_code: assessment.employeeCode,

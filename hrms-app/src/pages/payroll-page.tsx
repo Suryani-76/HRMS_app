@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
   AlertTriangle,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -37,6 +38,7 @@ import { queryKeys } from '@/lib/queryKeys'
 import {
   usePayroll,
   usePayrollProfiles,
+  useEmployees,
   useGeneratePayroll,
   useUpdatePayrollStatus,
   useClearPayroll,
@@ -45,7 +47,9 @@ import {
 import { formatCurrency, currentPayPeriod, monthName } from '@/lib/format'
 import { downloadPayslipPdf } from '@/lib/payslip-pdf'
 import { PayslipDocumentSheet } from '@/components/payroll/payslip-document-sheet'
-import type { Payroll, PayrollProfile } from '@/lib/database.types'
+import { ExcelPayrollImportModal } from '@/components/payroll/excel-payroll-import-modal'
+import { downloadPayrollTemplate } from '@/lib/payroll-excel'
+import type { Payroll, PayrollProfile, Employee } from '@/lib/database.types'
 
 function ProfileEditor({
   profile,
@@ -184,6 +188,7 @@ export default function PayrollPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const { data: payroll = [], isLoading, isError, refetch } = usePayroll(period)
   const { data: profiles = [] } = usePayrollProfiles()
+  const { data: employees = [] } = useEmployees()
   const generate = useGeneratePayroll()
   const updateStatus = useUpdatePayrollStatus()
   const clearPayrollMutation = useClearPayroll()
@@ -192,6 +197,7 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<PayrollProfile | null>(null)
   const [confirmGenerate, setConfirmGenerate] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [excelModalOpen, setExcelModalOpen] = useState(false)
   const [selectedPayslip, setSelectedPayslip] = useState<Payroll | null>(null)
 
   // Current month's payroll rows
@@ -236,7 +242,24 @@ export default function PayrollPage() {
         title="Payroll"
         description={`Processing payroll for ${monthName(period)}.`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadPayrollTemplate(employees, profiles, period)}
+              className="gap-1.5 text-xs text-slate-700 hover:text-slate-900 border-slate-300"
+              title="Download empty or pre-filled Excel template"
+            >
+              <Download className="h-3.5 w-3.5 text-slate-600" />
+              Download Template
+            </Button>
+            <Button
+              onClick={() => setExcelModalOpen(true)}
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Upload Excel Sheet
+            </Button>
             {periodPayroll.length > 0 && (
               <Button
                 variant="destructive"
@@ -252,13 +275,18 @@ export default function PayrollPage() {
                 Clear Payroll
               </Button>
             )}
-            <Button onClick={() => setConfirmGenerate(true)} disabled={generate.isPending} className="gap-1.5">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmGenerate(true)}
+              disabled={generate.isPending}
+              className="gap-1.5"
+            >
               {generate.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Generate Payroll
+              Generate from Profiles
             </Button>
           </div>
         }
@@ -344,12 +372,31 @@ export default function PayrollPage() {
       ) : periodPayroll.length === 0 ? (
         <EmptyState
           title={`No payroll for ${monthName(period)}`}
-          description="Click 'Generate Payroll' to compute salaries for this period."
+          description="Upload your monthly Excel salary sheet to automatically compute and generate the payroll, or click 'Generate from profiles'."
           icon={Banknote}
         >
-          <Button onClick={() => setConfirmGenerate(true)} disabled={generate.isPending}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Generate now
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-3">
+            <Button
+              onClick={() => setExcelModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> Upload Excel Sheet
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => downloadPayrollTemplate(employees, profiles, period)}
+              className="gap-1.5"
+            >
+              <Download className="h-4 w-4" /> Download Template
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmGenerate(true)}
+              disabled={generate.isPending}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" /> Generate from profiles
+            </Button>
+          </div>
         </EmptyState>
       ) : filteredPayroll.length === 0 ? (
         <div className="rounded-xl border bg-card p-8 text-center">
@@ -592,6 +639,20 @@ export default function PayrollPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excel Monthly Payroll Auto-Generator Modal */}
+      <ExcelPayrollImportModal
+        open={excelModalOpen}
+        onOpenChange={setExcelModalOpen}
+        currentPeriod={period}
+        employees={employees}
+        profiles={profiles}
+        onSuccess={(targetP) => {
+          if (targetP && targetP !== period) {
+            setPeriod(targetP)
+          }
+        }}
+      />
     </div>
   )
 }

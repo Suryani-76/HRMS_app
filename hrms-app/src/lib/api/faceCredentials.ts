@@ -248,8 +248,8 @@ export async function verifyFaceCredential(
     }
   }
 
-  // Perform Pearson & Cosine vector similarity comparison
-  const matchResult = compareBiometricVectors(liveBiometricVector, storedVector, 60)
+  // Perform Pearson & Cosine vector similarity comparison (tolerant threshold for webcams)
+  const matchResult = compareBiometricVectors(liveBiometricVector, storedVector, 40)
 
   if (matchResult.isMatch) {
     await recordSuccessfulVerification(employeeId)

@@ -11,6 +11,8 @@ import {
   generateFullAssetBarcodeText,
   extractEmployeeNumber,
 } from '@/lib/barcode'
+import { decodeBarcodeOrQrFromBlob, extractAssetCodeFromText } from '@/lib/qr-decoder'
+import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -27,6 +29,7 @@ import {
   Printer,
   ExternalLink,
   QrCode,
+  Upload,
 } from 'lucide-react'
 
 export default function AssetVerifyPage() {
@@ -55,11 +58,12 @@ export default function AssetVerifyPage() {
 
   // Lookup function by laptop number, employee code, or sequence
   const lookupAsset = async (queryCode: string) => {
-    const raw = queryCode.trim()
+    const cleanCode = extractAssetCodeFromText(queryCode)
+    const raw = (cleanCode || queryCode).trim()
     if (!raw) return
 
     setLoading(true)
-    setSearchedCode(raw)
+    setSearchedCode(cleanCode || raw)
 
     try {
       // 1. First search Supabase employees table
@@ -77,11 +81,14 @@ export default function AssetVerifyPage() {
           const email = (emp.email || '').toLowerCase()
           const name = `${emp.first_name} ${emp.last_name}`.toLowerCase()
           const q = raw.toLowerCase()
+          const cleanQ = (cleanCode || '').toLowerCase()
 
-          if (lp === q || code === q || email === q || name.includes(q)) return true
+          if (lp === q || code === q || email === q || (cleanQ && (lp === cleanQ || code === cleanQ))) return true
+          if (q.includes(lp) || (code && q.includes(code))) return true
+          if (name.includes(q) || (cleanQ && name.includes(cleanQ))) return true
           // Match sequence number (e.g. 136)
           const num = extractEmployeeNumber(emp.employee_code)
-          if (q.endsWith(String(num)) || q === String(num)) return true
+          if (q.endsWith(String(num)) || q === String(num) || (cleanQ && (cleanQ.endsWith(String(num)) || cleanQ === String(num)))) return true
           return false
         }) || null
       }
@@ -188,6 +195,32 @@ export default function AssetVerifyPage() {
     }
   }
 
+  // Handle uploaded QR code or barcode image
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    const toastId = toast.loading('Analyzing image for QR code or barcode...')
+    try {
+      const detected = await decodeBarcodeOrQrFromBlob(file)
+      if (detected && detected.trim()) {
+        toast.dismiss(toastId)
+        const assetCode = extractAssetCodeFromText(detected)
+        setInputCode(assetCode || detected.trim())
+        setSearchParams({ code: assetCode || detected.trim() })
+        lookupAsset(detected.trim())
+        toast.success(`Decoded: ${assetCode || detected.trim()}`)
+        return
+      }
+    } catch (err: any) {
+      console.warn('Verify page image decode error:', err)
+    }
+
+    toast.dismiss(toastId)
+    toast.error('Could not detect a QR code or barcode in this image. Please ensure the code is clear or type manually.')
+  }
+
   // Print asset sticker
   const handlePrint = () => {
     if (!assetDetails) return
@@ -270,6 +303,18 @@ export default function AssetVerifyPage() {
               <Button type="submit" disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold h-11 px-5 rounded-xl shadow-sm">
                 {loading ? 'Finding...' : 'Get Details'} <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
+              <label
+                className="cursor-pointer inline-flex items-center justify-center text-xs h-11 px-3.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 bg-white shadow-xs"
+                title="Upload QR Code or Barcode image"
+              >
+                <Upload className="h-4 w-4 text-indigo-600" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
             </div>
 
             {/* Quick Test Chips */}

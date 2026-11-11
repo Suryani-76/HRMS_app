@@ -21,6 +21,9 @@ import {
   Copy,
   Check,
   RotateCcw,
+  Plus,
+  Edit3,
+  UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'
@@ -54,13 +57,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import { Textarea } from '@/components/ui/textarea'
 
 export default function BankDetailsPage() {
@@ -97,15 +95,71 @@ export default function BankDetailsPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [, setLoadingEmployees] = useState(true)
 
+  // Dedicated HR Profile fallback if the logged-in HR/Admin user has no direct employee row
+  const hrAdminProfile: Employee = useMemo(() => {
+    if (employee) return employee
+    const isHr = userEmail.includes('hr') || roleName === 'hr'
+    return {
+      id: user?.id || (isHr ? 'hr-admin-self-account' : 'admin-self-account'),
+      employee_code: isHr ? 'OKL-HR-001' : 'OKL-ADM-001',
+      first_name: isHr ? 'HR' : 'Admin',
+      last_name: isHr ? 'Operations & Admin' : 'Executive',
+      email: userEmail || (isHr ? 'hr@oklut.com' : 'admin@oklut.com'),
+      phone: '+91 98450 10001',
+      branch: 'HQ - Corporate',
+      status: 'Active',
+      department: { id: 'dept-hr', name: isHr ? 'Human Resources' : 'Executive' } as any,
+      designation: { id: 'desig-hr-mgr', name: isHr ? 'HR Operations Manager' : 'System Administrator' } as any,
+      joining_date: '2023-01-01',
+      created_at: '2023-01-01T00:00:00.000Z',
+      updated_at: new Date().toISOString(),
+    } as Employee
+  }, [employee, user, userEmail, roleName])
+
   // Bank details records
   const [bankDetailsList, setBankDetailsList] = useState<EmployeeBankDetail[]>([])
   const [, setLoadingBankDetails] = useState(true)
 
   // Currently selected employee in Employee View
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('')
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(() => {
+    if (employee?.id) return employee.id
+    if (isHrOrAdmin) return 'hr-admin-self-account'
+    return ''
+  })
   const currentSelectedEmp = useMemo(() => {
-    return employees.find((e) => e.id === selectedEmployeeId) || null
-  }, [employees, selectedEmployeeId])
+    return employees.find((e) => e.id === selectedEmployeeId) || (isHrOrAdmin ? hrAdminProfile : null)
+  }, [employees, selectedEmployeeId, isHrOrAdmin, hrAdminProfile])
+
+  // Is current selected profile the logged in user themselves?
+  const isViewingSelf = useMemo(() => {
+    if (!currentSelectedEmp) return false
+    return (
+      currentSelectedEmp.id === hrAdminProfile.id ||
+      (employee?.id && currentSelectedEmp.id === employee.id) ||
+      (userEmail && currentSelectedEmp.email?.toLowerCase() === userEmail) ||
+      (employee?.employee_code && currentSelectedEmp.employee_code?.toLowerCase() === employee.employee_code?.toLowerCase())
+    )
+  }, [currentSelectedEmp, hrAdminProfile, employee, userEmail])
+
+  // Auto-verify toggle for HR when taking details for an employee
+  const [autoVerifyForPayroll, setAutoVerifyForPayroll] = useState(true)
+
+  // Take / Enter Bank Details Modal state for HR
+  const [takeModalOpen, setTakeModalOpen] = useState(false)
+  const [modalTargetEmpId, setModalTargetEmpId] = useState('')
+  const [modalAccountHolder, setModalAccountHolder] = useState('')
+  const [modalBankName, setModalBankName] = useState('HDFC Bank')
+  const [modalCustomBank, setModalCustomBank] = useState('')
+  const [modalAccountNo, setModalAccountNo] = useState('')
+  const [modalConfirmAccountNo, setModalConfirmAccountNo] = useState('')
+  const [modalIfsc, setModalIfsc] = useState('')
+  const [modalBranch, setModalBranch] = useState('')
+  const [modalAccType, setModalAccType] = useState<'Salary' | 'Savings' | 'Current'>('Salary')
+  const [modalUpi, setModalUpi] = useState('')
+  const [modalPan, setModalPan] = useState('')
+  const [modalDocName, setModalDocName] = useState('')
+  const [modalVerifyDirectly, setModalVerifyDirectly] = useState(true)
+  const [modalSubmitting, setModalSubmitting] = useState(false)
 
   // Form states for Employee View
   const [accountHolderName, setAccountHolderName] = useState('')
@@ -150,18 +204,26 @@ export default function BankDetailsPage() {
 
       if (!error && data) {
         const empList = data as Employee[]
-        setEmployees(empList)
+        const hasHrInList = empList.some(
+          (e) =>
+            e.id === hrAdminProfile.id ||
+            e.email?.toLowerCase() === hrAdminProfile.email?.toLowerCase() ||
+            (hrAdminProfile.employee_code && e.employee_code?.toLowerCase() === hrAdminProfile.employee_code.toLowerCase())
+        )
+        const combined = isHrOrAdmin && !hasHrInList ? [hrAdminProfile, ...empList] : empList
+        setEmployees(combined)
 
         // Find current logged-in employee record
         const myEmp =
-          (employee?.id && empList.find((e) => e.id === employee.id)) ||
-          empList.find((e) => e.email?.toLowerCase() === (user?.email || '').toLowerCase()) ||
-          (employee?.employee_code && empList.find((e) => e.employee_code?.toLowerCase() === employee.employee_code?.toLowerCase()))
+          (employee?.id && combined.find((e) => e.id === employee.id)) ||
+          combined.find((e) => e.email?.toLowerCase() === userEmail) ||
+          (employee?.employee_code && combined.find((e) => e.employee_code?.toLowerCase() === employee.employee_code?.toLowerCase())) ||
+          (isHrOrAdmin ? hrAdminProfile : combined[0])
 
         if (myEmp) {
           setSelectedEmployeeId(myEmp.id)
-        } else if (empList.length > 0 && !selectedEmployeeId) {
-          setSelectedEmployeeId(empList[0].id)
+        } else if (combined.length > 0 && !selectedEmployeeId) {
+          setSelectedEmployeeId(combined[0].id)
         }
       }
     } catch (err) {
@@ -176,13 +238,16 @@ export default function BankDetailsPage() {
     if (employees.length === 0) return
     const myEmp =
       (employee?.id && employees.find((e) => e.id === employee.id)) ||
-      employees.find((e) => e.email?.toLowerCase() === (user?.email || '').toLowerCase()) ||
-      (employee?.employee_code && employees.find((e) => e.employee_code?.toLowerCase() === employee.employee_code?.toLowerCase()))
+      employees.find((e) => e.email?.toLowerCase() === userEmail) ||
+      (employee?.employee_code && employees.find((e) => e.employee_code?.toLowerCase() === employee.employee_code?.toLowerCase())) ||
+      (isHrOrAdmin ? hrAdminProfile : null)
 
     if (!isHrOrAdmin && myEmp && selectedEmployeeId !== myEmp.id) {
       setSelectedEmployeeId(myEmp.id)
+    } else if (isHrOrAdmin && !selectedEmployeeId && myEmp) {
+      setSelectedEmployeeId(myEmp.id)
     }
-  }, [employees, employee, user, isHrOrAdmin, selectedEmployeeId])
+  }, [employees, employee, userEmail, isHrOrAdmin, hrAdminProfile, selectedEmployeeId])
 
   // Load all bank details
   const loadBankDetails = async () => {
@@ -277,6 +342,14 @@ export default function BankDetailsPage() {
       ) || null
     )
   }, [currentSelectedEmp, bankDetailsList])
+
+  // Selectable employees list with HR profile on top
+  const selectableBankEmployees = useMemo(() => {
+    return [
+      hrAdminProfile,
+      ...employees.filter((e) => e.id !== hrAdminProfile.id)
+    ]
+  }, [hrAdminProfile, employees])
 
   // Input limitation handlers
   const handleAccountHolderNameChange = (val: string) => {
@@ -405,6 +478,12 @@ export default function BankDetailsPage() {
     setSubmittingForm(true)
     try {
       const fullName = `${currentSelectedEmp.first_name || ''} ${currentSelectedEmp.last_name || ''}`.trim()
+      const isSelf = isViewingSelf
+      const statusToSet: 'verified' | 'pending' = isSelf
+        ? 'verified'
+        : (isHrOrAdmin && autoVerifyForPayroll ? 'verified' : 'pending')
+      const verifier = userEmail || 'HR Administrator'
+
       await submitEmployeeBankDetail({
         id: currentEmpBankDetail?.id,
         employee_id: currentSelectedEmp.id,
@@ -423,17 +502,254 @@ export default function BankDetailsPage() {
         upi_id: upiId.trim() || undefined,
         pan_number: panNumber.trim().toUpperCase() || undefined,
         document_proof_name: documentProofName || 'bank_passbook_cheque.pdf',
-        status: 'pending',
+        status: statusToSet,
+        verified_by: statusToSet === 'verified' ? verifier : undefined,
       })
 
       await loadBankDetails()
       isFormDirtyRef.current = false
       lastLoadedEmpIdRef.current = currentSelectedEmp.id
-      toast.success('Bank details submitted successfully! Your account is sent to HR for payroll direct deposit verification.')
+      toast.success(
+        isSelf
+          ? 'HR Bank details saved and verified for direct deposit payroll!'
+          : `Bank details for ${fullName} recorded and ${statusToSet === 'verified' ? 'verified' : 'submitted'} successfully!`
+      )
     } catch (err: any) {
       toast.error('Failed to submit bank details: ' + (err?.message || 'Unexpected error'))
     } finally {
       setSubmittingForm(false)
+    }
+  }
+
+  // HR Take Bank Details Modal Handlers
+  const handleOpenTakeModal = (target?: Employee | EmployeeBankDetail) => {
+    let targetEmp: Employee | null = null
+    let existingDetail: EmployeeBankDetail | null = null
+
+    if (target) {
+      if ('account_number' in target) {
+        existingDetail = target as EmployeeBankDetail
+        targetEmp = employees.find((e) => e.id === target.employee_id || e.employee_code === target.employee_code) || null
+      } else {
+        targetEmp = target as Employee
+        existingDetail = bankDetailsList.find(
+          (b) =>
+            b.employee_id === targetEmp?.id ||
+            b.employee_code.toLowerCase() === targetEmp?.employee_code?.toLowerCase() ||
+            b.employee_email.toLowerCase() === targetEmp?.email?.toLowerCase()
+        ) || null
+      }
+    } else {
+      // Prioritize missing employees or HR self
+      targetEmp =
+        employees.find(
+          (emp) =>
+            !bankDetailsList.some(
+              (b) =>
+                b.employee_id === emp.id ||
+                b.employee_code.toLowerCase() === emp.employee_code?.toLowerCase() ||
+                b.employee_email.toLowerCase() === emp.email?.toLowerCase()
+            )
+        ) ||
+        hrAdminProfile ||
+        employees[0] ||
+        null
+
+      if (targetEmp) {
+        existingDetail = bankDetailsList.find((b) => b.employee_id === targetEmp?.id) || null
+      }
+    }
+
+    if (targetEmp) {
+      setModalTargetEmpId(targetEmp.id)
+    }
+
+    if (existingDetail) {
+      setModalAccountHolder(existingDetail.account_holder_name || '')
+      if (POPULAR_BANKS.includes(existingDetail.bank_name)) {
+        setModalBankName(existingDetail.bank_name)
+        setModalCustomBank('')
+      } else {
+        setModalBankName('Other')
+        setModalCustomBank(existingDetail.bank_name)
+      }
+      setModalAccountNo(existingDetail.account_number || '')
+      setModalConfirmAccountNo(existingDetail.account_number || '')
+      setModalIfsc(existingDetail.ifsc_code || '')
+      setModalBranch(existingDetail.branch_name || '')
+      setModalAccType(existingDetail.account_type || 'Salary')
+      setModalUpi(existingDetail.upi_id || '')
+      setModalPan(existingDetail.pan_number || '')
+      setModalDocName(existingDetail.document_proof_name || '')
+      setModalVerifyDirectly(true)
+    } else if (targetEmp) {
+      const name = `${targetEmp.first_name || ''} ${targetEmp.last_name || ''}`.trim()
+      setModalAccountHolder(name)
+      setModalBankName('HDFC Bank')
+      setModalCustomBank('')
+      setModalAccountNo('')
+      setModalConfirmAccountNo('')
+      setModalIfsc('')
+      setModalBranch('')
+      setModalAccType('Salary')
+      setModalUpi('')
+      setModalPan('')
+      setModalDocName('')
+      setModalVerifyDirectly(true)
+    }
+
+    setTakeModalOpen(true)
+  }
+
+  const handleModalEmpChange = (empId: string) => {
+    setModalTargetEmpId(empId)
+    const emp = employees.find((e) => e.id === empId)
+    if (!emp) return
+
+    const existing = bankDetailsList.find(
+      (b) =>
+        b.employee_id === emp.id ||
+        b.employee_code.toLowerCase() === emp.employee_code?.toLowerCase() ||
+        b.employee_email.toLowerCase() === emp.email?.toLowerCase()
+    )
+
+    if (existing) {
+      setModalAccountHolder(existing.account_holder_name || '')
+      if (POPULAR_BANKS.includes(existing.bank_name)) {
+        setModalBankName(existing.bank_name)
+        setModalCustomBank('')
+      } else {
+        setModalBankName('Other')
+        setModalCustomBank(existing.bank_name)
+      }
+      setModalAccountNo(existing.account_number || '')
+      setModalConfirmAccountNo(existing.account_number || '')
+      setModalIfsc(existing.ifsc_code || '')
+      setModalBranch(existing.branch_name || '')
+      setModalAccType(existing.account_type || 'Salary')
+      setModalUpi(existing.upi_id || '')
+      setModalPan(existing.pan_number || '')
+      setModalDocName(existing.document_proof_name || '')
+    } else {
+      const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim()
+      setModalAccountHolder(name)
+      setModalBankName('HDFC Bank')
+      setModalCustomBank('')
+      setModalAccountNo('')
+      setModalConfirmAccountNo('')
+      setModalIfsc('')
+      setModalBranch('')
+      setModalAccType('Salary')
+      setModalUpi('')
+      setModalPan('')
+      setModalDocName('')
+    }
+  }
+
+  const handleSaveTakeModal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetEmp = employees.find((e) => e.id === modalTargetEmpId)
+    if (!targetEmp) {
+      toast.error('Please select an employee.')
+      return
+    }
+
+    const trimmedName = modalAccountHolder.trim()
+    if (!trimmedName || trimmedName.length < 2) {
+      toast.error('Account holder name is required (minimum 2 characters).')
+      return
+    }
+
+    const effectiveBank = modalBankName === 'Other' ? modalCustomBank.trim() : modalBankName
+    if (!effectiveBank) {
+      toast.error('Please specify the Bank Name.')
+      return
+    }
+
+    const cleanAcc = modalAccountNo.replace(/\D/g, '')
+    if (!isValidAccountNumber(cleanAcc)) {
+      toast.error(`Account number must be between 9 and 18 digits (currently ${cleanAcc.length}).`)
+      return
+    }
+
+    if (modalAccountNo !== modalConfirmAccountNo) {
+      toast.error('Account Number and Confirm Account Number do not match. Please verify.')
+      return
+    }
+
+    const cleanIfsc = modalIfsc.trim().toUpperCase()
+    if (cleanIfsc.length !== 11) {
+      toast.error(`IFSC code must be exactly 11 characters (currently ${cleanIfsc.length}).`)
+      return
+    }
+
+    if (cleanIfsc[4] !== '0') {
+      toast.error("The 5th character of Indian IFSC code must always be zero ('0'). E.g. HDFC0001234, SBIN0004521.")
+      return
+    }
+
+    if (!isValidIFSC(cleanIfsc)) {
+      toast.error('Invalid IFSC Code format. Must be 4 letters + 0 + 6 alphanumeric characters.')
+      return
+    }
+
+    if (!modalBranch.trim()) {
+      toast.error('Branch name & city is required.')
+      return
+    }
+
+    if (modalPan.trim() && !isValidPAN(modalPan.trim())) {
+      toast.error('Invalid PAN Number format (e.g. ABCPS1234F).')
+      return
+    }
+
+    if (modalUpi.trim() && !isValidUPI(modalUpi.trim())) {
+      toast.error('Invalid UPI ID format (e.g. name@okhdfcbank).')
+      return
+    }
+
+    setModalSubmitting(true)
+    try {
+      const fullName = `${targetEmp.first_name || ''} ${targetEmp.last_name || ''}`.trim()
+      const existing = bankDetailsList.find(
+        (b) =>
+          b.employee_id === targetEmp.id ||
+          b.employee_code.toLowerCase() === targetEmp.employee_code?.toLowerCase() ||
+          b.employee_email.toLowerCase() === targetEmp.email?.toLowerCase()
+      )
+
+      const statusToSet = modalVerifyDirectly ? 'verified' : 'pending'
+      const verifier = userEmail || 'HR Administrator'
+
+      await submitEmployeeBankDetail({
+        id: existing?.id,
+        employee_id: targetEmp.id,
+        employee_code: targetEmp.employee_code || '',
+        employee_name: fullName,
+        employee_email: targetEmp.email || '',
+        phone: targetEmp.phone || undefined,
+        department: (targetEmp as any).department?.name || targetEmp.branch || 'Corporate',
+        designation: (targetEmp as any).designation?.name || 'Staff Member',
+        bank_name: effectiveBank,
+        account_holder_name: trimmedName,
+        account_number: cleanAcc,
+        ifsc_code: cleanIfsc,
+        branch_name: modalBranch.trim(),
+        account_type: modalAccType,
+        upi_id: modalUpi.trim() || undefined,
+        pan_number: modalPan.trim().toUpperCase() || undefined,
+        document_proof_name: modalDocName || 'hr_verified_kyc_proof.pdf',
+        status: statusToSet,
+        verified_by: statusToSet === 'verified' ? verifier : undefined,
+      })
+
+      await loadBankDetails()
+      setTakeModalOpen(false)
+      toast.success(`Bank details for ${fullName} recorded and ${statusToSet === 'verified' ? 'verified' : 'saved'} successfully!`)
+    } catch (err: any) {
+      toast.error('Failed to save bank details: ' + (err?.message || 'Unexpected error'))
+    } finally {
+      setModalSubmitting(false)
     }
   }
 
@@ -550,7 +866,7 @@ export default function BankDetailsPage() {
       return (
         rec.employee_name.toLowerCase().includes(q) ||
         rec.employee_code.toLowerCase().includes(q) ||
-        rec.employee_email.toLowerCase().includes(q) ||
+        rec.employee_email.toLowerCase() === q ||
         rec.bank_name.toLowerCase().includes(q) ||
         rec.account_number.includes(q) ||
         rec.ifsc_code.toLowerCase().includes(q) ||
@@ -558,6 +874,28 @@ export default function BankDetailsPage() {
       )
     })
   }, [bankDetailsList, searchQuery, statusFilter])
+
+  // Missing employees who have not recorded bank details yet
+  const missingEmployees = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    return employees.filter((emp) => {
+      const hasBank = bankDetailsList.some(
+        (b) =>
+          b.employee_id === emp.id ||
+          b.employee_code.toLowerCase() === emp.employee_code?.toLowerCase() ||
+          b.employee_email.toLowerCase() === emp.email?.toLowerCase()
+      )
+      if (hasBank) return false
+      if (!q) return true
+      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase()
+      return (
+        fullName.includes(q) ||
+        (emp.employee_code && emp.employee_code.toLowerCase().includes(q)) ||
+        (emp.email && emp.email.toLowerCase().includes(q)) ||
+        ((emp as any).department?.name && (emp as any).department.name.toLowerCase().includes(q))
+      )
+    })
+  }, [employees, bankDetailsList, searchQuery])
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
@@ -591,7 +929,12 @@ export default function BankDetailsPage() {
           {isHrOrAdmin && (
             <div className="flex flex-wrap items-center gap-3 bg-white/10 p-1.5 rounded-xl border border-white/10 backdrop-blur-md">
               <button
-                onClick={() => setActiveSectorTab('employee')}
+                onClick={() => {
+                  setActiveSectorTab('employee')
+                  if (hrAdminProfile) {
+                    setSelectedEmployeeId(hrAdminProfile.id)
+                  }
+                }}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
                   activeSectorTab === 'employee'
                     ? 'bg-indigo-600 text-white shadow-md'
@@ -687,30 +1030,76 @@ export default function BankDetailsPage() {
                 <div>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <UserCheck className="h-4 w-4 text-indigo-600" />
-                    Employee Self-Service Profile
+                    {isViewingSelf ? 'My Official Banking Profile' : 'Employee Banking Intake Profile'}
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    {isHrOrAdmin
-                      ? 'Select an employee record to view and test direct deposit banking credentials.'
-                      : 'Your official employee profile for direct deposit salary disbursements.'}
+                    {isViewingSelf
+                      ? 'Your official employee & HR profile for direct deposit salary disbursements.'
+                      : `Taking and managing bank credentials for ${currentSelectedEmp?.first_name || 'selected employee'}.`}
                   </CardDescription>
                 </div>
 
                 {/* Only HR/Admin can pick other employee records */}
                 {isHrOrAdmin && (
-                  <div className="w-full sm:w-72">
-                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                      <SelectTrigger className="text-xs h-9">
-                        <SelectValue placeholder="Choose employee..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((emp) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.first_name} {emp.last_name} ({emp.employee_code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="w-full sm:w-80">
+                    <SearchableEmployeeSelect
+                      employees={selectableBankEmployees as any}
+                      value={selectedEmployeeId}
+                      onValueChange={setSelectedEmployeeId}
+                      placeholder="Search or select employee profile..."
+                      className="w-full text-xs"
+                      renderLabel={(emp) => {
+                        if (emp.id === hrAdminProfile.id) {
+                          return `⭐ ${emp.first_name} ${emp.last_name} (${emp.employee_code}) — My HR Profile`
+                        }
+                        const hasBank = bankDetailsList.some(
+                          (b) =>
+                            b.employee_id === emp.id ||
+                            b.employee_code?.toLowerCase() === emp.employee_code?.toLowerCase() ||
+                            b.employee_email?.toLowerCase() === emp.email?.toLowerCase()
+                        )
+                        return `${emp.first_name} ${emp.last_name} (${emp.employee_code || 'EMP'}) ${hasBank ? '✓' : '⚠️ Missing'}`
+                      }}
+                      renderItem={(emp, isSelected) => {
+                        const isHr = emp.id === hrAdminProfile.id
+                        const hasBank = bankDetailsList.some(
+                          (b) =>
+                            b.employee_id === emp.id ||
+                            b.employee_code?.toLowerCase() === emp.employee_code?.toLowerCase() ||
+                            b.employee_email?.toLowerCase() === emp.email?.toLowerCase()
+                        )
+                        return (
+                          <div className="flex items-center justify-between w-full py-0.5">
+                            <div className="min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5 truncate">
+                                {isHr && <span className="text-amber-500">⭐</span>}
+                                <span className={`font-medium ${isHr ? 'text-indigo-900 font-semibold' : 'text-slate-800'}`}>
+                                  {emp.first_name} {emp.last_name}
+                                </span>
+                                {emp.employee_code && (
+                                  <span className="font-mono text-[10px] text-muted-foreground bg-slate-100 px-1 py-0.2 rounded">
+                                    {emp.employee_code}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground block truncate">
+                                {isHr ? 'My Official HR Profile' : ((emp as any).department?.name || 'Workforce Employee')}
+                              </span>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              {isHr ? (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 bg-indigo-50 text-indigo-700 border-indigo-200">HR</Badge>
+                              ) : hasBank ? (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">✓ Has Bank</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200">⚠️ Missing</Badge>
+                              )}
+                              {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600 shrink-0 ml-1" />}
+                            </div>
+                          </div>
+                        )
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -724,9 +1113,20 @@ export default function BankDetailsPage() {
                       {currentSelectedEmp.first_name?.[0] || 'E'}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-sm text-slate-900">
-                        {currentSelectedEmp.first_name} {currentSelectedEmp.last_name}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-sm text-slate-900">
+                          {currentSelectedEmp.first_name} {currentSelectedEmp.last_name}
+                        </h3>
+                        {isViewingSelf ? (
+                          <Badge className="bg-indigo-600 text-white text-[10px] py-0 px-1.5 font-bold">
+                            My HR Account
+                          </Badge>
+                        ) : isHrOrAdmin ? (
+                          <Badge className="bg-purple-600 text-white text-[10px] py-0 px-1.5 font-bold">
+                            HR Intake Mode
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {currentSelectedEmp.employee_code} · {currentSelectedEmp.email} · {currentSelectedEmp.phone || 'No phone'}
                       </p>
@@ -1290,9 +1690,25 @@ export default function BankDetailsPage() {
               </CardContent>
 
               <CardFooter className="border-t bg-slate-50/50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground">
-                  Submissions are reviewed by HR within 1-2 business days.
-                </span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {isViewingSelf
+                      ? 'HR direct deposit credentials are verified and recorded for payroll disbursements.'
+                      : `Taking bank details for ${currentSelectedEmp?.first_name || 'selected employee'}. Details will be stored for direct deposit.`}
+                  </span>
+                  {isHrOrAdmin && !isViewingSelf && (
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      <input
+                        type="checkbox"
+                        checked={autoVerifyForPayroll}
+                        onChange={(e) => setAutoVerifyForPayroll(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer"
+                      />
+                      <span>Mark Verified for Payroll</span>
+                    </label>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
                     type="button"
@@ -1315,9 +1731,13 @@ export default function BankDetailsPage() {
                       <span className="flex items-center gap-2">
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving...
                       </span>
+                    ) : isViewingSelf ? (
+                      <span className="flex items-center gap-2">
+                        <Send className="h-3.5 w-3.5" /> Save &amp; Submit My HR Bank Details
+                      </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <Send className="h-3.5 w-3.5" /> Submit Bank Details to HR
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Save &amp; Take Bank Details for {currentSelectedEmp?.first_name}
                       </span>
                     )}
                   </Button>
@@ -1346,6 +1766,12 @@ export default function BankDetailsPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
+                    onClick={() => handleOpenTakeModal()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold shadow-sm"
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Take / Add Bank Details
+                  </Button>
+                  <Button
                     onClick={loadBankDetails}
                     variant="outline"
                     size="sm"
@@ -1355,7 +1781,8 @@ export default function BankDetailsPage() {
                   </Button>
                   <Button
                     onClick={handleExportCsv}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold shadow-sm"
+                    variant="outline"
+                    className="text-slate-700 text-xs h-9 font-medium shadow-sm hover:bg-slate-100"
                   >
                     <Download className="mr-1.5 h-3.5 w-3.5" /> Export NACH / Salary Sheet
                   </Button>
@@ -1382,14 +1809,17 @@ export default function BankDetailsPage() {
                     value={statusFilter}
                     onValueChange={(val: any) => setStatusFilter(val)}
                   >
-                    <SelectTrigger className="w-[180px] text-xs h-9">
+                    <SelectTrigger className="w-[200px] text-xs h-9">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all" className="text-xs">All Statuses ({bankDetailsList.length})</SelectItem>
+                      <SelectItem value="all" className="text-xs">All Records ({bankDetailsList.length})</SelectItem>
                       <SelectItem value="verified" className="text-xs">Verified ({stats.verifiedCount})</SelectItem>
                       <SelectItem value="pending" className="text-xs">Pending Review ({stats.pendingCount})</SelectItem>
                       <SelectItem value="rejected" className="text-xs">Rejected ({stats.rejectedCount})</SelectItem>
+                      <SelectItem value="missing" className="text-xs font-semibold text-amber-700 bg-amber-50/70">
+                        Missing Bank Records ({stats.missingCount})
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1409,7 +1839,73 @@ export default function BankDetailsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredRecords.length === 0 ? (
+                    {statusFilter === 'missing' ? (
+                      missingEmployees.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                            <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                            <p className="font-semibold text-sm text-slate-800">All workforce accounts have bank details recorded!</p>
+                            <p className="text-xs mt-0.5 text-muted-foreground">Zero missing bank profiles found.</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        missingEmployees.map((emp) => (
+                          <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
+                            {/* Employee Info */}
+                            <td className="py-3.5 px-4 font-medium">
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
+                                  {emp.first_name?.[0] || 'E'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-900">
+                                    {emp.first_name} {emp.last_name}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {emp.employee_code} · {(emp as any).department?.name || emp.branch || 'Corporate'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Bank & Account */}
+                            <td className="py-3.5 px-4">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                <AlertTriangle className="h-3 w-3 text-amber-600" /> No Bank Details
+                              </span>
+                            </td>
+
+                            {/* IFSC & Branch */}
+                            <td className="py-3.5 px-4">
+                              <span className="text-slate-400 font-mono text-[11px]">—</span>
+                            </td>
+
+                            {/* Proof Document */}
+                            <td className="py-3.5 px-4">
+                              <span className="text-slate-400 text-xs">—</span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4">
+                              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+                                Action Needed
+                              </Badge>
+                            </td>
+
+                            {/* Action Buttons */}
+                            <td className="py-3.5 px-4 text-right">
+                              <Button
+                                size="sm"
+                                onClick={() => handleOpenTakeModal(emp)}
+                                className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium shadow-sm"
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> Take Bank Details
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )
+                    ) : filteredRecords.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-muted-foreground">
                           <Landmark className="h-8 w-8 text-slate-300 mx-auto mb-2" />
@@ -1428,7 +1924,14 @@ export default function BankDetailsPage() {
                                   {rec.employee_name[0] || 'E'}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="font-semibold text-slate-900">{rec.employee_name}</div>
+                                  <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                    <span>{rec.employee_name}</span>
+                                    {rec.employee_id === hrAdminProfile.id && (
+                                      <Badge className="bg-indigo-600 text-white text-[9px] py-0 px-1.5 font-bold">
+                                        HR Self
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <div className="text-[11px] text-muted-foreground">
                                     {rec.employee_code} · {rec.department || 'HQ'}
                                   </div>
@@ -1509,6 +2012,15 @@ export default function BankDetailsPage() {
                             {/* Action Buttons */}
                             <td className="py-3.5 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenTakeModal(rec)}
+                                  className="h-7 px-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-[11px]"
+                                  title="Edit / re-take bank details"
+                                >
+                                  <Edit3 className="h-3 w-3 mr-1" /> Edit
+                                </Button>
                                 {rec.status !== 'verified' && (
                                   <Button
                                     size="sm"
@@ -1638,6 +2150,290 @@ export default function BankDetailsPage() {
               Close Preview
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* HR Take / Enter Bank Details Intake Dialog */}
+      <Dialog open={takeModalOpen} onOpenChange={setTakeModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Landmark className="h-5 w-5 text-indigo-600" />
+              Take &amp; Record Bank Details (HR Intake)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Record official direct deposit banking credentials for any workforce employee or HR staff member.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveTakeModal} className="space-y-4 pt-2">
+            {/* Target Employee Selection */}
+            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border">
+              <Label className="text-xs font-semibold text-slate-800 flex items-center justify-between">
+                <span>Select Target Employee / Staff <span className="text-rose-500">*</span></span>
+                <span className="text-[11px] text-muted-foreground font-normal">Choose who to record details for</span>
+              </Label>
+              <SearchableEmployeeSelect
+                employees={selectableBankEmployees as any}
+                value={modalTargetEmpId}
+                onValueChange={handleModalEmpChange}
+                placeholder="Search target employee by name, code, or role..."
+                className="w-full text-xs"
+                renderLabel={(emp) => {
+                  if (emp.id === hrAdminProfile.id) {
+                    return `⭐ ${emp.first_name} ${emp.last_name} (${emp.employee_code}) — My HR Profile`
+                  }
+                  const hasBank = bankDetailsList.some(
+                    (b) =>
+                      b.employee_id === emp.id ||
+                      b.employee_code?.toLowerCase() === emp.employee_code?.toLowerCase() ||
+                      b.employee_email?.toLowerCase() === emp.email?.toLowerCase()
+                  )
+                  return `${emp.first_name} ${emp.last_name} (${emp.employee_code || 'EMP'}) ${hasBank ? '✓ Has Details' : '⚠️ Missing'}`
+                }}
+                renderItem={(emp, isSelected) => {
+                  const isHr = emp.id === hrAdminProfile.id
+                  const hasBank = bankDetailsList.some(
+                    (b) =>
+                      b.employee_id === emp.id ||
+                      b.employee_code?.toLowerCase() === emp.employee_code?.toLowerCase() ||
+                      b.employee_email?.toLowerCase() === emp.email?.toLowerCase()
+                  )
+                  return (
+                    <div className="flex items-center justify-between w-full py-0.5">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5 truncate">
+                          {isHr && <span className="text-amber-500">⭐</span>}
+                          <span className={`font-medium ${isHr ? 'text-indigo-900 font-semibold' : 'text-slate-800'}`}>
+                            {emp.first_name} {emp.last_name}
+                          </span>
+                          {emp.employee_code && (
+                            <span className="font-mono text-[10px] text-muted-foreground bg-slate-100 px-1 py-0.2 rounded">
+                              {emp.employee_code}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block truncate">
+                          {isHr ? 'My Official HR Profile' : ((emp as any).department?.name || 'Workforce Employee')}
+                        </span>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {isHr ? (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-indigo-50 text-indigo-700 border-indigo-200">HR</Badge>
+                        ) : hasBank ? (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">✓ Has Details</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200">⚠️ Missing</Badge>
+                        )}
+                        {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600 shrink-0 ml-1" />}
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+            </div>
+
+            {/* Account Holder Name & Bank Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  Account Holder Name <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  required
+                  placeholder="e.g. SANDEEP REDDY GUDA"
+                  value={modalAccountHolder}
+                  onChange={(e) => setModalAccountHolder(e.target.value.replace(/[^a-zA-Z\s.]/g, '').slice(0, 60))}
+                  className="text-xs uppercase bg-white font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  Bank Name <span className="text-rose-500">*</span>
+                </Label>
+                <Select value={modalBankName} onValueChange={setModalBankName}>
+                  <SelectTrigger className="text-xs h-9 bg-white">
+                    <SelectValue placeholder="Select bank..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-56">
+                    {POPULAR_BANKS.map((b) => (
+                      <SelectItem key={b} value={b} className="text-xs">
+                        {b}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="Other" className="text-xs font-semibold text-indigo-600">
+                      Other Bank
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {modalBankName === 'Other' && (
+                  <Input
+                    required
+                    placeholder="Type custom bank name"
+                    value={modalCustomBank}
+                    onChange={(e) => setModalCustomBank(e.target.value.slice(0, 50))}
+                    className="text-xs bg-white mt-1"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Account Number & Confirm */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  Account Number (9-18 digits) <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  required
+                  inputMode="numeric"
+                  maxLength={18}
+                  placeholder="e.g. 50100492817263"
+                  value={modalAccountNo}
+                  onChange={(e) => setModalAccountNo(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                  className="text-xs font-mono bg-white"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  Confirm Account Number <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  required
+                  inputMode="numeric"
+                  maxLength={18}
+                  placeholder="Re-enter account number"
+                  value={modalConfirmAccountNo}
+                  onChange={(e) => setModalConfirmAccountNo(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                  className="text-xs font-mono bg-white"
+                />
+                {modalConfirmAccountNo && modalAccountNo !== modalConfirmAccountNo && (
+                  <p className="text-[10px] text-rose-500 font-medium">Account numbers do not match</p>
+                )}
+              </div>
+            </div>
+
+            {/* IFSC Code & Branch */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  IFSC Code (11 characters) <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  required
+                  maxLength={11}
+                  placeholder="e.g. HDFC0001234"
+                  value={modalIfsc}
+                  onChange={(e) => {
+                    const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+                    setModalIfsc(clean)
+                    const detected = detectBankFromIFSC(clean)
+                    if (detected && detected !== modalBankName) {
+                      setModalBankName(detected)
+                      setModalCustomBank('')
+                    }
+                  }}
+                  className="text-xs font-mono uppercase bg-white"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800">
+                  Branch Name &amp; City <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  required
+                  maxLength={80}
+                  placeholder="e.g. Madhapur Branch, Hyderabad"
+                  value={modalBranch}
+                  onChange={(e) => setModalBranch(e.target.value.slice(0, 80))}
+                  className="text-xs bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Account Classification */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-800">Account Classification</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['Salary', 'Savings', 'Current'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setModalAccType(t)}
+                    className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                      modalAccType === t
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 ring-2 ring-indigo-600'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t} Account
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* UPI & PAN */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-700">UPI ID (Optional)</Label>
+                <Input
+                  placeholder="e.g. name@okhdfcbank"
+                  value={modalUpi}
+                  onChange={(e) => setModalUpi(e.target.value.toLowerCase().replace(/\s/g, '').slice(0, 50))}
+                  className="text-xs bg-white"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-700">Income Tax PAN (Optional)</Label>
+                <Input
+                  placeholder="e.g. ABCPS1234F"
+                  maxLength={10}
+                  value={modalPan}
+                  onChange={(e) => setModalPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+                  className="text-xs font-mono uppercase bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Direct Verification Checkbox */}
+            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={modalVerifyDirectly}
+                  onChange={(e) => setModalVerifyDirectly(e.target.checked)}
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-emerald-950">
+                  Mark as Verified immediately for Direct Deposit Payroll (HR KYC confirmed)
+                </span>
+              </label>
+            </div>
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setTakeModalOpen(false)} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={modalSubmitting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm"
+              >
+                {modalSubmitting ? (
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Save &amp; Record Bank Details
+                  </span>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

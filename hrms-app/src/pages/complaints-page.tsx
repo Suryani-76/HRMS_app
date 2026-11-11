@@ -36,6 +36,7 @@ import {
   AlertCircle,
   HelpCircle,
   RotateCw,
+  Send,
 } from 'lucide-react'
 
 const DEPARTMENTS = [
@@ -60,13 +61,12 @@ export default function ComplaintsPage() {
     (employee?.email &&
       (employee.email.toLowerCase().includes('hr@') ||
         employee.email.toLowerCase().startsWith('admin@') ||
-        employee.email.toLowerCase() === 'ceo@oklut.com'))
+        employee.email.toLowerCase() === 'ceo@oklut.com' ||
+        employee.email.toLowerCase() === 'hr@oklut.in'))
   )
 
-  // Tabs
-  const [activeTab, setActiveTab] = useState<'submit' | 'my-complaints' | 'admin-desk'>(() =>
-    isHROrAdmin ? 'admin-desk' : 'submit'
-  )
+  // Tabs for regular employees (Only employees raise complaints)
+  const [activeTab, setActiveTab] = useState<'submit' | 'my-complaints'>('submit')
 
   // Complaints Data
   const [complaints, setComplaints] = useState<ComplaintRecord[]>([])
@@ -85,6 +85,7 @@ export default function ComplaintsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [myComplaintsSearch, setMyComplaintsSearch] = useState('')
 
   // Selected Complaint for View / Status Modal
   const [selectedComplaint, setSelectedComplaint] = useState<ComplaintRecord | null>(null)
@@ -116,14 +117,6 @@ export default function ComplaintsPage() {
     loadData()
   }, [isHROrAdmin, employee?.id, employee?.email])
 
-  // Security guard: HR/Admins remain on admin desk, non-HR/Admins cannot access admin desk
-  useEffect(() => {
-    if (isHROrAdmin && activeTab !== 'admin-desk') {
-      setActiveTab('admin-desk')
-    } else if (!isHROrAdmin && activeTab === 'admin-desk') {
-      setActiveTab('submit')
-    }
-  }, [isHROrAdmin, activeTab])
 
   // Word count computation
   const currentWordCount = countWords(description)
@@ -143,14 +136,9 @@ export default function ComplaintsPage() {
     toast.info('Trimmed description to exactly 100 words.')
   }
 
-  // Handle Form Submission
+  // Handle Form Submission (Employees raise complaints)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (isHROrAdmin) {
-      toast.error('HR and Administrators cannot file complaints. Your role is to review and resolve employee grievances.')
-      return
-    }
 
     if (!selectedCategory) {
       toast.error('Please select a complaint category from the dropdown.')
@@ -163,30 +151,46 @@ export default function ComplaintsPage() {
     }
 
     if (!description.trim()) {
-      toast.error('Please enter the complaint description.')
+      toast.error('Please enter the complaint description before submitting.')
       return
     }
 
-    if (isOverLimit || currentWordCount > MAX_WORD_LIMIT) {
-      toast.error(`Your complaint description exceeds the 100-word limit (${currentWordCount} words entered, ${wordsOverLimit} words over limit). Please shorten it.`)
-      return
+    let finalDescription = description.trim()
+    if (currentWordCount > MAX_WORD_LIMIT) {
+      finalDescription = trimToMaxWords(finalDescription, MAX_WORD_LIMIT)
+      setDescription(finalDescription)
+      toast.info(`Your complaint was auto-trimmed to ${MAX_WORD_LIMIT} words for compliance.`)
     }
 
     try {
       setIsSubmitting(true)
+      const complainantName = employee
+        ? `${employee.first_name} ${employee.last_name}`.trim()
+        : user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Staff Member'
+      const complainantEmail = (employee?.email || user?.email || (isHROrAdmin ? 'hr@oklut.com' : 'employee@oklut.com')).trim().toLowerCase()
+      const complainantCode = employee?.employee_code || (isHROrAdmin ? 'OKL-HR-001' : 'OKL-EMP-001')
+      const complainantDept =
+        typeof employee?.department === 'string'
+          ? employee.department
+          : (employee?.department as any)?.name || department || 'Human Resources (HR)'
+
       const newRecord = await submitComplaint({
-        employee_id: employee?.id,
-        employee_name: employee ? `${employee.first_name} ${employee.last_name}` : 'Staff Member',
-        employee_code: employee?.employee_code,
-        employee_email: employee?.email,
-        department,
+        employee_id: employee?.id || user?.id || null,
+        employee_name: complainantName,
+        employee_code: complainantCode,
+        employee_email: complainantEmail,
+        department: complainantDept,
         category: selectedCategory,
-        custom_subject: selectedCategory === 'Other' ? customSubject : null,
-        description,
+        custom_subject: selectedCategory === 'Other' ? customSubject.trim() : null,
+        description: finalDescription,
         priority,
       })
 
-      toast.success(`Complaint submitted successfully! Ticket: ${newRecord.ticket_number}`)
+      // Immediately prepend to local state so UI updates instantly
+      setMyComplaints((prev) => [newRecord, ...prev.filter((c) => c.id !== newRecord.id)])
+      setComplaints((prev) => [newRecord, ...prev.filter((c) => c.id !== newRecord.id)])
+
+      toast.success(`Complaint filed successfully! Ticket: ${newRecord.ticket_number}`, { duration: 5000 })
       
       // Reset form
       setSelectedCategory('')
@@ -194,8 +198,8 @@ export default function ComplaintsPage() {
       setDescription('')
       setPriority('medium')
 
-      await loadData()
       setActiveTab('my-complaints')
+      await loadData()
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit complaint.')
     } finally {
@@ -259,6 +263,19 @@ export default function ComplaintsPage() {
       })
     : []
 
+  const filteredMyComplaints = myComplaints.filter((c) => {
+    if (!myComplaintsSearch.trim()) return true
+    const q = myComplaintsSearch.toLowerCase()
+    return (
+      c.ticket_number.toLowerCase().includes(q) ||
+      c.category.toLowerCase().includes(q) ||
+      (c.custom_subject && c.custom_subject.toLowerCase().includes(q)) ||
+      c.description.toLowerCase().includes(q) ||
+      c.status.toLowerCase().includes(q) ||
+      (c.resolution_note && c.resolution_note.toLowerCase().includes(q))
+    )
+  })
+
   // Metric counts (company-wide for HR/Admin, personal for regular employees)
   const totalCount = isHROrAdmin ? complaints.length : myComplaints.length
   const pendingCount = isHROrAdmin
@@ -319,8 +336,8 @@ export default function ComplaintsPage() {
         title={isHROrAdmin ? "Grievance Management Desk" : "Complaint Box & Grievances"}
         description={
           isHROrAdmin
-            ? "Official HR and Management review desk to investigate and resolve employee workplace grievances."
-            : "Confidential workplace grievance reporting with regular categories, anonymous option, and 100-word limit."
+            ? "Review employee workplace grievances, conduct investigations, and update resolution actions."
+            : "Confidential workplace grievance reporting for prompt review and resolution by HR & Admin."
         }
         actions={
           <div className="flex items-center gap-2">
@@ -328,8 +345,13 @@ export default function ComplaintsPage() {
               <Button
                 variant={activeTab === 'submit' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setActiveTab('submit')}
-                className="gap-2"
+                onClick={() => {
+                  setActiveTab('submit')
+                  setTimeout(() => {
+                    document.getElementById('category-select')?.focus()
+                  }, 100)
+                }}
+                className="gap-2 cursor-pointer"
               >
                 <PlusCircle className="h-4 w-4" /> File Complaint
               </Button>
@@ -354,11 +376,11 @@ export default function ComplaintsPage() {
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
             <span>
-              <strong>HR & Admin Review Authority:</strong> You are in official review and resolution mode. Grievance filing is reserved for employees. Your role is to examine incoming complaints, update investigation status, and record formal resolution findings.
+              <strong>HR & Admin Review Authority:</strong> Grievance filing is reserved strictly for employees. Your role is to examine incoming complaints, update investigation status, and record formal resolution actions.
             </span>
           </div>
           <Badge variant="outline" className="bg-white border-blue-300 text-primary font-semibold shrink-0 self-start sm:self-auto">
-            Reviewer Mode
+            Reviewer & Resolver Mode
           </Badge>
         </div>
       ) : (
@@ -366,11 +388,11 @@ export default function ComplaintsPage() {
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>
-              <strong>Confidentiality Policy:</strong> All complaints raised are strictly private and encrypted. Only authorized <strong>HR and Admins</strong> can access, view, or investigate reports. Other employees cannot see your complaints.
+              <strong>Confidentiality Policy:</strong> All complaints raised are strictly private and encrypted. Only authorized <strong>HR and Admins</strong> can access, view, or investigate reports.
             </span>
           </div>
           <Badge variant="outline" className="bg-white border-indigo-300 text-indigo-700 font-semibold shrink-0 self-start sm:self-auto">
-            HR & Admin Access Only
+            Confidential Employee Portal
           </Badge>
         </div>
       )}
@@ -431,7 +453,7 @@ export default function ComplaintsPage() {
       </div>
 
       {isHROrAdmin ? (
-        /* HR / ADMIN REVIEW DESK VIEW (NO COMPLAINT FILING) */
+        /* HR / ADMIN REVIEW DESK VIEW (ONLY REVIEW & TAKE ACTION ON EMPLOYEE COMPLAINTS) */
         <div className="mt-6 space-y-4">
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-4">
@@ -546,9 +568,8 @@ export default function ComplaintsPage() {
                           <td className="p-3">{getStatusBadge(item.status)}</td>
                           <td className="p-3 text-right space-x-1 whitespace-nowrap">
                             <Button
-                              variant="outline"
                               size="sm"
-                              className="h-7 px-2 text-xs gap-1"
+                              className="h-7 px-3 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-white font-medium shadow-xs"
                               onClick={() => {
                                 setSelectedComplaint(item)
                                 setResolutionStatus(item.status)
@@ -556,7 +577,7 @@ export default function ComplaintsPage() {
                                 setIsDetailOpen(true)
                               }}
                             >
-                              <Eye className="w-3 h-3" /> Review
+                              <ShieldCheck className="w-3.5 h-3.5" /> Review & Take Action
                             </Button>
                             <Button
                               variant="ghost"
@@ -577,19 +598,19 @@ export default function ComplaintsPage() {
           </Card>
         </div>
       ) : (
-        /* REGULAR EMPLOYEE VIEW (FILE COMPLAINT & MY COMPLAINTS) */
-        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+        /* REGULAR EMPLOYEE VIEW (ONLY EMPLOYEES RAISE COMPLAINTS) */
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="mt-6 space-y-6">
           <TabsList className="grid grid-cols-2 max-w-xs w-full bg-slate-100 p-1 rounded-xl">
             <TabsTrigger value="submit" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
-              <PlusCircle className="h-4 w-4" /> File Complaint
+              <PlusCircle className="h-4 w-4 text-primary" /> File Complaint
             </TabsTrigger>
             <TabsTrigger value="my-complaints" className="rounded-lg gap-2 text-xs md:text-sm font-medium">
               <FileText className="h-4 w-4" /> My Complaints ({myComplaints.length})
             </TabsTrigger>
           </TabsList>
 
-        {/* TAB 1: SUBMIT COMPLAINT FORM */}
-        <TabsContent value="submit" className="mt-6">
+          {/* TAB 1: SUBMIT COMPLAINT FORM */}
+          <TabsContent value="submit" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-slate-200 shadow-md">
               <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-4">
@@ -738,10 +759,10 @@ export default function ComplaintsPage() {
                       value={description}
                       onChange={handleDescriptionChange}
                       rows={5}
-                      placeholder="Clearly describe the incident, situation, or issue. Include dates, locations, or affected staff where applicable. (Limit: 100 words)..."
+                      placeholder="Clearly describe the incident, situation, or issue. Include dates, locations, or affected staff where applicable..."
                       className={`bg-white transition-all ${
                         isOverLimit
-                          ? 'border-rose-500 ring-2 ring-rose-500/20 focus-visible:ring-rose-500 bg-rose-50/10'
+                          ? 'border-amber-400 ring-2 ring-amber-400/20 focus-visible:ring-amber-500 bg-amber-50/10'
                           : currentWordCount === MAX_WORD_LIMIT
                           ? 'border-amber-400 focus-visible:ring-amber-500'
                           : 'border-slate-300'
@@ -753,7 +774,7 @@ export default function ComplaintsPage() {
                       <div
                         className={`h-1.5 transition-all duration-300 ${
                           isOverLimit
-                            ? 'bg-rose-500'
+                            ? 'bg-amber-500'
                             : currentWordCount > 85
                             ? 'bg-amber-500'
                             : 'bg-emerald-500'
@@ -764,29 +785,29 @@ export default function ComplaintsPage() {
 
                     {/* Prominent Validation Message */}
                     {isOverLimit ? (
-                      <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-rose-700 animate-in fade-in duration-200 shadow-sm">
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-800 animate-in fade-in duration-200 shadow-sm">
                         <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <span className="font-bold block text-rose-900">Word Limit Exceeded ({currentWordCount} / {MAX_WORD_LIMIT} words)</span>
+                            <span className="font-bold block text-amber-900">Word Count Notice ({currentWordCount} / {MAX_WORD_LIMIT} words)</span>
                             <span>
-                              Your complaint description exceeds the 100-word limit by <strong className="text-rose-900 font-bold">{wordsOverLimit} {wordsOverLimit === 1 ? 'word' : 'words'}</strong>. You cannot submit this complaint until it is shortened to 100 words or fewer.
+                              Your description currently has {currentWordCount} words ({wordsOverLimit} {wordsOverLimit === 1 ? 'word' : 'words'} over standard limit). It will be automatically trimmed on submit, or you can trim it now.
                             </span>
                           </div>
                         </div>
                         <Button
                           type="button"
                           size="sm"
-                          variant="destructive"
+                          variant="outline"
                           onClick={handleTrimToMax}
-                          className="h-7 text-xs px-3 font-semibold shrink-0 shadow-sm"
+                          className="h-7 text-xs px-3 font-semibold shrink-0 shadow-sm border-amber-300 hover:bg-amber-100 text-amber-900 cursor-pointer"
                         >
                           Auto-trim to 100 words
                         </Button>
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 flex items-center justify-between">
-                        <span>Strict limit of 100 words applies to ensure concise and prompt action.</span>
+                        <span>Standard guideline of 100 words applies to ensure concise and prompt action.</span>
                         {currentWordCount === MAX_WORD_LIMIT && (
                           <span className="text-amber-600 font-semibold">Maximum 100-word limit reached</span>
                         )}
@@ -802,11 +823,11 @@ export default function ComplaintsPage() {
                       </div>
                       <div>
                         <span className="font-semibold text-slate-800 block">
-                          Filing as: {employee ? `${employee.first_name} ${employee.last_name}` : 'Logged-in Staff'}
+                          Filing as: {employee ? `${employee.first_name} ${employee.last_name}` : (isHROrAdmin ? 'HR / Administrator' : 'Logged-in Staff')}
                         </span>
                         <span className="text-[11px] text-slate-500">
-                          {employee?.employee_code ? `${employee.employee_code} • ` : ''}
-                          {employee?.email || 'Confidential submission to HR & Admin'}
+                          {employee?.employee_code ? `${employee.employee_code} • ` : (isHROrAdmin ? 'OKL-HR-001 • ' : '')}
+                          {employee?.email || user?.email || 'Confidential submission to HR & Admin'}
                         </span>
                       </div>
                     </div>
@@ -831,14 +852,16 @@ export default function ComplaintsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={isSubmitting || !description.trim() || isOverLimit}
-                      className="gap-2 px-6"
+                      disabled={isSubmitting}
+                      className="gap-2 px-7 bg-primary hover:bg-primary/90 text-white font-semibold shadow-sm transition-all cursor-pointer"
                     >
                       {isSubmitting ? (
-                        <>Submitting...</>
+                        <>
+                          <RotateCw className="w-4 h-4 animate-spin" /> Filing Complaint...
+                        </>
                       ) : (
                         <>
-                          <MessageSquareWarning className="w-4 h-4" /> Submit Complaint
+                          <Send className="w-4 h-4" /> File Complaint
                         </>
                       )}
                     </Button>
@@ -902,9 +925,9 @@ export default function ComplaintsPage() {
         </TabsContent>
 
         {/* TAB 2: MY COMPLAINTS */}
-        <TabsContent value="my-complaints" className="mt-6 space-y-4">
+        <TabsContent value="my-complaints" className="mt-4 space-y-4">
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg">My Submitted Complaints</CardTitle>
                 <CardDescription className="text-xs">
@@ -912,10 +935,23 @@ export default function ComplaintsPage() {
                 </CardDescription>
               </div>
               <Button size="sm" onClick={() => setActiveTab('submit')} className="gap-1.5">
-                <PlusCircle className="w-4 h-4" /> New Complaint
+                <PlusCircle className="w-4 h-4" /> File New Complaint
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Search Bar for My Complaints */}
+              {myComplaints.length > 0 && (
+                <div className="relative max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <Input
+                    placeholder="Search your complaints by ticket, category, description..."
+                    value={myComplaintsSearch}
+                    onChange={(e) => setMyComplaintsSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs"
+                  />
+                </div>
+              )}
+
               {loading ? (
                 <div className="text-center py-12 text-slate-400 text-xs">
                   Loading complaints...
@@ -931,9 +967,17 @@ export default function ComplaintsPage() {
                     File a Complaint
                   </Button>
                 </div>
+              ) : filteredMyComplaints.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-slate-200 rounded-xl">
+                  <Search className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <h4 className="text-sm font-semibold text-slate-700">No matching complaints found</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No submitted complaints matched &ldquo;{myComplaintsSearch}&rdquo;.
+                  </p>
+                </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {myComplaints.map((item) => (
+                  {filteredMyComplaints.map((item) => (
                     <div
                       key={item.id}
                       className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/50 p-3 rounded-xl transition-colors"
@@ -1059,44 +1103,89 @@ export default function ComplaintsPage() {
               </div>
 
               {/* Resolution / Admin update section */}
+              {/* HR / Admin Action Section */}
               {isHROrAdmin ? (
-                <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-xl space-y-3 min-w-0">
-                  <Label className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
-                    <ShieldCheck className="w-4 h-4 text-primary shrink-0" /> Admin / HR Investigation Action
-                  </Label>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="status-select" className="text-[11px] text-slate-500">
-                        Update Status
-                      </Label>
-                      <Select
-                        value={resolutionStatus}
-                        onValueChange={(val: any) => setResolutionStatus(val)}
-                      >
-                        <SelectTrigger id="status-select" className="bg-white h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="under_review">Under Investigation</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                          <SelectItem value="dismissed">Dismissed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-xl space-y-3.5 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+                      <ShieldCheck className="w-4 h-4 text-primary shrink-0" /> HR & Admin Action & Status Update
+                    </Label>
+                    <Badge variant="outline" className="text-[11px] bg-white text-slate-600">
+                      Official Review Desk
+                    </Badge>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="resolution-notes" className="text-[11px] text-slate-500">
-                      Official Resolution Note / Remarks to Employee
+                  <div className="space-y-1.5">
+                    <Label htmlFor="status-select" className="text-[11px] font-semibold text-slate-700">
+                      Update Complaint Status <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select
+                      value={resolutionStatus}
+                      onValueChange={(val: any) => setResolutionStatus(val)}
+                    >
+                      <SelectTrigger id="status-select" className="bg-white h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">⏳ Pending Review</SelectItem>
+                        <SelectItem value="under_review">🔍 Under Investigation</SelectItem>
+                        <SelectItem value="resolved">✅ Resolved (Action Completed)</SelectItem>
+                        <SelectItem value="dismissed">❌ Dismissed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Quick Action Shortcuts for HR */}
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <span className="text-[11px] text-slate-500 font-medium">Quick Action:</span>
+                    <Button
+                      type="button"
+                      variant={resolutionStatus === 'under_review' ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-6 text-[11px] px-2.5"
+                      onClick={() => {
+                        setResolutionStatus('under_review')
+                        if (!resolutionNote) setResolutionNote('Investigation initiated by HR. Examining facts and relevant teams.')
+                      }}
+                    >
+                      Start Investigation
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={resolutionStatus === 'resolved' ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-6 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => {
+                        setResolutionStatus('resolved')
+                        if (!resolutionNote) setResolutionNote('Issue verified and corrective action completed successfully.')
+                      }}
+                    >
+                      Mark Resolved
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={resolutionStatus === 'dismissed' ? 'destructive' : 'outline'}
+                      size="sm"
+                      className="h-6 text-[11px] px-2.5"
+                      onClick={() => {
+                        setResolutionStatus('dismissed')
+                        if (!resolutionNote) setResolutionNote('Reviewed by committee; matter closed without disciplinary action.')
+                      }}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="resolution-notes" className="text-[11px] font-semibold text-slate-700">
+                      Action Taken & Official Resolution Remarks (Visible to Employee)
                     </Label>
                     <Textarea
                       id="resolution-notes"
                       value={resolutionNote}
                       onChange={(e) => setResolutionNote(e.target.value)}
                       rows={3}
-                      placeholder="Enter steps taken, findings, or resolution remarks..."
+                      placeholder="Specify investigation findings, corrective actions taken, or resolution note for the employee..."
                       className="bg-white text-xs leading-relaxed"
                     />
                   </div>
@@ -1133,10 +1222,10 @@ export default function ComplaintsPage() {
                 size="sm"
                 onClick={handleSaveResolution}
                 disabled={isUpdatingStatus}
-                className="gap-1.5"
+                className="gap-1.5 bg-primary hover:bg-primary/90 text-white font-medium"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {isUpdatingStatus ? 'Saving...' : 'Save Updates'}
+                {isUpdatingStatus ? 'Saving Action...' : 'Save Action & Update Status'}
               </Button>
             )}
           </DialogFooter>

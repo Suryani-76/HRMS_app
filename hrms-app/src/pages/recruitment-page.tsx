@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp, Paperclip } from 'lucide-react'
 import {
   sendCandidateApplicationEmail,
-  DEFAULT_CANDIDATE_PORTAL_URL,
+  getEffectivePortalUrl,
   broadcastJobOpeningToEmployees,
   generateJobCode,
   generateReferralCode,
@@ -38,6 +38,7 @@ import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
 import { StatusPill } from '@/components/shared/status-pill'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import type { Interview } from '@/lib/database.types'
 import {
   useJobOpenings,
@@ -83,6 +84,27 @@ function JobsTab() {
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({})
   const [broadcastingJobId, setBroadcastingJobId] = useState<string | null>(null)
   const [uploadingJd, setUploadingJd] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        j.title.toLowerCase().includes(q) ||
+        (j.department?.name && j.department.name.toLowerCase().includes(q)) ||
+        (j.location && j.location.toLowerCase().includes(q)) ||
+        generateJobCode(j).toLowerCase().includes(q) ||
+        generateReferralCode(j).toLowerCase().includes(q)
+
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'Open' ? (j.status === 'Open' || (!j.status && j.published)) : j.status === statusFilter)
+
+      return matchesSearch && matchesStatus
+    })
+  }, [jobs, searchQuery, statusFilter])
 
   const openDialog = (j?: { id: string; title: string; department_id?: string | null; location?: string | null; openings_count: number; employment_type?: string | null; description?: string | null; requirements?: string | null; status?: string | null }) => {
     setEditing(j ? { id: j.id } : null)
@@ -208,7 +230,7 @@ function JobsTab() {
       const created = await create.mutateAsync(payload)
       const deptObj = departments.find((d) => d.id === dept)
 
-      // When a job opening is uploaded/created, broadcast details + job code + referral code to every employee's office email
+      // When a job opening is uploaded/created, automatically broadcast details + job code + referral code to every employee's office email
       try {
         const res = await broadcastJobOpeningToEmployees(
           created || { ...payload, id: 'job-' + Date.now() },
@@ -216,7 +238,7 @@ function JobsTab() {
         )
         if (res.success) {
           toast.success(
-            `Job opening created! Office email sent to ${res.count} employees with Job Code: ${res.jobCode} and Referral Code: ${res.referralCode}.`,
+            `Job opening created! Automated broadcast is emailing all ${res.count} employees with Job Code: ${res.jobCode} and Referral Code: ${res.referralCode}.`,
             { duration: 7000 }
           )
         }
@@ -229,21 +251,45 @@ function JobsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search job title, dept, or job code..."
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Open">Open</SelectItem>
+              <SelectItem value="On Hold">On Hold</SelectItem>
+              <SelectItem value="Closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {isManager && (
-          <Button onClick={() => openDialog()}>
-            <Plus className="mr-2 h-4 w-4" /> New Opening
+          <Button onClick={() => openDialog()} size="sm" className="h-9 text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> New Opening
           </Button>
         )}
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={5} />
-      ) : jobs.length === 0 ? (
-        <EmptyState title="No job openings" description="Create job openings to start recruiting." icon={Briefcase} />
+      ) : filteredJobs.length === 0 ? (
+        <EmptyState
+          title={searchQuery ? 'No matching job openings' : 'No job openings'}
+          description={searchQuery ? 'Try adjusting your search criteria.' : 'Create job openings to start recruiting.'}
+          icon={Briefcase}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {jobs.map((j) => (
+          {filteredJobs.map((j) => (
             <div key={j.id} className="flex flex-col rounded-xl border bg-card p-5">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
@@ -368,26 +414,26 @@ function JobsTab() {
                   )}
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 transition-all flex items-center justify-center gap-1.5 rounded-lg shadow-2xs"
-                  onClick={() => handleManualBroadcast(j)}
-                  disabled={broadcastingJobId === j.id}
-                  title="Send opening details, job code, and referral code to all employees' office emails"
-                >
-                  {broadcastingJobId === j.id ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
-                      <span>Dispatching Emails...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-3.5 w-3.5 text-indigo-600" />
-                      <span>Email All Employees</span>
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/80 border border-emerald-200/80 px-2.5 py-1.5 text-xs text-emerald-800 shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-medium truncate">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">Auto-Sent to All Employees</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100/80 shrink-0 transition-colors"
+                    onClick={() => handleManualBroadcast(j)}
+                    disabled={broadcastingJobId === j.id}
+                    title="Resend job details, Job Code, and Referral Code to all employees' office emails"
+                  >
+                    {broadcastingJobId === j.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-emerald-700" />
+                    ) : (
+                      'Resend'
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -401,21 +447,21 @@ function JobsTab() {
             <DialogDescription>
               {editing
                 ? 'Update opening details.'
-                : 'Create or upload a job opening. An email with Job Code & Referral Code will be sent to every employee\'s office mail.'}
+                : 'Create or upload a job opening. Announcement emails with Job Code & Referral Code are automatically sent to all employees.'}
             </DialogDescription>
           </DialogHeader>
 
           {!editing && (
             <div className="space-y-3 pt-1">
               {/* Workforce Email Broadcast Banner */}
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 flex items-start gap-2.5 shadow-sm">
-                <Mail className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-950 flex items-start gap-2.5 shadow-sm">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-indigo-900 flex items-center gap-1.5">
-                    Office Email Broadcast to All Employees Active
+                  <span className="font-semibold text-emerald-900 flex items-center gap-1.5">
+                    ⚡ Fully Automated Employee Broadcast Active
                   </span>
-                  <p className="text-[11px] text-indigo-800 leading-relaxed">
-                    When this job opening is uploaded, its details along with the unique <strong>Job Code</strong> and <strong>Referral Code</strong> will be automatically emailed to every employee's official office inbox.
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    Whenever this opening is published, its details along with unique <strong>Job Code</strong> and <strong>Referral Code</strong> are automatically emailed to every employee's official office inbox without requiring any manual clicks or authentication.
                   </p>
                 </div>
               </div>
@@ -919,7 +965,7 @@ function CandidatesTab() {
         jobTitle: job?.title || 'Open Position',
         referenceId: refId,
         dateOfBirth: birthDate,
-        candidatePortalUrl: DEFAULT_CANDIDATE_PORTAL_URL,
+        candidatePortalUrl: getEffectivePortalUrl(),
       })
 
       toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | Password (DOB): ${birthDate})`)
@@ -1638,6 +1684,36 @@ function InterviewsTab() {
   const [mode, setMode] = useState('video')
   const [link, setLink] = useState('')
   const [examLink, setExamLink] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const candidateOptions = useMemo(() => {
+    return candidates.map((c) => ({
+      id: c.id,
+      first_name: c.name,
+      last_name: '',
+      email: c.email,
+      employee_code: (c as any).reference_id || (c as any).temp_id || null,
+      designation: c.job_opening ? { name: c.job_opening.title } : null,
+    }))
+  }, [candidates])
+
+  const filteredInterviews = useMemo(() => {
+    return interviews.filter((i) => {
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        (i.candidate?.name && i.candidate.name.toLowerCase().includes(q)) ||
+        (i.round && i.round.toLowerCase().includes(q)) ||
+        (i.job_opening?.title && i.job_opening.title.toLowerCase().includes(q)) ||
+        (i.interviewer && `${i.interviewer.first_name} ${i.interviewer.last_name}`.toLowerCase().includes(q))
+
+      const matchesStatus =
+        statusFilter === 'all' || (i.status ?? 'scheduled').toLowerCase() === statusFilter.toLowerCase()
+
+      return matchesSearch && matchesStatus
+    })
+  }, [interviews, searchQuery, statusFilter])
 
   // Reschedule review modal state
   const [rescheduleModal, setRescheduleModal] = useState<Interview | null>(null)
@@ -1757,16 +1833,42 @@ function InterviewsTab() {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button onClick={() => setDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Schedule Interview
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate, round, or interviewer..."
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="passed">Passed</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={() => setDialog(true)} size="sm" className="h-9 text-xs">
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Schedule Interview
         </Button>
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={5} />
-      ) : interviews.length === 0 ? (
-        <EmptyState title="No interviews" description="Schedule interviews to track the hiring process." icon={CalendarClock} />
+      ) : filteredInterviews.length === 0 ? (
+        <EmptyState
+          title={searchQuery ? 'No matching interviews' : 'No interviews'}
+          description={searchQuery ? 'Try adjusting your search criteria.' : 'Schedule interviews to track the hiring process.'}
+          icon={CalendarClock}
+        />
       ) : (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -1784,7 +1886,7 @@ function InterviewsTab() {
                 </tr>
               </thead>
               <tbody>
-                {interviews.map((i) => {
+                {filteredInterviews.map((i) => {
                   const hasRescheduleReq = i.reschedule_requested === true && i.reschedule_status === 'pending'
 
                   return (
@@ -2010,14 +2112,14 @@ function InterviewsTab() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Candidate *</Label>
-              <Select value={candidateId || undefined} onValueChange={setCandidateId}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {candidates.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableEmployeeSelect
+                employees={candidateOptions as any}
+                value={candidateId}
+                onValueChange={setCandidateId}
+                placeholder="Search or select candidate..."
+                className="w-full text-xs"
+                renderLabel={(cand) => `${cand.first_name}${cand.designation?.name ? ` (${cand.designation.name})` : ''}`}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -2044,14 +2146,14 @@ function InterviewsTab() {
               </div>
               <div className="space-y-2">
                 <Label>Interviewer</Label>
-                <Select value={interviewerId || undefined} onValueChange={setInterviewerId}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableEmployeeSelect
+                  employees={employees as any}
+                  value={interviewerId}
+                  onValueChange={setInterviewerId}
+                  placeholder="Search interviewer..."
+                  className="w-full text-xs"
+                  allowClear
+                />
               </div>
               <div className="space-y-2">
                 <Label>Mode</Label>
@@ -2196,6 +2298,36 @@ function OffersTab() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfDataUrl, setPdfDataUrl] = useState('')
   const [termsConditions, setTermsConditions] = useState(DEFAULT_TERMS_TEMPLATE)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const candidateOptions = useMemo(() => {
+    return candidates.map((c) => ({
+      id: c.id,
+      first_name: c.name,
+      last_name: '',
+      email: c.email,
+      employee_code: (c as any).reference_id || (c as any).temp_id || null,
+      designation: c.job_opening ? { name: c.job_opening.title } : null,
+    }))
+  }, [candidates])
+
+  const filteredOffers = useMemo(() => {
+    return offers.filter((o) => {
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        (o.candidate?.name && o.candidate.name.toLowerCase().includes(q)) ||
+        (o.candidate?.email && o.candidate.email.toLowerCase().includes(q)) ||
+        (o.job_opening?.title && o.job_opening.title.toLowerCase().includes(q)) ||
+        (o.salary_offered && String(o.salary_offered).includes(q))
+
+      const matchesStatus =
+        statusFilter === 'all' || (o.status ?? 'draft').toLowerCase() === statusFilter.toLowerCase()
+
+      return matchesSearch && matchesStatus
+    })
+  }, [offers, searchQuery, statusFilter])
 
   const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -2236,16 +2368,41 @@ function OffersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Issue Offer
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate, role, or salary..."
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="issued">Issued</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="declined">Declined</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={() => setDialog(true)} size="sm" className="h-9 text-xs">
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Issue Offer
         </Button>
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={5} />
-      ) : offers.length === 0 ? (
-        <EmptyState title="No offers" description="Issue offers to candidates who have cleared interviews." icon={FileText} />
+      ) : filteredOffers.length === 0 ? (
+        <EmptyState
+          title={searchQuery ? 'No matching offers' : 'No offers'}
+          description={searchQuery ? 'Try adjusting your search criteria.' : 'Issue offers to candidates who have cleared interviews.'}
+          icon={FileText}
+        />
       ) : (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -2262,7 +2419,7 @@ function OffersTab() {
                 </tr>
               </thead>
               <tbody>
-                {offers.map((o) => {
+                {filteredOffers.map((o) => {
                   const isAccepted = o.candidate_response === 'accept' || o.candidate_response === 'accepted' || o.status === 'accepted'
                   const isDeclined = o.candidate_response === 'declined' || o.candidate_response === 'reject' || o.status === 'declined'
                   const isDiscuss = o.candidate_response === 'discuss'
@@ -2435,14 +2592,14 @@ function OffersTab() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Candidate *</Label>
-              <Select value={candidateId || undefined} onValueChange={setCandidateId}>
-                <SelectTrigger><SelectValue placeholder="Select candidate" /></SelectTrigger>
-                <SelectContent>
-                  {candidates.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name} ({c.email})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableEmployeeSelect
+                employees={candidateOptions as any}
+                value={candidateId}
+                onValueChange={setCandidateId}
+                placeholder="Search or select candidate..."
+                className="w-full text-xs"
+                renderLabel={(c) => `${c.first_name}${c.email ? ` (${c.email})` : ''}`}
+              />
             </div>
             <div className="space-y-2">
               <Label>Position</Label>

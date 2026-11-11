@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'
 import {
@@ -122,18 +123,118 @@ function getPriorityBadge(priority: ProjectPriority) {
   }
 }
 
+export function isProjectAssignedToEmployee(
+  project: Project,
+  employee: Employee | null,
+  user: any
+): boolean {
+  if (!employee && !user) return false
+
+  const candidateIds = new Set<string>()
+  if (employee?.id) candidateIds.add(String(employee.id).trim().toLowerCase())
+  if (user?.employee_id) candidateIds.add(String(user.employee_id).trim().toLowerCase())
+  if (user?.id) candidateIds.add(String(user.id).trim().toLowerCase())
+
+  const candidateEmails = new Set<string>()
+  if (employee?.email) candidateEmails.add(employee.email.trim().toLowerCase())
+  if (user?.email) candidateEmails.add(user.email.trim().toLowerCase())
+
+  const candidateCodes = new Set<string>()
+  if (employee?.employee_code) candidateCodes.add(employee.employee_code.trim().toLowerCase())
+
+  // 1. Check Project Head
+  if (project.project_head_id && candidateIds.has(String(project.project_head_id).trim().toLowerCase())) {
+    return true
+  }
+  if (project.project_head?.id && candidateIds.has(String(project.project_head.id).trim().toLowerCase())) {
+    return true
+  }
+  if (project.project_head?.email && candidateEmails.has(project.project_head.email.trim().toLowerCase())) {
+    return true
+  }
+  if (project.project_head?.employee_code && candidateCodes.has(project.project_head.employee_code.trim().toLowerCase())) {
+    return true
+  }
+
+  // 2. Check Team Lead
+  if (project.team_lead_id && candidateIds.has(String(project.team_lead_id).trim().toLowerCase())) {
+    return true
+  }
+  if (project.team_lead?.id && candidateIds.has(String(project.team_lead.id).trim().toLowerCase())) {
+    return true
+  }
+  if (project.team_lead?.email && candidateEmails.has(project.team_lead.email.trim().toLowerCase())) {
+    return true
+  }
+  if (project.team_lead?.employee_code && candidateCodes.has(project.team_lead.employee_code.trim().toLowerCase())) {
+    return true
+  }
+
+  // 3. Check Team Members
+  if (Array.isArray(project.members) && project.members.length > 0) {
+    const isMember = project.members.some((m) => {
+      if (m.assignment_status && m.assignment_status !== 'Active') return false
+
+      if (m.employee_id && candidateIds.has(String(m.employee_id).trim().toLowerCase())) return true
+      if (m.employee?.id && candidateIds.has(String(m.employee.id).trim().toLowerCase())) return true
+      if (m.employee?.email && candidateEmails.has(m.employee.email.trim().toLowerCase())) return true
+      if (m.employee?.employee_code && candidateCodes.has(m.employee.employee_code.trim().toLowerCase())) return true
+      return false
+    })
+    if (isMember) return true
+  }
+
+  return false
+}
+
 export default function ProjectsPage() {
   const { employee, user, isAdmin, isHR } = useAuth()
-  const isHROrAdmin = Boolean(
+
+  const userRole = (user?.role?.name || '').toLowerCase().trim()
+  const userEmail = (user?.email || '').toLowerCase().trim()
+  const empEmail = (employee?.email || '').toLowerCase().trim()
+  const effectiveEmail = empEmail || userEmail
+
+  const deptName = (
+    typeof employee?.department === 'string'
+      ? employee.department
+      : employee?.department?.name || ''
+  ).toLowerCase().trim()
+
+  const desigName = (
+    typeof employee?.designation === 'string'
+      ? employee.designation
+      : employee?.designation?.name || ''
+  ).toLowerCase().trim()
+
+  const isActualAdmin =
     isAdmin ||
-    isHR ||
-    user?.role?.name === 'HR' ||
-    user?.role?.name === 'Admin' ||
-    (employee?.email &&
-      (employee.email.toLowerCase().includes('hr@') ||
-        employee.email.toLowerCase().startsWith('admin@') ||
-        employee.email.toLowerCase() === 'ceo@oklut.com'))
-  )
+    userRole === 'admin' ||
+    effectiveEmail === 'ceo@oklut.com' ||
+    effectiveEmail === 'hr@oklut.in' ||
+    effectiveEmail.startsWith('admin@') ||
+    effectiveEmail.startsWith('admin.')
+
+  const isActualHR =
+    (isHR ||
+      userRole === 'hr' ||
+      userRole === 'human resource' ||
+      userRole === 'human resources' ||
+      effectiveEmail === 'hr@oklut.com' ||
+      effectiveEmail.startsWith('hr@') ||
+      effectiveEmail.startsWith('hr.') ||
+      effectiveEmail.startsWith('hr_') ||
+      deptName === 'hr' ||
+      deptName === 'human resources' ||
+      deptName.startsWith('hr ') ||
+      deptName.includes('human resource') ||
+      desigName === 'hr' ||
+      desigName.startsWith('hr ') ||
+      desigName.includes('human resource')) &&
+    effectiveEmail !== 'hr@oklut.in'
+
+  // Only actual HR and Admin users see all company projects and administrative controls
+  const isHROrAdmin = isActualAdmin || isActualHR
 
   // Query Hooks
   const { data: projects = [], isLoading: loadingProjects } = useProjects()
@@ -363,9 +464,43 @@ export default function ProjectsPage() {
     setDeleteConfirmId(null)
   }
 
-  // Filtered Projects Logic
+  // 1. Projects Accessible to Current User
+  // HR & Admin see ALL company projects
+  // Regular employees ONLY see projects which HR or Admin assigned to them
+  const accessibleProjects = useMemo(() => {
+    if (isHROrAdmin) return projects
+    return projects.filter((p) => isProjectAssignedToEmployee(p, employee, user))
+  }, [projects, isHROrAdmin, employee, user])
+
+  // Computed metrics based strictly on accessible projects
+  const computedStats = useMemo(() => {
+    if (isHROrAdmin && stats) {
+      return stats
+    }
+    const base = accessibleProjects
+    const notStarted = base.filter((p) => p.status === 'Not Started' || p.status === 'Planning').length
+    const inProgress = base.filter((p) => p.status === 'In Progress').length
+    const onHold = base.filter((p) => p.status === 'On Hold').length
+    const atRisk = base.filter((p) => p.status === 'At Risk').length
+    const completed = base.filter((p) => p.status === 'Completed').length
+    const cancelled = base.filter((p) => p.status === 'Cancelled').length
+    const requiringUpdates = base.filter((p) => isProjectNeedingUpdate(p)).length
+
+    return {
+      total: base.length,
+      notStarted,
+      inProgress,
+      onHold,
+      atRisk,
+      completed,
+      cancelled,
+      requiringUpdates,
+    }
+  }, [isHROrAdmin, stats, accessibleProjects])
+
+  // Filtered Projects Logic (always operating strictly on accessibleProjects)
   const filteredProjects = useMemo(() => {
-    return projects.filter((p) => {
+    return accessibleProjects.filter((p) => {
       // Tab Filter
       if (activeTab === 'active') {
         if (p.status === 'Completed' || p.status === 'Cancelled') return false
@@ -373,12 +508,29 @@ export default function ProjectsPage() {
         const needsUpdate = isProjectNeedingUpdate(p)
         if (p.status !== 'At Risk' && p.status !== 'On Hold' && !needsUpdate) return false
       } else if (activeTab === 'my-projects') {
-        const empId = employee?.id
-        if (!empId) return false
-        const isHead = p.project_head_id === empId
-        const isLead = p.team_lead_id === empId
-        const isMem = p.members?.some((m) => m.employee_id === empId)
-        if (!isHead && !isLead && !isMem) return false
+        if (isHROrAdmin) {
+          return isProjectAssignedToEmployee(p, employee, user)
+        } else {
+          // For employees, this tab filters to leadership projects (where they are Head or Lead)
+          const candidateIds = new Set<string>()
+          if (employee?.id) candidateIds.add(String(employee.id).trim().toLowerCase())
+          if (user?.employee_id) candidateIds.add(String(user.employee_id).trim().toLowerCase())
+          if (user?.id) candidateIds.add(String(user.id).trim().toLowerCase())
+          const candidateEmails = new Set<string>()
+          if (employee?.email) candidateEmails.add(employee.email.trim().toLowerCase())
+          if (user?.email) candidateEmails.add(user.email.trim().toLowerCase())
+
+          const isHead =
+            (p.project_head_id && candidateIds.has(String(p.project_head_id).trim().toLowerCase())) ||
+            (p.project_head?.id && candidateIds.has(String(p.project_head.id).trim().toLowerCase())) ||
+            (p.project_head?.email && candidateEmails.has(p.project_head.email.trim().toLowerCase()))
+          const isLead =
+            (p.team_lead_id && candidateIds.has(String(p.team_lead_id).trim().toLowerCase())) ||
+            (p.team_lead?.id && candidateIds.has(String(p.team_lead.id).trim().toLowerCase())) ||
+            (p.team_lead?.email && candidateEmails.has(p.team_lead.email.trim().toLowerCase()))
+
+          return Boolean(isHead || isLead)
+        }
       }
 
       // Search Query
@@ -423,13 +575,15 @@ export default function ProjectsPage() {
       return true
     })
   }, [
-    projects,
+    accessibleProjects,
+    isHROrAdmin,
     activeTab,
     searchQuery,
     statusFilter,
     priorityFilter,
     departmentFilter,
-    employee?.id,
+    employee,
+    user,
   ])
 
   // Filtered employees for Member Multi-Select
@@ -451,8 +605,12 @@ export default function ProjectsPage() {
     <div className="container mx-auto space-y-6 pb-12 pt-2">
       {/* 1. Header with Actions */}
       <PageHeader
-        title="Project Management"
-        description="Oversee company initiatives, assign project leadership, track milestones, and maintain audit trails."
+        title={isHROrAdmin ? 'Project Management' : 'My Projects'}
+        description={
+          isHROrAdmin
+            ? 'Oversee company initiatives, assign project leadership, track milestones, and maintain audit trails.'
+            : 'View and track the status, milestones, and progress of projects assigned to you.'
+        }
         actions={
           <div className="flex items-center gap-3">
             {isHROrAdmin && (
@@ -483,8 +641,10 @@ export default function ProjectsPage() {
               <span className="text-xs font-medium text-muted-foreground">Total</span>
               <FolderKanban className="h-4 w-4 text-primary" />
             </div>
-            <div className="mt-2 text-2xl font-bold">{stats?.total ?? projects.length}</div>
-            <div className="text-[11px] text-muted-foreground">All initiatives</div>
+            <div className="mt-2 text-2xl font-bold">{computedStats.total}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {isHROrAdmin ? 'All initiatives' : 'Assigned to you'}
+            </div>
           </CardContent>
         </Card>
 
@@ -505,7 +665,7 @@ export default function ProjectsPage() {
               <Clock className="h-4 w-4 text-slate-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-slate-800 dark:text-slate-200">
-              {stats?.notStarted ?? 0}
+              {computedStats.notStarted}
             </div>
             <div className="text-[11px] text-muted-foreground">Queue / Planning</div>
           </CardContent>
@@ -528,7 +688,7 @@ export default function ProjectsPage() {
               <TrendingUp className="h-4 w-4 text-blue-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {stats?.inProgress ?? 0}
+              {computedStats.inProgress}
             </div>
             <div className="text-[11px] text-muted-foreground">Active delivery</div>
           </CardContent>
@@ -551,7 +711,7 @@ export default function ProjectsPage() {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {stats?.onHold ?? 0}
+              {computedStats.onHold}
             </div>
             <div className="text-[11px] text-muted-foreground">Paused</div>
           </CardContent>
@@ -574,7 +734,7 @@ export default function ProjectsPage() {
               <Flame className="h-4 w-4 text-rose-600 animate-pulse" />
             </div>
             <div className="mt-2 text-2xl font-bold text-rose-700 dark:text-rose-400">
-              {stats?.atRisk ?? 0}
+              {computedStats.atRisk}
             </div>
             <div className="text-[11px] text-rose-600/80 dark:text-rose-400/80">Requires action</div>
           </CardContent>
@@ -597,7 +757,7 @@ export default function ProjectsPage() {
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {stats?.completed ?? 0}
+              {computedStats.completed}
             </div>
             <div className="text-[11px] text-muted-foreground">100% Finished</div>
           </CardContent>
@@ -620,7 +780,7 @@ export default function ProjectsPage() {
               <XCircle className="h-4 w-4 text-gray-400" />
             </div>
             <div className="mt-2 text-2xl font-bold text-gray-600 dark:text-gray-400">
-              {stats?.cancelled ?? 0}
+              {computedStats.cancelled}
             </div>
             <div className="text-[11px] text-muted-foreground">Terminated</div>
           </CardContent>
@@ -643,7 +803,7 @@ export default function ProjectsPage() {
               <AlertCircle className="h-4 w-4 text-amber-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-400">
-              {stats?.requiringUpdates ?? 0}
+              {computedStats.requiringUpdates}
             </div>
             <div className="text-[11px] text-muted-foreground">Overdue / 7d+ stale</div>
           </CardContent>
@@ -666,10 +826,10 @@ export default function ProjectsPage() {
               className="w-full lg:w-auto"
             >
               <TabsList className="grid grid-cols-4 w-full lg:w-auto">
-                <TabsTrigger value="all">All Projects</TabsTrigger>
+                <TabsTrigger value="all">{isHROrAdmin ? 'All Projects' : 'All My Projects'}</TabsTrigger>
                 <TabsTrigger value="active">Active</TabsTrigger>
                 <TabsTrigger value="attention">Needs Attention</TabsTrigger>
-                <TabsTrigger value="my-projects">My Projects</TabsTrigger>
+                <TabsTrigger value="my-projects">{isHROrAdmin ? 'My Projects' : 'Lead / Head Role'}</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -785,6 +945,25 @@ export default function ProjectsPage() {
                       </div>
                     </td>
                   </tr>
+                ) : accessibleProjects.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <FolderKanban className="h-8 w-8 text-muted-foreground/60" />
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">No projects assigned to you</p>
+                        <p className="text-xs text-muted-foreground max-w-sm">
+                          {isHROrAdmin
+                            ? 'No projects exist yet. Create your first initiative to get started.'
+                            : 'You are not currently assigned as a Project Head, Team Lead, or Team Member on any project. Contact HR or your manager for project allocation.'}
+                        </p>
+                        {isHROrAdmin && (
+                          <Button size="sm" onClick={handleOpenCreate} className="mt-2">
+                            <Plus className="h-4 w-4 mr-1" /> Create Project
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 ) : filteredProjects.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center">
@@ -806,8 +985,25 @@ export default function ProjectsPage() {
                   filteredProjects.map((p) => {
                     const statusInfo = getStatusBadge(p.status)
                     const StatusIcon = statusInfo.icon
-                    const isHead = employee?.id === p.project_head_id
-                    const isLead = employee?.id === p.team_lead_id
+                    const candidateIds = new Set<string>()
+                    if (employee?.id) candidateIds.add(String(employee.id).trim().toLowerCase())
+                    if (user?.employee_id) candidateIds.add(String(user.employee_id).trim().toLowerCase())
+                    if (user?.id) candidateIds.add(String(user.id).trim().toLowerCase())
+
+                    const candidateEmails = new Set<string>()
+                    if (employee?.email) candidateEmails.add(employee.email.trim().toLowerCase())
+                    if (user?.email) candidateEmails.add(user.email.trim().toLowerCase())
+
+                    const isHead =
+                      (p.project_head_id && candidateIds.has(String(p.project_head_id).trim().toLowerCase())) ||
+                      (p.project_head?.id && candidateIds.has(String(p.project_head.id).trim().toLowerCase())) ||
+                      (p.project_head?.email && candidateEmails.has(p.project_head.email.trim().toLowerCase()))
+
+                    const isLead =
+                      (p.team_lead_id && candidateIds.has(String(p.team_lead_id).trim().toLowerCase())) ||
+                      (p.team_lead?.id && candidateIds.has(String(p.team_lead.id).trim().toLowerCase())) ||
+                      (p.team_lead?.email && candidateEmails.has(p.team_lead.email.trim().toLowerCase()))
+
                     const canUpdateStatus = isHROrAdmin || isHead || isLead
                     const isOfficialAuth = isHROrAdmin || isHead
                     const isOverdue =
@@ -1172,19 +1368,13 @@ export default function ProjectsPage() {
                     Accountable for status
                   </span>
                 </Label>
-                <Select value={formHeadId} onValueChange={setFormHeadId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Designate Project Head..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.first_name} {e.last_name} ({e.designation?.name || 'Staff'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <SearchableEmployeeSelect
+                  employees={employees}
+                  value={formHeadId}
+                  onValueChange={setFormHeadId}
+                  placeholder="Designate Project Head..."
+                  allowClear
+                /></div>
 
               {/* Team Lead */}
               <div className="space-y-1.5">
@@ -1196,18 +1386,13 @@ export default function ProjectsPage() {
                     Operational coordinator
                   </span>
                 </Label>
-                <Select value={formLeadId} onValueChange={setFormLeadId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Designate Team Lead..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.first_name} {e.last_name} ({e.designation?.name || 'Staff'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableEmployeeSelect
+                  employees={employees}
+                  value={formLeadId}
+                  onValueChange={setFormLeadId}
+                  placeholder="Designate Team Lead..."
+                  allowClear
+                />
               </div>
             </div>
 
@@ -1355,7 +1540,18 @@ export default function ProjectsPage() {
             <div className="space-y-4 py-2">
               {/* Responsibility & Role Notice */}
               {(() => {
-                const isHead = employee?.id === statusUpdateProject.project_head_id
+                const candidateIds = new Set<string>()
+                if (employee?.id) candidateIds.add(String(employee.id).trim().toLowerCase())
+                if (user?.employee_id) candidateIds.add(String(user.employee_id).trim().toLowerCase())
+                if (user?.id) candidateIds.add(String(user.id).trim().toLowerCase())
+                const candidateEmails = new Set<string>()
+                if (employee?.email) candidateEmails.add(employee.email.trim().toLowerCase())
+                if (user?.email) candidateEmails.add(user.email.trim().toLowerCase())
+
+                const isHead =
+                  (statusUpdateProject.project_head_id && candidateIds.has(String(statusUpdateProject.project_head_id).trim().toLowerCase())) ||
+                  (statusUpdateProject.project_head?.id && candidateIds.has(String(statusUpdateProject.project_head.id).trim().toLowerCase())) ||
+                  (statusUpdateProject.project_head?.email && candidateEmails.has(statusUpdateProject.project_head.email.trim().toLowerCase()))
                 const isOfficial = isHROrAdmin || isHead
 
                 return (

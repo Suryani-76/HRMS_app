@@ -15,6 +15,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,6 +36,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import {
   useTasks,
   useCreateTask,
@@ -319,6 +321,7 @@ export default function TasksPage() {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
   const [filterType, setFilterType] = useState<'all' | 'assigned' | 'created'>('all')
   const [selectedDept, setSelectedDept] = useState<string>('all')
+  const [taskSearchQuery, setTaskSearchQuery] = useState('')
 
   const [dialog, setDialog] = useState(false)
   const [title, setTitle] = useState('')
@@ -359,9 +362,29 @@ export default function TasksPage() {
         }
       }
 
+      // 3. Search query filter
+      if (taskSearchQuery.trim()) {
+        const q = taskSearchQuery.toLowerCase().trim()
+        const titleMatch = t.title.toLowerCase().includes(q)
+        const descMatch = (t.description || '').toLowerCase().includes(q)
+        const projMatch = (t.project_code || '').toLowerCase().includes(q)
+        const assignee = allEmployeesSafe.find((e) => e.id === t.assignee_id)
+        const assigneeMatch = assignee
+          ? `${assignee.first_name} ${assignee.last_name} ${assignee.employee_code || ''}`.toLowerCase().includes(q)
+          : false
+        const lead = (t as any).team_lead_id ? allEmployeesSafe.find((e) => e.id === (t as any).team_lead_id) : null
+        const leadMatch = lead
+          ? `${lead.first_name} ${lead.last_name} ${lead.employee_code || ''}`.toLowerCase().includes(q)
+          : false
+
+        if (!titleMatch && !descMatch && !projMatch && !assigneeMatch && !leadMatch) {
+          return false
+        }
+      }
+
       return true
     })
-  }, [tasks, filterType, selectedDept, employee?.id, allEmployeesSafe, departments])
+  }, [tasks, filterType, selectedDept, employee?.id, allEmployeesSafe, departments, taskSearchQuery])
 
   // Multi-member assignment handlers
   const handleToggleMember = (empId: string) => {
@@ -598,7 +621,25 @@ export default function TasksPage() {
       {/* Filter Tabs & Department Sector Selector */}
       <div className="space-y-3 border-b pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={taskSearchQuery}
+                onChange={(e) => setTaskSearchQuery(e.target.value)}
+                placeholder="Search tasks, project, employee..."
+                className="pl-8 pr-8 h-8 text-xs bg-card"
+              />
+              {taskSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTaskSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
             <Button
               variant={filterType === 'all' ? 'default' : 'outline'}
               size="sm"
@@ -694,7 +735,9 @@ export default function TasksPage() {
         <EmptyState
           title="No tasks found"
           description={
-            selectedDept !== 'all'
+            taskSearchQuery
+              ? `No tasks matching "${taskSearchQuery}".`
+              : selectedDept !== 'all'
               ? `No tasks found for the selected department sector.`
               : filterType === 'assigned'
               ? 'No tasks assigned to you.'

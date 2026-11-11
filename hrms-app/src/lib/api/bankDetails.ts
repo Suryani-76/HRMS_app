@@ -168,7 +168,33 @@ const INITIAL_BANK_SEEDS: EmployeeBankDetail[] = [
     submitted_at: '2026-10-01T11:10:00.000Z',
     updated_at: '2026-10-02T16:00:00.000Z',
   },
+  {
+    id: 'bank-rec-hr-001',
+    employee_id: 'hr-admin-self-account',
+    employee_code: 'OKL-HR-001',
+    employee_name: 'HR Operations & Admin',
+    employee_email: 'hr@oklut.com',
+    phone: '+91 98450 10001',
+    department: 'Human Resources',
+    designation: 'HR Operations Manager',
+    bank_name: 'HDFC Bank',
+    account_holder_name: 'HR Operations & Admin',
+    account_number: '50100827192841',
+    ifsc_code: 'HDFC0000456',
+    branch_name: 'Banjara Hills, Hyderabad',
+    account_type: 'Salary',
+    upi_id: 'hr.operations@okhdfcbank',
+    pan_number: 'AAAPH1234K',
+    document_proof_name: 'hr_direct_deposit_passbook.pdf',
+    status: 'verified',
+    verified_by: 'Internal System / Payroll Operations',
+    verified_at: '2026-09-01T10:00:00.000Z',
+    submitted_at: '2026-09-01T09:00:00.000Z',
+    updated_at: '2026-09-01T10:00:00.000Z',
+  },
 ]
+
+const HR_DEFAULT_SEED: EmployeeBankDetail = INITIAL_BANK_SEEDS[5]
 
 function getLocalBankDetails(): EmployeeBankDetail[] {
   try {
@@ -181,6 +207,16 @@ function getLocalBankDetails(): EmployeeBankDetail[] {
     if (!Array.isArray(parsed) || parsed.length === 0) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_BANK_SEEDS))
       return INITIAL_BANK_SEEDS
+    }
+    const hasHr = parsed.some(
+      (d) =>
+        d.employee_id === 'hr-admin-self-account' ||
+        d.employee_code === 'OKL-HR-001' ||
+        d.employee_email?.toLowerCase() === 'hr@oklut.com'
+    )
+    if (!hasHr) {
+      parsed.push(HR_DEFAULT_SEED)
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed))
     }
     return parsed
   } catch {
@@ -266,13 +302,14 @@ export async function submitEmployeeBankDetail(
   const list = getLocalBankDetails()
   const existingIdx = list.findIndex(
     (d) =>
-      d.id === input.id ||
-      d.employee_id.toLowerCase() === input.employee_id.toLowerCase() ||
-      d.employee_email.toLowerCase() === input.employee_email.toLowerCase() ||
-      d.employee_code.toLowerCase() === input.employee_code.toLowerCase()
+      (input.id && d.id === input.id) ||
+      (input.employee_id && d.employee_id.toLowerCase() === input.employee_id.toLowerCase()) ||
+      (input.employee_email && d.employee_email.toLowerCase() === input.employee_email.toLowerCase()) ||
+      (input.employee_code && d.employee_code.toLowerCase() === input.employee_code.toLowerCase())
   )
 
   let resultRecord: EmployeeBankDetail
+  const statusToSet = input.status || 'pending'
 
   if (existingIdx >= 0) {
     const existing = list[existingIdx]
@@ -280,8 +317,10 @@ export async function submitEmployeeBankDetail(
       ...existing,
       ...input,
       id: existing.id,
-      status: 'pending', // Re-submitting puts it back to pending verification
-      rejection_reason: undefined,
+      status: statusToSet,
+      rejection_reason: statusToSet === 'rejected' ? input.rejection_reason : undefined,
+      verified_by: statusToSet === 'verified' ? (input.verified_by || existing.verified_by || 'HR Admin') : existing.verified_by,
+      verified_at: statusToSet === 'verified' ? (input.verified_at || existing.verified_at || now) : existing.verified_at,
       submitted_at: existing.submitted_at || now,
       updated_at: now,
     }
@@ -290,7 +329,9 @@ export async function submitEmployeeBankDetail(
     resultRecord = {
       ...input,
       id: input.id || 'bank-rec-' + Date.now(),
-      status: 'pending',
+      status: statusToSet,
+      verified_by: statusToSet === 'verified' ? (input.verified_by || 'HR Admin') : undefined,
+      verified_at: statusToSet === 'verified' ? (input.verified_at || now) : undefined,
       submitted_at: now,
       updated_at: now,
     }
@@ -298,6 +339,26 @@ export async function submitEmployeeBankDetail(
   }
 
   saveLocalBankDetails(list)
+
+  // Best-effort sync to payroll_profiles and employees table
+  try {
+    if (resultRecord.employee_id && !resultRecord.employee_id.startsWith('hr-admin') && !resultRecord.employee_id.startsWith('emp-hr')) {
+      await supabase.from('payroll_profiles').upsert({
+        employee_id: resultRecord.employee_id,
+        bank_name: resultRecord.bank_name,
+        bank_account: resultRecord.account_number,
+        ifsc_code: resultRecord.ifsc_code,
+        updated_at: now,
+      })
+      await supabase.from('employees').update({
+        bank_name: resultRecord.bank_name,
+        bank_account_number: resultRecord.account_number,
+        ifsc_code: resultRecord.ifsc_code,
+      }).eq('id', resultRecord.employee_id)
+    }
+  } catch (syncErr) {
+    console.warn('Bank detail payroll sync notice:', syncErr)
+  }
 
   // Try saving to Supabase if table is present
   try {
@@ -307,6 +368,20 @@ export async function submitEmployeeBankDetail(
   }
 
   return resultRecord
+}
+
+/**
+ * Delete a bank detail record
+ */
+export async function deleteEmployeeBankDetail(id: string): Promise<void> {
+  const list = getLocalBankDetails()
+  const filtered = list.filter((d) => d.id !== id)
+  saveLocalBankDetails(filtered)
+  try {
+    await supabase.from('employee_bank_details').delete().eq('id', id)
+  } catch (err) {
+    console.warn('Delete bank detail Supabase notice:', err)
+  }
 }
 
 /**

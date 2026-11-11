@@ -68,7 +68,7 @@ select '00000000-0000-4000-8000-0000000000a4', id from public.permissions
 where name in ('dashboard.view','attendance.read','attendance.write','leave.read','leave.apply','documents.read','documents.upload','tasks.read','announcements.read','holidays.read','performance.read','notifications.read');
 
 -- ---------------------------------------------------------------------------
--- Admin auth user (ceo@oklut.com / 1234)
+-- Admin auth users (ceo@oklut.com / 1234 and hr@oklut.in / HRMS@4751)
 -- ---------------------------------------------------------------------------
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
@@ -79,12 +79,26 @@ insert into auth.users (
   now(), now(), now(),
   '{"provider":"email","providers":["email"]}',
   '{"name":"System Admin","role":"Admin"}'
-) on conflict (id) do nothing;
+), (
+  '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated', 'hr@oklut.in', crypt('HRMS@4751', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"HR Admin","role":"Admin"}'
+) on conflict (id) do update set
+  encrypted_password = excluded.encrypted_password,
+  email_confirmed_at = coalesce(auth.users.email_confirmed_at, now()),
+  raw_user_meta_data = excluded.raw_user_meta_data;
 
-insert into public.users (id, email, role_id, status)
-values ('00000000-0000-0000-0000-000000000001', 'ceo@oklut.com',
-        '00000000-0000-4000-8000-0000000000a1', 'Active')
-on conflict (id) do nothing;
+insert into public.users (id, auth_id, email, role_id, status)
+values
+  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ceo@oklut.com',
+   '00000000-0000-4000-8000-0000000000a1', 'Active'),
+  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'hr@oklut.in',
+   '00000000-0000-4000-8000-0000000000a1', 'Active')
+on conflict (id) do update set
+  role_id = excluded.role_id,
+  status = excluded.status;
 
 -- ---------------------------------------------------------------------------
 -- Departments
@@ -150,6 +164,10 @@ insert into public.employees (
   id, employee_code, user_id, first_name, last_name, email, phone, gender, date_of_birth,
   city, state, joining_date, employment_type, department_id, designation_id, status
 ) values
+  ('00000000-0000-0000-0000-000000000002', 'OKL-ADM-002', '00000000-0000-0000-0000-000000000002',
+   'HR', 'Admin', 'hr@oklut.in', '+91 98450 00002', 'Other', '1990-01-01',
+   'Hyderabad', 'Telangana', '2024-01-01', 'Full-time',
+   '00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000e5', 'Active'),
   ('00000000-0000-0000-0000-000000000010', 'EMP-0001', '00000000-0000-0000-0000-000000000010',
    'Aarav', 'Patel', 'hr@oklut.com', '+91 98450 10001', 'Male', '1992-04-12',
    'Hyderabad', 'Telangana', '2023-06-01', 'Full-time',

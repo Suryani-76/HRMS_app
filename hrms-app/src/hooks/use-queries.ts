@@ -450,7 +450,7 @@ export function useCreateReview() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
     mutationFn: api.createReview,
-    onSuccess: () => { invalidate([queryKeys.performanceReviews]); toast.success('Review submitted') },
+    onSuccess: () => { invalidate([queryKeys.performanceReviews, queryKeys.dashboardStats]); toast.success('Review submitted') },
     onError: toastError,
   })
 }
@@ -580,6 +580,20 @@ export function useMarkAllNotificationsRead() {
   const { invalidate } = useInvalidate()
   return useMutation({
     mutationFn: api.markAllNotificationsRead,
+    onSuccess: () => invalidate([queryKeys.notifications]),
+  })
+}
+export function useDeleteNotification() {
+  const { invalidate } = useInvalidate()
+  return useMutation({
+    mutationFn: api.deleteNotification,
+    onSuccess: () => invalidate([queryKeys.notifications]),
+  })
+}
+export function useClearAllNotifications() {
+  const { invalidate } = useInvalidate()
+  return useMutation({
+    mutationFn: api.clearAllNotifications,
     onSuccess: () => invalidate([queryKeys.notifications]),
   })
 }
@@ -747,4 +761,3 @@ export type {
   ProjectMember,
   ProjectStatusUpdate,
 }
-

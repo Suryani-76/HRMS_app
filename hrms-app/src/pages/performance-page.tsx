@@ -9,9 +9,12 @@ import {
   Paperclip,
   ExternalLink,
   X,
+  Search,
   FileSpreadsheet,
 } from 'lucide-react'
 import { PerformanceAssessmentSheet } from '@/components/performance/performance-assessment-sheet'
+import { getEmployeeCategory } from '@/lib/api/performanceAssessment'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,11 +89,11 @@ function GoalsTab() {
   const updateStatus = useUpdateGoalStatus()
   const updateDoc = useUpdateGoalDocument()
 
-  const myGoals = useMemo(() => allGoals.filter((g) => g.employee_id === employee?.id), [allGoals, employee?.id])
-  const visible = isManager ? allGoals : myGoals
-
   // View Mode: Goals Assessment Sheet (IT & Non-IT) vs Custom Milestone Goals
   const [viewMode, setViewMode] = useState<'sheet' | 'custom'>('sheet')
+
+  // Search filter for custom goals
+  const [customGoalSearch, setCustomGoalSearch] = useState('')
 
   // Create Goal Dialog State
   const [dialog, setDialog] = useState(false)
@@ -107,6 +110,22 @@ function GoalsTab() {
   const [targetGoalId, setTargetGoalId] = useState<string | null>(null)
   const [attachFile, setAttachFile] = useState<File | null>(null)
   const [attachingDoc, setAttachingDoc] = useState(false)
+
+  const myGoals = useMemo(() => allGoals.filter((g) => g.employee_id === employee?.id), [allGoals, employee?.id])
+  const visible = isManager ? allGoals : myGoals
+  const employeeSector = useMemo(() => getEmployeeCategory(employee), [employee])
+
+  const filteredCustomGoals = useMemo(() => {
+    if (!customGoalSearch.trim()) return visible
+    const q = customGoalSearch.toLowerCase().trim()
+    return visible.filter(
+      (g) =>
+        (g.title && g.title.toLowerCase().includes(q)) ||
+        (g.description && g.description.toLowerCase().includes(q)) ||
+        (g.employee && `${g.employee.first_name} ${g.employee.last_name}`.toLowerCase().includes(q)) ||
+        (g.target && g.target.toLowerCase().includes(q))
+    )
+  }, [visible, customGoalSearch])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,7 +203,13 @@ function GoalsTab() {
             }`}
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
-            <span>Goals Assessment Sheet (IT & Non-IT)</span>
+            <span>
+              {isManager
+                ? 'Goals Assessment Sheet (IT & Non-IT)'
+                : employeeSector === 'IT'
+                ? 'Goals Assessment Sheet (IT Sector)'
+                : 'Goals Assessment Sheet (Non-IT Sector)'}
+            </span>
           </button>
           <button
             type="button"
@@ -200,10 +225,23 @@ function GoalsTab() {
           </button>
         </div>
 
-        {viewMode === 'custom' && isManager && (
-          <Button onClick={() => setDialog(true)} size="sm" className="h-8 text-xs">
-            <Plus className="mr-1.5 h-3.5 w-3.5" /> Set Custom Goal
-          </Button>
+        {viewMode === 'custom' && (
+          <div className="flex items-center gap-2 flex-1 justify-end max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={customGoalSearch}
+                onChange={(e) => setCustomGoalSearch(e.target.value)}
+                placeholder="Search milestone goals or employee..."
+                className="pl-8 h-8 text-xs bg-card"
+              />
+            </div>
+            {isManager && (
+              <Button onClick={() => setDialog(true)} size="sm" className="h-8 text-xs shrink-0">
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> Set Custom Goal
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -213,11 +251,15 @@ function GoalsTab() {
         <>
           {isLoading ? (
             <TableSkeleton rows={5} />
-          ) : visible.length === 0 ? (
-            <EmptyState title="No goals" description="Goals will be tracked here." icon={Target} />
+          ) : filteredCustomGoals.length === 0 ? (
+            <EmptyState
+              title={customGoalSearch ? 'No matching goals' : 'No goals'}
+              description={customGoalSearch ? 'Try a different search query.' : 'Goals will be tracked here.'}
+              icon={Target}
+            />
           ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((g) => {
+          {filteredCustomGoals.map((g) => {
             const goalDoc = getGoalDocument(g)
             const cleanedDesc = cleanDescription(g.description)
 
@@ -320,14 +362,13 @@ function GoalsTab() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Employee *</Label>
-              <Select value={employeeId || undefined} onValueChange={setEmployeeId}>
-                <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableEmployeeSelect
+                employees={employees as any}
+                value={employeeId}
+                onValueChange={setEmployeeId}
+                placeholder="Search employee by name, code, or role..."
+                className="w-full text-xs"
+              />
             </div>
             <div className="space-y-2">
               <Label>Title *</Label>
@@ -481,6 +522,18 @@ function ReviewsTab() {
 
   const myReviews = useMemo(() => allReviews.filter((r) => r.employee_id === employee?.id), [allReviews, employee?.id])
   const visible = isManager ? allReviews : myReviews
+  const [reviewSearch, setReviewSearch] = useState('')
+
+  const filteredReviews = useMemo(() => {
+    if (!reviewSearch.trim()) return visible
+    const q = reviewSearch.toLowerCase().trim()
+    return visible.filter(
+      (r) =>
+        (r.employee && `${r.employee.first_name} ${r.employee.last_name}`.toLowerCase().includes(q)) ||
+        (r.period && r.period.toLowerCase().includes(q)) ||
+        (r.goals && r.goals.toLowerCase().includes(q))
+    )
+  }, [visible, reviewSearch])
 
   const [dialog, setDialog] = useState(false)
   const [employeeId, setEmployeeId] = useState('')
@@ -509,21 +562,34 @@ function ReviewsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative min-w-[220px] flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={reviewSearch}
+            onChange={(e) => setReviewSearch(e.target.value)}
+            placeholder="Search review by employee name or period..."
+            className="pl-9 h-9 text-xs"
+          />
+        </div>
         {isManager && (
-          <Button onClick={() => setDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Conduct Review
+          <Button onClick={() => setDialog(true)} size="sm" className="h-9 text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Conduct Review
           </Button>
         )}
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={5} />
-      ) : visible.length === 0 ? (
-        <EmptyState title="No reviews" description="Performance reviews will appear here." icon={Star} />
+      ) : filteredReviews.length === 0 ? (
+        <EmptyState
+          title={reviewSearch ? 'No matching reviews' : 'No reviews'}
+          description={reviewSearch ? 'Try a different search query.' : 'Performance reviews will appear here.'}
+          icon={Star}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {visible.map((r) => (
+          {filteredReviews.map((r) => (
             <Card key={r.id}>
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between">
@@ -567,14 +633,13 @@ function ReviewsTab() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Employee *</Label>
-              <Select value={employeeId || undefined} onValueChange={setEmployeeId}>
-                <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableEmployeeSelect
+                employees={employees as any}
+                value={employeeId}
+                onValueChange={setEmployeeId}
+                placeholder="Search employee by name, code, or role..."
+                className="w-full text-xs"
+              />
             </div>
             <div className="space-y-2">
               <Label>Review Period *</Label>

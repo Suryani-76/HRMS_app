@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -267,14 +268,13 @@ export default function DepartmentsPage() {
             {isManager && (
               <div className="space-y-2">
                 <Label>Department head</Label>
-                <Select value={deptHead || undefined} onValueChange={setDeptHead}>
-                  <SelectTrigger><SelectValue placeholder="Select head" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableEmployeeSelect
+                  employees={employees}
+                  value={deptHead}
+                  onValueChange={setDeptHead}
+                  placeholder="Select head"
+                  allowClear
+                />
               </div>
             )}
             <DialogFooter>

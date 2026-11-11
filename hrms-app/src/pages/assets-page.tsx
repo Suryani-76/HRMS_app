@@ -17,10 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LaptopBarcodeTab } from '@/components/assets/laptop-barcode-tab'
 import { Car, ExternalLink, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
-
+import { useEmployees } from '@/hooks/use-queries'
 
 export default function AssetsPage() {
   const { isManager, employee } = useAuth()
+  const { data: queryEmployees = [] } = useEmployees()
   
   const [assets, setAssets] = useState<(Asset & { employee?: Employee })[]>([])
   const [incidents, setIncidents] = useState<(AssetIncident & { asset?: Asset, employee?: Employee })[]>([])
@@ -197,15 +198,15 @@ Date:               ______________________
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Asset Tracking" 
-        description={isManager ? "Manage company assets and track incidents." : "View your assigned assets and report issues."}
+        title={isManager ? "Asset Tracking" : "My Assets & Hardware QR"} 
+        description={isManager ? "Manage company assets and track incidents." : "View your assigned assets and personal laptop QR code."}
       />
 
       <Tabs defaultValue="laptops">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <TabsList className="h-10 p-1">
             <TabsTrigger value="laptops" className="flex items-center gap-1.5 text-xs font-semibold">
-              <QrCode className="h-4 w-4 text-indigo-600" /> Laptop QR Codes & Seating
+              <QrCode className="h-4 w-4 text-indigo-600" /> {isManager ? 'Laptop QR Codes & Seating' : 'My Laptop QR Code & Seating'}
             </TabsTrigger>
             <TabsTrigger value="assets" className="text-xs font-semibold">Assigned Assets</TabsTrigger>
             <TabsTrigger value="incidents" className="text-xs font-semibold">Incident Reports</TabsTrigger>
@@ -219,7 +220,16 @@ Date:               ______________________
         </div>
 
         <TabsContent value="laptops" className="space-y-4 pt-4">
-          <LaptopBarcodeTab employees={employees} assets={assets} isManager={isManager} />
+          <LaptopBarcodeTab
+            employees={(() => {
+              const map = new Map<string, Employee>()
+              employees.forEach((emp) => map.set(emp.id, emp))
+              queryEmployees.forEach((emp) => map.set(emp.id, emp))
+              return Array.from(map.values())
+            })()}
+            assets={assets}
+            isManager={isManager}
+          />
         </TabsContent>
 
         <TabsContent value="assets" className="space-y-4 pt-4">

@@ -424,7 +424,7 @@ create table if not exists public.asset_incidents (
 -- =============================================================================
 
 create table if not exists public.parking_passes (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key default gen_random_uuid()::text,
   employee_id text not null,
   employee_code text not null,
   employee_name text not null,
@@ -448,6 +448,8 @@ create table if not exists public.parking_passes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.parking_passes alter column id type text using id::text;
 
 create index if not exists idx_parking_emp on public.parking_passes(employee_id);
 create index if not exists idx_parking_status on public.parking_passes(status);
@@ -590,8 +592,8 @@ alter table public.performance_reviews
   add column if not exists cycle_level int not null default 1;
 
 create table if not exists public.employee_assessments (
-  id uuid primary key default gen_random_uuid(),
-  employee_id uuid not null references public.employees(id) on delete cascade,
+  id text primary key default gen_random_uuid()::text,
+  employee_id text not null,
   employee_name text,
   employee_code text,
   role text,
@@ -605,7 +607,7 @@ create table if not exists public.employee_assessments (
   overall_score numeric(6,2),
   overall_percentage numeric(5,2),
   performance_band text,
-  reviewer_id uuid references public.employees(id) on delete set null,
+  reviewer_id text,
   reviewer_name text,
   reviewer_feedback text,
   submitted_at timestamptz,
@@ -614,6 +616,12 @@ create table if not exists public.employee_assessments (
   updated_at timestamptz not null default now(),
   unique (employee_id, review_period)
 );
+
+alter table public.employee_assessments drop constraint if exists employee_assessments_employee_id_fkey;
+alter table public.employee_assessments drop constraint if exists employee_assessments_reviewer_id_fkey;
+alter table public.employee_assessments alter column id type text using id::text;
+alter table public.employee_assessments alter column employee_id type text using employee_id::text;
+alter table public.employee_assessments alter column reviewer_id type text using reviewer_id::text;
 
 -- =============================================================================
 -- 14. INSURANCE ENROLLMENT MODULE (Primary & Secondary Nominees)
@@ -659,6 +667,10 @@ alter table public.insurance_enrollments
   add column if not exists emergency_contact_relation text,
   add column if not exists bank_ifsc text,
   add column if not exists declaration_signature text,
+  add column if not exists status text default 'pending',
+  add column if not exists approved_by text,
+  add column if not exists approved_at timestamptz,
+  add column if not exists admin_notes text,
   add column if not exists updated_at timestamptz default now();
 
 -- =============================================================================
@@ -1089,6 +1101,206 @@ begin
     end;
   end loop;
 end $$;
+
+-- =============================================================================
+-- 23. CORE ADMIN CREDENTIALS & HIERARCHY SEED
+-- (Guarantees ceo@oklut.com and hr@oklut.in are active system admins in DB)
+-- =============================================================================
+
+insert into public.roles (id, name, description)
+values ('00000000-0000-4000-8000-0000000000a1', 'Admin', 'Full system administrator')
+on conflict (id) do update set name = 'Admin', description = 'Full system administrator';
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+) values (
+  '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated', 'ceo@oklut.com', crypt('1234', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"System Admin","role":"Admin"}'
+), (
+  '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated', 'hr@oklut.in', crypt('HRMS@4751', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"HR Admin","role":"Admin"}'
+) on conflict (id) do update set
+  encrypted_password = excluded.encrypted_password,
+  email_confirmed_at = coalesce(auth.users.email_confirmed_at, now()),
+  raw_user_meta_data = excluded.raw_user_meta_data;
+
+insert into public.users (id, auth_id, email, role_id, status)
+values
+  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ceo@oklut.com',
+   '00000000-0000-4000-8000-0000000000a1', 'Active'),
+  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'hr@oklut.in',
+   '00000000-0000-4000-8000-0000000000a1', 'Active')
+on conflict (id) do update set
+  role_id = excluded.role_id,
+  status = excluded.status;
+
+insert into public.employees (
+  id, employee_code, user_id, first_name, last_name, email, phone, gender, date_of_birth,
+  city, state, joining_date, employment_type, department_id, designation_id, status
+) values
+  ('00000000-0000-0000-0000-000000000002', 'OKL-ADM-002', '00000000-0000-0000-0000-000000000002',
+   'HR', 'Admin', 'hr@oklut.in', '+91 98450 00002', 'Other', '1990-01-01',
+   'Hyderabad', 'Telangana', '2024-01-01', 'Full-time',
+   '00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000e5', 'Active')
+on conflict (id) do update set
+  status = 'Active';
+
+update public.users set employee_id = id where employee_id is null;
+
+-- =============================================================================
+-- 24. RECENT DATA NORMALIZATIONS & INTEGRITY UPDATES
+-- =============================================================================
+
+-- Normalize Rohit Ram Sunkara's attendance sessions to 1 login if duplicate session notes exist
+update public.attendance a
+set notes = regexp_replace(a.notes, '\[SESSIONS:\s*\[.*?\]\]', '[SESSIONS: [{"in":"2026-11-03T10:10:00.000Z","out":null,"h":0.73}]]')
+from public.employees e
+where a.employee_id = e.id
+  and (e.employee_code = 'OKIN260043' or (lower(e.first_name) like '%rohit%' and lower(e.last_name) like '%sunkara%'))
+  and a.notes ~ '\[SESSIONS:\s*\[.*?,.*?\]\]';
+
+-- Ensure all active employees are mirrored in public.users for seamless recruiter incentives & task references
+insert into public.users (id, auth_id, email, status, employee_id)
+select id, id, email, coalesce(status, 'Active'), id
+from public.employees
+on conflict (id) do update set
+  email = excluded.email,
+  employee_id = excluded.employee_id;
+
+-- Ensure foreign key from recruiter_incentives to users is safe and flexible
+alter table public.recruiter_incentives drop constraint if exists recruiter_incentives_recruiter_id_fkey;
+alter table public.recruiter_incentives
+  add constraint recruiter_incentives_recruiter_id_fkey
+  foreign key (recruiter_id) references public.users(id) on delete cascade;
+
+-- =============================================================================
+-- 25. COMPREHENSIVE INITIAL SEEDS FOR NEW MODULES
+-- (Populates initial seed records for Complaints, Service Requests, Parking,
+-- Bank Details, and Performance Assessments if not already present)
+-- =============================================================================
+
+-- Seed Parking Passes
+insert into public.parking_passes (
+  id, employee_id, employee_code, employee_name, employee_email, vehicle_type,
+  vehicle_number, vehicle_model, license_number, emergency_phone, status,
+  allocated_sector, allocated_slot, qr_code_data, is_checked_in, created_at, updated_at
+) values
+  ('pass-sample-hr', 'emp-sample-hr', 'OKL-HR-001', 'HR Administrator', 'hr@oklut.com', '4-Wheeler',
+   'TS09EA2026', 'Hyundai Creta (White)', 'TS0920210001234', '9876543210', 'Approved',
+   'Sector 4W - Basement 1', 'Slot P-4W-B1-01', 'OKLUT-PARKING-PASS:hr@oklut.com:TS09EA2026:Slot P-4W-B1-01',
+   true, now() - interval '7 days', now() - interval '3 hours'),
+  ('pass-sample-surya', 'emp-sample-surya', 'OKL-GEN-2026-164', 'Gouda Suryani', 's.guda@oklut.com', '2-Wheeler',
+   'TS07FA4751', 'Royal Enfield Hunter 350', 'TS0720220005678', '9848012345', 'Approved',
+   'Sector 2W - Ground Bay', 'Slot P-2W-G-14', 'OKLUT-PARKING-PASS:s.guda@oklut.com:TS07FA4751:Slot P-2W-G-14',
+   false, now() - interval '5 days', now() - interval '20 hours'),
+  ('pass-sample-rahul', 'emp-sample-rahul', 'OKL-ENG-2026-042', 'Rahul Sharma', 'rahul.s@oklut.com', '4-Wheeler',
+   'MH12AB9876', 'Tata Nexon EV (Dark Edition)', 'MH1220200007890', '9123456789', 'Pending',
+   null, null, null, false, now() - interval '1 day', now() - interval '1 day')
+on conflict (id) do nothing;
+
+-- Seed Complaints
+insert into public.complaints (
+  id, ticket_number, employee_id, employee_name, employee_code, employee_email,
+  department, is_anonymous, category, description, word_count, priority, status,
+  resolution_note, resolved_by, created_at, updated_at
+) values
+  ('cmp-sample-1', 'CMP-2026-101', 'emp-sample-1', 'Priya Patel', 'EMP-0019', 'priya.p@oklut.com',
+   'Operations', false, 'Office Facilities & Cleanliness',
+   'The 3rd-floor air conditioning unit has been leaking water onto the walkway near the pantry for two days, creating a slippery fall hazard for staff walking by.',
+   27, 'medium', 'under_review',
+   'Maintenance team notified. Technician scheduled to repair coil leak by tomorrow morning.',
+   'HR Admin', now() - interval '1 day', now() - interval '12 hours'),
+  ('cmp-sample-2', 'CMP-2026-102', 'emp-sample-2', 'Rahul Sharma', 'EMP-0042', 'rahul.s@oklut.com',
+   'Engineering', false, 'IT Hardware & Equipment Failure',
+   'My assigned work laptop screen started flickering continuously since yesterday afternoon, making it difficult to read code or participate in client video demonstrations.',
+   23, 'high', 'resolved',
+   'Replacement display provided and tested by IT support on Oct 11.',
+   'IT Support Lead', now() - interval '2 days', now() - interval '6 hours')
+on conflict (id) do nothing;
+
+-- Seed Service Requests
+insert into public.service_requests (
+  id, ticket_number, employee_id, employee_name, employee_code, employee_email,
+  department, category, priority, subject, description, attachments, status,
+  action_notes, action_by_name, action_by_email, action_at, created_at, updated_at
+) values
+  ('sr-sample-1', 'SR-2026-4102', 'emp-sample-1', 'Rahul Sharma', 'EMP-0042', 'rahul.s@oklut.com',
+   'Engineering', 'IT Hardware & Laptop Issue', 'high',
+   'Laptop battery draining in 40 minutes & overheating',
+   'My allocated company laptop (LP-2026-042) is overheating rapidly and the battery discharges in less than 40 minutes while running IDE development tools. Requesting battery replacement or hardware diagnostics.',
+   '[]'::jsonb, 'in_progress',
+   'IT hardware team has ordered a replacement OEM battery pack. Scheduled replacement session with IT desk on Wednesday 2:00 PM.',
+   'HR Desk Admin', 'hr@oklut.com', now() - interval '12 hours',
+   now() - interval '36 hours', now() - interval '12 hours'),
+  ('sr-sample-2', 'SR-2026-3891', 'emp-sample-2', 'Priya Patel', 'EMP-0055', 'priya.p@oklut.com',
+   'Operations', 'Payroll, Salary & Payout Discrepancy', 'medium',
+   'Overtime allowance for late sprint deployment missing on payslip',
+   'During last month sprint release on Sept 28-29, 6 hours of approved overtime were logged but not reflected in the latest payroll calculation statement.',
+   '[]'::jsonb, 'pending',
+   null, null, null, null,
+   now() - interval '72 hours', now() - interval '72 hours')
+on conflict (id) do nothing;
+
+-- Seed Employee Bank Details
+insert into public.employee_bank_details (
+  id, employee_id, employee_code, employee_name, employee_email, phone,
+  department, designation, bank_name, account_holder_name, account_number,
+  ifsc_code, branch_name, account_type, upi_id, pan_number, status,
+  verified_by, verified_at, submitted_at, updated_at
+) values
+  ('bank-rec-001', '6a7db9e3-81e1-444e-9fd8-1ca4a32a916d', 'OKL-GEN-2026-107',
+   'Sandeep Reddy Guda', 's.guda@oklut.com', '7893638147',
+   'Engineering', 'Senior Full Stack Developer', 'HDFC Bank', 'Sandeep Reddy Guda',
+   '50100492817263', 'HDFC0001234', 'Madhapur Branch, Hyderabad', 'Salary',
+   'sandeep.guda@okhdfcbank', 'ABCPS1234F', 'verified',
+   'HR Admin (Priya Menon)', now() - interval '55 days',
+   now() - interval '56 days', now() - interval '55 days'),
+  ('bank-rec-002', 'f5751abf-b32a-4280-b892-e20ec98f2e6e', 'OKL-GEN-2026-111',
+   'Pavan Mettupalli', 'p.mettupalli@oklut.com', '9676608207',
+   'Technology', 'Systems Architect', 'State Bank of India (SBI)', 'Pavan Mettupalli',
+   '381920491823', 'SBIN0004521', 'HITEC City, Hyderabad', 'Salary',
+   'pavan.met@oksbi', 'BNMPM9876K', 'verified',
+   'HR Admin (Priya Menon)', now() - interval '52 days',
+   now() - interval '53 days', now() - interval '52 days')
+on conflict (id) do nothing;
+
+-- Seed Sample Performance Assessment (Meera Sharma Q4 2026)
+insert into public.employee_assessments (
+  id, employee_id, employee_name, employee_code, role, department, track,
+  review_period, status, items, total_goals_reached, total_goals_count,
+  overall_score, overall_percentage, performance_band, submitted_at, created_at, updated_at
+) values (
+  '00000000-0000-0000-0000-000000000020_IT_Q4 2026',
+  '00000000-0000-0000-0000-000000000020',
+  'Meera Sharma', 'EMP-0002', 'Software Engineer', 'Information Technology', 'IT',
+  'Q4 2026', 'submitted',
+  '[
+    {"id":1,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Code Quality & Best Practices","employeeComment":"Enforced TypeScript strict mode and clean architecture. Conducted 18 peer code reviews with zero SonarQube blocker issues.","evidenceSource":"PR #142, PR #168, PR #189 (GitHub)"},
+    {"id":2,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Delivery & Productivity","employeeComment":"Delivered all sprint commitments for Sprint 18 to 24 with 98% on-time velocity.","evidenceSource":"JIRA Sprint Burndown"},
+    {"id":3,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Problem Solving & Innovation","employeeComment":"Diagnosed and fixed real-time WebSocket memory leak in attendance notification service.","evidenceSource":"Bug ticket PROD-1092"},
+    {"id":4,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Collaboration & Communication","employeeComment":"Coordinated actively across frontend and backend squads. Mentored 2 junior engineers.","evidenceSource":"Slack #eng-frontend"},
+    {"id":5,"weight":5,"goalReached":true,"selfRating":4,"successFactor":"Learning & Growth","employeeComment":"Completed TanStack Query v5 and Tailwind CSS component architecture training.","evidenceSource":"Certificate ID: TSTK-84920"},
+    {"id":6,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Ownership & Accountability","employeeComment":"Took end-to-end responsibility for the Payslip PDF & Barcode generator feature.","evidenceSource":"Epic FEAT-301"},
+    {"id":7,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Quality / Defect Management","employeeComment":"Maintained zero P1/P2 production regressions across all 6 releases.","evidenceSource":"QA Sign-off Reports"},
+    {"id":8,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Security & Compliance","employeeComment":"Implemented security hardening on authentication sessions and input sanitization.","evidenceSource":"Security Audit SARIF Report"},
+    {"id":9,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"Testing & Automation","employeeComment":"Wrote unit and integration test suites achieving 88% branch coverage on core payroll.","evidenceSource":"Vitest Coverage Report (88.4%)"},
+    {"id":10,"weight":10,"goalReached":true,"selfRating":4,"successFactor":"System Performance & Scalability","employeeComment":"Proposed and implemented client-side state caching reducing redundant API queries by 35%.","evidenceSource":"Architecture RFC-04"},
+    {"id":11,"weight":5,"goalReached":true,"selfRating":4,"successFactor":"Documentation & Knowledge Sharing","employeeComment":"Documented all public API contracts, component props and deployment steps in markdown docs.","evidenceSource":"docs/api-and-interface-design.md"}
+  ]'::jsonb,
+  11, 14, 4.00, 80.00, 'Exceeds Expectations (3.8 - 4.4)',
+  now() - interval '2 hours', now() - interval '2 days', now()
+) on conflict (employee_id, review_period) do update set
+  status = excluded.status,
+  items = excluded.items,
+  total_goals_reached = excluded.total_goals_reached,
+  overall_score = excluded.overall_score;
 
 -- =============================================================================
 -- Master Sync Complete! All 39 tables, columns, policies and triggers are synced.

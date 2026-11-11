@@ -1,5 +1,20 @@
 import { useMemo, useState } from 'react'
-import { CalendarClock, Loader2, Check, X, CalendarPlus, ShieldCheck, Search, User, Calendar, Clock } from 'lucide-react'
+import {
+  CalendarClock,
+  Loader2,
+  Check,
+  X,
+  CalendarPlus,
+  ShieldCheck,
+  Search,
+  User,
+  Calendar,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  FileText,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,6 +30,7 @@ import { ErrorState } from '@/components/shared/error-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
 import { PaginationBar } from '@/components/shared/pagination-bar'
 import { StatusPill } from '@/components/shared/status-pill'
+import { cn } from '@/lib/utils'
 import {
   useLeaveRequests,
   useLeaveTypes,
@@ -24,6 +40,7 @@ import {
   useCancelLeave,
   useEmployees,
 } from '@/hooks/use-queries'
+import type { LeaveRequest } from '@/hooks/use-queries'
 import { getHalfDayDetails } from '@/lib/api/attendance'
 import { useAuth } from '@/features/auth/auth-context'
 import { formatDate, formatDateTime, daysBetween } from '@/lib/format'
@@ -341,6 +358,12 @@ function ManagerLeave() {
   const { data: requests = [], isLoading, isError, refetch } = useLeaveRequests({ status: status !== 'all' ? status : undefined })
   const review = useReviewLeave()
   const [page, setPage] = useState(1)
+  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({})
+  const [selectedLeaveDetail, setSelectedLeaveDetail] = useState<LeaveRequest | null>(null)
+
+  const toggleExpandReason = (id: string) => {
+    setExpandedReasons((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
 
   const filtered = useMemo(() => {
     return requests.filter((r) => {
@@ -490,10 +513,51 @@ function ManagerLeave() {
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 max-w-[200px]">
-                          <p className="text-xs text-slate-600 truncate" title={r.reason ?? ''}>
-                            {r.reason || <span className="text-muted-foreground italic">No reason stated</span>}
-                          </p>
+                        <td className="px-4 py-3 min-w-[220px] max-w-[320px]">
+                          {!r.reason ? (
+                            <span className="text-xs text-muted-foreground italic">No reason stated</span>
+                          ) : (
+                            <div className="space-y-1">
+                              <p
+                                className={cn(
+                                  'text-xs text-slate-700 leading-relaxed',
+                                  expandedReasons[r.id]
+                                    ? 'whitespace-pre-wrap break-words'
+                                    : 'line-clamp-2'
+                                )}
+                              >
+                                {r.reason}
+                              </p>
+                              {r.reason.length > 35 && (
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandReason(r.id)}
+                                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    {expandedReasons[r.id] ? (
+                                      <>
+                                        View less <ChevronUp className="h-3 w-3" />
+                                      </>
+                                    ) : (
+                                      <>
+                                        View more <ChevronDown className="h-3 w-3" />
+                                      </>
+                                    )}
+                                  </button>
+                                  <span className="text-slate-300">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedLeaveDetail(r)}
+                                    className="text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                    title="View complete leave details"
+                                  >
+                                    Full view <Eye className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -554,6 +618,126 @@ function ManagerLeave() {
           <PaginationBar page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
         </>
       )}
+
+      {/* Complete Leave Reason & Full Details Modal Dialog */}
+      <Dialog open={Boolean(selectedLeaveDetail)} onOpenChange={(open) => !open && setSelectedLeaveDetail(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-6">
+              <span className="font-semibold text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                {selectedLeaveDetail?.leave_type?.name} ({selectedLeaveDetail?.leave_type?.is_paid ? 'Paid' : 'Unpaid'})
+              </span>
+              {selectedLeaveDetail?.status && <StatusPill status={selectedLeaveDetail.status} />}
+            </div>
+            <DialogTitle className="text-base font-bold pt-1">
+              Complete Leave Request Details
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Full application information and complete reason statement entered by the employee.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedLeaveDetail && (
+            <div className="space-y-4 py-2 text-xs">
+              {/* Employee info */}
+              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Employee:</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                    {selectedLeaveDetail.employee?.first_name} {selectedLeaveDetail.employee?.last_name}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Employee ID:</span>
+                  <span className="font-mono">{selectedLeaveDetail.employee?.employee_code || 'EMP'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Department:</span>
+                  <span>{selectedLeaveDetail.employee?.department?.name || 'General'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Applied At:</span>
+                  <span>{formatDateTime(selectedLeaveDetail.applied_at)}</span>
+                </div>
+              </div>
+
+              {/* Leave schedule */}
+              <div className="p-3 rounded-lg border bg-card space-y-1">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                  Leave Schedule & Duration
+                </span>
+                <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">
+                  {formatDate(selectedLeaveDetail.start_date)}
+                  {selectedLeaveDetail.start_date !== selectedLeaveDetail.end_date && ` → ${formatDate(selectedLeaveDetail.end_date)}`}
+                  <span className="text-indigo-600 font-bold ml-2">
+                    ({selectedLeaveDetail.days} day{selectedLeaveDetail.days === 1 ? '' : 's'})
+                  </span>
+                </p>
+                {getHalfDayDetails(selectedLeaveDetail).isHalfDay && (
+                  <p className="text-[11px] text-slate-600 font-mono mt-0.5">
+                    {getHalfDayDetails(selectedLeaveDetail).sessionLabel}: {getHalfDayDetails(selectedLeaveDetail).timing}
+                  </p>
+                )}
+              </div>
+
+              {/* Full reason card */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-indigo-600" />
+                  Full Reason Entered by Employee:
+                </Label>
+                <div className="p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/30 dark:bg-indigo-950/20 text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
+                  {selectedLeaveDetail.reason || (
+                    <span className="italic text-muted-foreground">No specific reason was provided for this leave.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Admin / Review comment if already approved or rejected */}
+              {selectedLeaveDetail.admin_comment && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300">
+                  <span className="font-semibold block">Approval / Review Remarks:</span>
+                  <p className="mt-0.5">{selectedLeaveDetail.admin_comment}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            {selectedLeaveDetail?.status === 'pending' && (
+              <div className="flex items-center gap-2 mr-auto">
+                <Button
+                  size="sm"
+                  variant="success"
+                  className="h-8 text-xs font-semibold"
+                  onClick={() => {
+                    handleReview(selectedLeaveDetail.id, 'approved', selectedLeaveDetail.employee?.first_name)
+                    setSelectedLeaveDetail(null)
+                  }}
+                  disabled={review.isPending}
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 text-xs font-semibold"
+                  onClick={() => {
+                    handleReview(selectedLeaveDetail.id, 'rejected', selectedLeaveDetail.employee?.first_name)
+                    setSelectedLeaveDetail(null)
+                  }}
+                  disabled={review.isPending}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" /> Reject
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setSelectedLeaveDetail(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -571,6 +755,8 @@ function EmployeeLeaveTab({
 }) {
   const { data: requests = [], isLoading } = useLeaveRequests({ employeeId: employeeId || undefined })
   const cancel = useCancelLeave()
+  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({})
+  const toggleExpand = (id: string) => setExpandedReasons((p) => ({ ...p, [id]: !p[id] }))
 
   return (
     <div className="space-y-4">
@@ -620,7 +806,35 @@ function EmployeeLeaveTab({
                             {' · '}
                             {r.status === 'approved' && isAdmin ? 'Recorded on' : 'Applied on'} {formatDate(r.applied_at)}
                           </p>
-                          {r.reason && <p className="mt-1 text-xs text-slate-600 italic">"{r.reason}"</p>}
+                          {r.reason && (
+                            <div className="mt-1">
+                              <p
+                                className={cn(
+                                  'text-xs text-slate-600 italic leading-relaxed',
+                                  !expandedReasons[r.id] && 'line-clamp-2'
+                                )}
+                              >
+                                "{r.reason}"
+                              </p>
+                              {r.reason.length > 70 && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(r.id)}
+                                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center gap-0.5 cursor-pointer mt-0.5"
+                                >
+                                  {expandedReasons[r.id] ? (
+                                    <>
+                                      View less <ChevronUp className="h-3 w-3" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      View more <ChevronDown className="h-3 w-3" />
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )}
                           {r.admin_comment && (
                             <p className="mt-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded inline-block font-medium">
                               {r.admin_comment}
@@ -660,8 +874,8 @@ export default function LeavePage() {
   const { data: allRequests = [] } = useLeaveRequests({ status: 'pending' })
   const pendingCount = allRequests.length
 
-  // Gracefully fallback to employee ID from profile or directory
-  const effectiveEmployeeId = employee?.id || user?.employee_id || allEmployees[0]?.id || ''
+  // Only use current authenticated employee ID - never hijack other employees
+  const effectiveEmployeeId = employee?.id || user?.employee_id || ''
   const isHrOrManager = isManager || Boolean(user?.role?.name === 'HR' || user?.role?.name === 'Admin' || user?.role?.name === 'Manager')
 
   return (

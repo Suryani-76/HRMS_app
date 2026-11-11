@@ -78,7 +78,8 @@ export default function ServiceRequestsPage() {
     (employee?.email &&
       (employee.email.toLowerCase().includes('hr@') ||
         employee.email.toLowerCase().startsWith('admin@') ||
-        employee.email.toLowerCase() === 'ceo@oklut.com'))
+        employee.email.toLowerCase() === 'ceo@oklut.com' ||
+        employee.email.toLowerCase() === 'hr@oklut.in'))
   )
 
   // Tabs
@@ -484,8 +485,8 @@ export default function ServiceRequestsPage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-3">
-          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+        <div className="border-b pb-3">
+          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto inline-flex flex-wrap gap-1">
             <TabsTrigger value="raise" className="gap-2 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-xs">
               <PlusCircle className="h-4 w-4 text-indigo-600" /> Raise a Ticket
             </TabsTrigger>
@@ -499,23 +500,26 @@ export default function ServiceRequestsPage() {
               </TabsTrigger>
             )}
           </TabsList>
+        </div>
 
-          {activeTab !== 'raise' && (
-            <div className="flex items-center gap-2">
-              <div className="relative w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search tickets, subject..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 text-xs h-9 bg-white dark:bg-slate-900"
-                />
-              </div>
+        {/* Dedicated Search & Filter Toolbar (Flush & Aligned with Data Tables/Cards) */}
+        {activeTab !== 'raise' && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tickets by ID, employee, subject, or details..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-xs w-full bg-background"
+              />
+            </div>
 
+            <div className="flex flex-wrap items-center gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36 text-xs h-9 bg-white dark:bg-slate-900">
-                  <Filter className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="Status" />
+                <SelectTrigger className="w-36 h-9 text-xs bg-background">
+                  <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
@@ -527,8 +531,9 @@ export default function ServiceRequestsPage() {
               </Select>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-44 text-xs h-9 bg-white dark:bg-slate-900 hidden md:flex">
-                  <SelectValue placeholder="Category" />
+                <SelectTrigger className="w-44 h-9 text-xs bg-background">
+                  <LifeBuoy className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
@@ -539,9 +544,24 @@ export default function ServiceRequestsPage() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setStatusFilter('all')
+                    setCategoryFilter('all')
+                  }}
+                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Reset
+                </Button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* TAB 1: RAISE A TICKET */}
         <TabsContent value="raise" className="space-y-6">
@@ -958,15 +978,15 @@ export default function ServiceRequestsPage() {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 dark:bg-slate-900/60 border-b text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-3">Ticket</th>
-                        <th className="p-3">Employee</th>
-                        <th className="p-3">Department</th>
-                        <th className="p-3">Subject & Category</th>
-                        <th className="p-3">Priority</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3">Docs</th>
-                        <th className="p-3">Action</th>
-                        <th className="p-3 text-right">Actions</th>
+                        <th className="p-3 w-28">Ticket</th>
+                        <th className="p-3 w-44">Employee</th>
+                        <th className="p-3 w-36">Department</th>
+                        <th className="p-3 min-w-[220px]">Subject & Category</th>
+                        <th className="p-3 w-24 text-center">Priority</th>
+                        <th className="p-3 w-28 text-center">Status</th>
+                        <th className="p-3 w-20 text-center">Docs</th>
+                        <th className="p-3 min-w-[170px]">HR Remarks</th>
+                        <th className="p-3 w-36 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -982,53 +1002,53 @@ export default function ServiceRequestsPage() {
                           <td className="p-3 text-muted-foreground whitespace-nowrap">
                             {req.department || 'General'}
                           </td>
-                          <td className="p-3 max-w-[240px]">
+                          <td className="p-3 min-w-[220px] max-w-[280px]">
                             <p className="font-medium text-slate-800 dark:text-slate-200 truncate" title={req.subject}>
                               {req.subject}
                             </p>
                             <p className="text-[10px] text-muted-foreground truncate">{req.category}</p>
                           </td>
-                          <td className="p-3 whitespace-nowrap">
+                          <td className="p-3 whitespace-nowrap text-center">
                             {renderPriorityBadge(req.priority)}
                           </td>
-                          <td className="p-3 whitespace-nowrap">
+                          <td className="p-3 whitespace-nowrap text-center">
                             {renderStatusBadge(req.status)}
                           </td>
-                          <td className="p-3 whitespace-nowrap">
+                          <td className="p-3 whitespace-nowrap text-center">
                             {req.attachments && req.attachments.length > 0 ? (
-                              <Badge variant="outline" className="text-[10px] bg-indigo-50/80 text-indigo-700 dark:bg-indigo-950/40 gap-1">
+                              <Badge variant="outline" className="text-[10px] bg-indigo-50/80 text-indigo-700 dark:bg-indigo-950/40 gap-1 inline-flex">
                                 <Paperclip className="h-2.5 w-2.5" /> {req.attachments.length}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground text-[10px]">—</span>
                             )}
                           </td>
-                          <td className="p-3 max-w-[180px]">
+                          <td className="p-3 min-w-[170px] max-w-[220px]">
                             {req.action_notes ? (
                               <div className="truncate text-[11px] text-emerald-700 dark:text-emerald-300 font-medium" title={req.action_notes}>
-                                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded mr-1">ACTIONED</span>
+                                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded mr-1">ACTIONED</span>
                                 {req.action_notes}
                               </div>
                             ) : (
                               <span className="text-amber-600 text-[10px] font-medium flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Awaiting Action
+                                <Clock className="h-3 w-3 shrink-0" /> Awaiting Action
                               </span>
                             )}
                           </td>
-                          <td className="p-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="p-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
                               <Button
                                 size="sm"
                                 onClick={() => openActionModal(req)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7 gap-1 font-medium"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7.5 px-3 gap-1.5 font-medium shadow-xs"
                               >
-                                <CheckCircle className="h-3 w-3" /> Take Action
+                                <CheckCircle className="h-3.5 w-3.5" /> Take Action
                               </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => handleDeleteRequest(req.id, req.ticket_number)}
-                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-7 w-7 p-0"
+                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-7.5 w-7.5 p-0"
                                 title="Delete Ticket"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />

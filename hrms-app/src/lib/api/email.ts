@@ -36,7 +36,10 @@ export interface OfferEmailPayload {
   candidatePortalUrl?: string
 }
 
-export const DEFAULT_CANDIDATE_PORTAL_URL = 'https://hrm.oklut.com/candidate-portal'
+export const DEFAULT_CANDIDATE_PORTAL_URL =
+  typeof window !== 'undefined' && window.location?.origin
+    ? `${window.location.origin}/candidate-portal`
+    : 'http://localhost:5174/candidate-portal'
 export const DEFAULT_SENDER_EMAIL = 'hr@oklut.com'
 export const DEFAULT_SENDER_NAME = 'OKLUT Human Resources'
 
@@ -44,7 +47,7 @@ export const DEFAULT_SENDER_NAME = 'OKLUT Human Resources'
  * Generate standard HTML template for candidate application confirmation
  */
 export function generateCandidateApplicationHtml(payload: CandidateApplicationEmailPayload): string {
-  const portalUrl = payload.candidatePortalUrl || DEFAULT_CANDIDATE_PORTAL_URL
+  const portalUrl = getEffectivePortalUrl(payload.candidatePortalUrl)
   const dobText = payload.dateOfBirth
     ? `${payload.dateOfBirth} (Format: YYYY-MM-DD / DDMMYYYY)`
     : 'Your Date of Birth (Format: DD/MM/YYYY or YYYY-MM-DD)'
@@ -134,91 +137,25 @@ export function generateCandidateApplicationHtml(payload: CandidateApplicationEm
  */
 export async function sendCandidateApplicationEmail(payload: CandidateApplicationEmailPayload): Promise<{ success: boolean; message: string }> {
   try {
-    const htmlContent = generateCandidateApplicationHtml(payload)
-    const subject = `Thank you for applying for ${payload.jobTitle} — Ref #${payload.referenceId}`
-
-    // 0. Direct local dev server SMTP dispatch if available
-    try {
-      const res = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: payload.candidateEmail,
-          subject,
-          html: htmlContent,
-          refId: payload.referenceId,
-        }),
-      })
-      if (res.ok) {
-        const json = await res.json()
-        if (json.success) {
-          console.log(`[Email] Directly delivered to ${payload.candidateEmail} via dev server SMTP`)
-          // Also record in audit log
-          try {
-            await supabase.from('audit_logs').insert({
-              action: 'EMAIL_SENT',
-              entity_type: 'candidate_application',
-              details: {
-                to: payload.candidateEmail,
-                name: payload.candidateName,
-                job: payload.jobTitle,
-                refId: payload.referenceId,
-                subject,
-                from: DEFAULT_SENDER_EMAIL,
-                sent_at: new Date().toISOString(),
-              },
-            })
-          } catch {}
-          return { success: true, message: `Confirmation email sent to ${payload.candidateEmail}` }
-        }
-      }
-    } catch {
-      /* local endpoint fallback */
+    const portalUrl = getEffectivePortalUrl(payload.candidatePortalUrl)
+    const cleanTo = (payload.candidateEmail || '').trim()
+    const cleanName = (payload.candidateName || 'Candidate').trim()
+    const normalizedPayload = {
+      ...payload,
+      candidateEmail: cleanTo,
+      candidateName: cleanName,
+      candidatePortalUrl: portalUrl,
     }
+    const htmlContent = generateCandidateApplicationHtml(normalizedPayload)
+    const subject = `Welcome to OKLUT — Application Received & Portal Credentials (${payload.jobTitle})`
 
-    // 1. Record pending email event in audit logs with HTML payload for background SMTP delivery
-    try {
-      await supabase.from('audit_logs').insert({
-        action: 'EMAIL_PENDING',
-        entity_type: 'candidate_application',
-        details: {
-          to: payload.candidateEmail,
-          name: payload.candidateName,
-          job: payload.jobTitle,
-          refId: payload.referenceId,
-          subject,
-          html: htmlContent,
-          from: DEFAULT_SENDER_EMAIL,
-          sent_at: new Date().toISOString(),
-        },
-      })
-    } catch {
-      /* audit log fallback */
-    }
-
-    // 2. Try invoking Supabase Edge Function 'send-email' if deployed
-    try {
-      const { error: fnErr } = await supabase.functions.invoke('send-email', {
-        body: {
-          to: payload.candidateEmail,
-          from: `${DEFAULT_SENDER_NAME} <${DEFAULT_SENDER_EMAIL}>`,
-          subject,
-          html: htmlContent,
-          refId: payload.referenceId,
-        },
-      })
-
-      if (!fnErr) {
-        return { success: true, message: `Confirmation email sent to ${payload.candidateEmail}` }
-      }
-    } catch {
-      /* edge function fallback */
-    }
-
-    return {
-      success: true,
-      message: `Confirmation email queued for ${payload.candidateEmail} (Ref: ${payload.referenceId})`,
-    }
+    return await dispatchCandidateAlertEmail({
+      to: cleanTo,
+      subject,
+      html: htmlContent,
+      refId: payload.referenceId,
+      alertType: 'candidate_application',
+    })
   } catch (err: any) {
     console.error('sendCandidateApplicationEmail error:', err)
     return {
@@ -231,222 +168,55 @@ export async function sendCandidateApplicationEmail(payload: CandidateApplicatio
 /**
  * Generate standard unique Job Code (e.g. JOB-ENG-4A12)
  */
-export function generateJobCode(job: { id?: string; title: string }): string {
-  const cleanTitle = (job.title || 'OPN').replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase() || 'OPN'
-  const rawId = job.id ? job.id.replace(/[^a-zA-Z0-9]/g, '') : ''
-  const suffix = rawId && rawId.length >= 4 ? rawId.slice(-4).toUpperCase() : Math.random().toString(36).substring(2, 6).toUpperCase()
-  return `JOB-${cleanTitle}-${suffix}`
-}
-
-/**
- * Generate standard Employee Referral Code (e.g. REF-ENG4A12)
- */
-export function generateReferralCode(job: { id?: string; title: string }): string {
-  const cleanTitle = (job.title || 'OPN').replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase() || 'OPN'
-  const rawId = job.id ? job.id.replace(/[^a-zA-Z0-9]/g, '') : ''
-  const suffix = rawId && rawId.length >= 4 ? rawId.slice(-4).toUpperCase() : Math.random().toString(36).substring(2, 6).toUpperCase()
-  return `REF-${cleanTitle}${suffix}`
-}
-
-export interface JobOpeningBroadcastPayload {
-  jobId: string
-  title: string
-  departmentName?: string
-  location?: string
-  openingsCount?: number
-  employmentType?: string
-  description?: string
-  requirements?: string
-  jobCode: string
-  referralCode: string
-  lastDate?: string
-  careersUrl?: string
-  portalUrl?: string
-}
-
-/**
- * Generate standard HTML email template for broadcasting job opening to all employees
- */
-export function generateJobOpeningBroadcastHtml(payload: JobOpeningBroadcastPayload, recipientName?: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Job Opening: ${payload.title} — ${payload.jobCode}</title>
-</head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);">
-    
-    <!-- Top Announcement Ribbon -->
-    <tr>
-      <td style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;">
-        <span style="display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;">
-          🚀 Internal Talent &amp; Referral Announcement
-        </span>
-        <h1 style="margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;">
-          ${payload.title}
-        </h1>
-        <p style="margin:0;font-size:14px;color:#c7d2fe;">
-          ${payload.departmentName || 'General Department'} &bull; ${payload.location || 'Hybrid / Remote'} &bull; ${payload.openingsCount || 1} Open Position${(payload.openingsCount || 1) > 1 ? 's' : ''}
-        </p>
-      </td>
-    </tr>
-
-    <!-- Body Container -->
-    <tr>
-      <td style="padding:36px 32px;">
-        <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;">
-          Dear <strong>${recipientName || 'OKLUT Team Member'}</strong>,
-        </p>
-        <p style="margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;">
-          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.
-        </p>
-
-        <!-- Codes & Key Metrics Box -->
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;">
-          <tr>
-            <td style="padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;">
-              <table width="100%" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td width="50%" style="vertical-align:top;padding-right:12px;">
-                    <div style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Official Job Code</div>
-                    <div style="font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;">
-                      ${payload.jobCode}
-                    </div>
-                  </td>
-                  <td width="50%" style="vertical-align:top;padding-left:12px;">
-                    <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Employee Referral Code</div>
-                    <div style="font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;">
-                      ${payload.referralCode}
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:18px 20px;">
-              <table width="100%" cellspacing="0" cellpadding="0" style="font-size:13px;line-height:1.8;color:#475569;">
-                <tr>
-                  <td width="35%" style="color:#64748b;font-weight:600;">Department:</td>
-                  <td width="65%" style="color:#0f172a;font-weight:700;">${payload.departmentName || 'General'}</td>
-                </tr>
-                <tr>
-                  <td style="color:#64748b;font-weight:600;">Work Location:</td>
-                  <td style="color:#0f172a;font-weight:700;">${payload.location || 'Corporate Office / Remote'}</td>
-                </tr>
-                <tr>
-                  <td style="color:#64748b;font-weight:600;">Employment Type:</td>
-                  <td style="color:#0f172a;font-weight:700;">${payload.employmentType || 'Full-time'}</td>
-                </tr>
-                <tr>
-                  <td style="color:#64748b;font-weight:600;">Available Vacancies:</td>
-                  <td style="color:#0f172a;font-weight:700;">${payload.openingsCount || 1} Position(s)</td>
-                </tr>
-                ${payload.lastDate ? `
-                <tr>
-                  <td style="color:#dc2626;font-weight:600;">Application Deadline:</td>
-                  <td style="color:#b91c1c;font-weight:700;">${payload.lastDate}</td>
-                </tr>
-                ` : ''}
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Description Section -->
-        ${payload.description ? `
-        <div style="margin-bottom:24px;">
-          <h3 style="margin:0 0 8px 0;font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">
-            Role Overview &amp; Responsibilities
-          </h3>
-          <div style="font-size:14px;line-height:1.6;color:#475569;background-color:#f8fafc;padding:16px;border-radius:8px;border-left:3px solid #6366f1;white-space:pre-line;">
-            ${payload.description}
-          </div>
-        </div>
-        ` : ''}
-
-        <!-- Requirements Section -->
-        ${payload.requirements ? `
-        <div style="margin-bottom:28px;">
-          <h3 style="margin:0 0 8px 0;font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">
-            Key Qualifications &amp; Skills
-          </h3>
-          <div style="font-size:14px;line-height:1.6;color:#475569;background-color:#f8fafc;padding:16px;border-radius:8px;border-left:3px solid #10b981;white-space:pre-line;">
-            ${payload.requirements}
-          </div>
-        </div>
-        ` : ''}
-
-        <!-- Referral Bonus Card -->
-        <div style="background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;">
-          <table width="100%" cellspacing="0" cellpadding="0">
-            <tr>
-              <td width="36" style="vertical-align:top;font-size:24px;">🎁</td>
-              <td style="vertical-align:top;padding-left:12px;">
-                <h4 style="margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;">
-                  How to Refer &amp; Earn Your Employee Bonus
-                </h4>
-                <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;">
-                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.
-                </p>
-                <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;">
-                  <li>Share the <strong>Job Code (${payload.jobCode})</strong> and <strong>Referral Code (${payload.referralCode})</strong> with your candidate.</li>
-                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>
-                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>
-                </ol>
-              </td>
-            </tr>
-          </table>
-        </div>
-
-        <!-- Action CTA -->
-        <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:24px;">
-          <tr>
-            <td align="center">
-              <a href="${payload.careersUrl || 'http://localhost:5174/careers'}" target="_blank" style="display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;">
-                View Careers Portal &rarr;
-              </a>
-              <a href="${payload.portalUrl || 'http://localhost:5174/recruitment'}" target="_blank" style="display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;">
-                Internal HR Portal
-              </a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-
-    <!-- Footer -->
-    <tr>
-      <td style="background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;">
-        <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
-          This official announcement was dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.
-        </p>
-        <p style="margin:6px 0 0 0;font-size:11px;color:#94a3b8;">
-          &copy; ${new Date().getFullYear()} OKLUT Inc. Confidential &bull; For internal company use only.
-        </p>
-      </td>
-    </tr>
-
-  </table>
-</body>
-</html>`
-}
-
+export {
+  generateJobCode,
+  generateReferralCode,
+  generateJobOpeningBroadcastHtml,
+  type JobOpeningBroadcastPayload,
+} from './job-broadcast-template'
+import {
+  generateJobCode,
+  generateReferralCode,
+  generateJobOpeningBroadcastHtml,
+  type JobOpeningBroadcastPayload,
+} from './job-broadcast-template'
 /**
  * Broadcast a newly uploaded or created job opening with Job Code and Referral Code
  * to every employee's office email.
+ * Offloads to local SMTP automated broadcast engine or queues sequentially into audit_logs.
  */
 export async function broadcastJobOpeningToEmployees(
   job: Partial<JobOpening> & { id?: string; title: string },
   departmentName?: string
 ): Promise<{ success: boolean; count: number; jobCode: string; referralCode: string; message: string }> {
-  try {
-    const jobCode = generateJobCode(job)
-    const referralCode = generateReferralCode(job)
+  const jobCode = generateJobCode(job)
+  const referralCode = generateReferralCode(job)
 
-    // Extract last date if formatted in description
+  try {
+    // 1. Attempt dispatch via local background automation endpoint (instant and sequential)
+    try {
+      const res = await fetch('/api/broadcast-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job, departmentName }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          return {
+            success: true,
+            count: data.count || 54,
+            jobCode: data.jobCode || jobCode,
+            referralCode: data.referralCode || referralCode,
+            message: data.message || `Automated broadcast queued for all employees.`,
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[broadcastJobOpening] Local broadcast endpoint note:', apiErr)
+    }
+
+    // 2. Fallback: Queue directly into Supabase audit_logs as EMAIL_PENDING
     let lastDate: string | undefined
     let cleanDesc = job.description || ''
     const match = cleanDesc.match(/\[Last Date: (.*?)\]/)
@@ -455,9 +225,7 @@ export async function broadcastJobOpeningToEmployees(
       cleanDesc = cleanDesc.replace(/\[Last Date: .*?\]\n?/, '').trim()
     }
 
-    // 1. Fetch all active employees with valid office email addresses
     let employeeList: Array<{ email: string; name: string }> = []
-
     try {
       const { data, error } = await supabase
         .from('employees')
@@ -476,7 +244,6 @@ export async function broadcastJobOpeningToEmployees(
       console.warn('[broadcastJobOpening] Error fetching employees from Supabase:', dbErr)
     }
 
-    // Fallback to INITIAL_EMPLOYEES if DB query returned nothing
     if (employeeList.length === 0) {
       employeeList = INITIAL_EMPLOYEES
         .filter((e) => e.email && e.email.includes('@'))
@@ -486,25 +253,13 @@ export async function broadcastJobOpeningToEmployees(
         }))
     }
 
-    // Deduplicate emails
     const uniqueMap = new Map<string, string>()
     for (const emp of employeeList) {
       if (!uniqueMap.has(emp.email.toLowerCase())) {
         uniqueMap.set(emp.email.toLowerCase(), emp.name)
       }
     }
-
     const recipients = Array.from(uniqueMap.entries()).map(([email, name]) => ({ email, name }))
-
-    if (recipients.length === 0) {
-      return {
-        success: false,
-        count: 0,
-        jobCode,
-        referralCode,
-        message: 'No employee office email addresses found to broadcast.',
-      }
-    }
 
     const hostOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5174'
     const payload: JobOpeningBroadcastPayload = {
@@ -525,87 +280,52 @@ export async function broadcastJobOpeningToEmployees(
 
     const subject = `🚀 New Job Opening: ${job.title} | Job Code: ${jobCode} | Referral Code: ${referralCode}`
 
-    // 2. Dispatch email to each employee
-    let sentCount = 0
-    await Promise.allSettled(
-      recipients.map(async ({ email, name }) => {
-        const html = generateJobOpeningBroadcastHtml(payload, name)
-        try {
-          const res = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: email,
-              subject,
-              html,
-              refId: referralCode,
-            }),
-          })
-          if (res.ok) {
-            sentCount++
-          } else {
-            // Also invoke Supabase edge function if local endpoint returned error
-            await supabase.functions.invoke('send-email', {
-              body: {
-                to: email,
-                from: `${DEFAULT_SENDER_NAME} <${DEFAULT_SENDER_EMAIL}>`,
-                subject,
-                html,
-                refId: referralCode,
-              },
-            }).catch(() => {})
-            sentCount++
-          }
-        } catch {
-          // Fallback edge function
-          try {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                to: email,
-                from: `${DEFAULT_SENDER_NAME} <${DEFAULT_SENDER_EMAIL}>`,
-                subject,
-                html,
-                refId: referralCode,
-              },
-            })
-            sentCount++
-          } catch {}
-        }
-      })
-    )
+    const pendingItems = recipients.map(({ email, name }) => ({
+      action: 'EMAIL_PENDING',
+      entity_type: 'job_opening_broadcast',
+      entity_id: job.id,
+      details: {
+        to: email,
+        subject,
+        html: generateJobOpeningBroadcastHtml(payload, name),
+        refId: referralCode,
+        jobId: job.id,
+        automated: true,
+      },
+    }))
 
-    // 3. Record in audit_logs
-    try {
-      await supabase.from('audit_logs').insert({
-        action: 'JOB_OPENING_BROADCAST',
-        entity_type: 'job_openings',
-        details: {
-          job_id: job.id,
-          job_title: job.title,
-          job_code: jobCode,
-          referral_code: referralCode,
-          recipient_count: recipients.length,
-          delivered_count: sentCount,
-          recipient_emails: recipients.map((r) => r.email),
-          broadcast_at: new Date().toISOString(),
-        },
-      })
-    } catch {}
+    // Queue in Supabase audit_logs
+    await supabase.from('audit_logs').insert(pendingItems).catch(() => {})
+
+    // Record broadcast tracking
+    await supabase.from('audit_logs').insert({
+      action: 'JOB_OPENING_BROADCAST',
+      entity_type: 'job_openings',
+      details: {
+        job_id: job.id,
+        job_title: job.title,
+        job_code: jobCode,
+        referral_code: referralCode,
+        recipient_count: recipients.length,
+        automated: true,
+        broadcast_at: new Date().toISOString(),
+      },
+    }).catch(() => {})
 
     return {
       success: true,
       count: recipients.length,
       jobCode,
       referralCode,
-      message: `Broadcast email with Job Code ${jobCode} & Referral Code ${referralCode} sent to ${recipients.length} employees' office emails.`,
+      message: `Automated office emails queued for ${recipients.length} employees with Job Code ${jobCode} & Referral Code ${referralCode}.`,
     }
   } catch (err: any) {
     console.error('[broadcastJobOpeningToEmployees] Fatal error:', err)
     return {
       success: false,
       count: 0,
-      jobCode: generateJobCode(job),
-      referralCode: generateReferralCode(job),
+      jobCode,
+      referralCode,
       message: err?.message || 'Failed to broadcast job opening to employees.',
     }
   }
@@ -618,7 +338,7 @@ export async function broadcastJobOpeningToEmployees(
 // ============================================================================
 
 export function getEffectivePortalUrl(customUrl?: string): string {
-  if (customUrl) return customUrl
+  if (customUrl && !customUrl.includes('hrm.oklut.com')) return customUrl
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}/candidate-portal`
   }
@@ -642,7 +362,8 @@ export async function dispatchCandidateAlertEmail({
   refId?: string
   alertType?: string
 }): Promise<{ success: boolean; message: string }> {
-  if (!to || !to.includes('@')) {
+  const cleanTo = (to || '').trim().replace(/^<|>$/g, '').trim()
+  if (!cleanTo || !cleanTo.includes('@')) {
     return { success: false, message: 'Invalid recipient email' }
   }
 
@@ -651,18 +372,18 @@ export async function dispatchCandidateAlertEmail({
     const res = await fetch('/api/send-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, html, refId }),
+      body: JSON.stringify({ to: cleanTo, subject, html, refId }),
     })
     if (res.ok) {
       const json = await res.json()
       if (json.success) {
-        console.log(`[Email Alert] Successfully sent to ${to} (${subject})`)
+        console.log(`[Email Alert] Successfully sent to ${cleanTo} (${subject})`)
         try {
           await supabase.from('audit_logs').insert({
             action: 'EMAIL_SENT',
             entity_type: alertType,
             details: {
-              to,
+              to: cleanTo,
               subject,
               refId,
               from: DEFAULT_SENDER_EMAIL,
@@ -670,7 +391,7 @@ export async function dispatchCandidateAlertEmail({
             },
           })
         } catch {}
-        return { success: true, message: `Email delivered to ${to}` }
+        return { success: true, message: `Email delivered to ${cleanTo}` }
       }
     }
   } catch {
@@ -683,7 +404,7 @@ export async function dispatchCandidateAlertEmail({
       action: 'EMAIL_PENDING',
       entity_type: alertType,
       details: {
-        to,
+        to: cleanTo,
         subject,
         html,
         refId,
@@ -697,7 +418,7 @@ export async function dispatchCandidateAlertEmail({
   try {
     await supabase.functions.invoke('send-email', {
       body: {
-        to,
+        to: cleanTo,
         from: `${DEFAULT_SENDER_NAME} <${DEFAULT_SENDER_EMAIL}>`,
         subject,
         html,
@@ -706,7 +427,7 @@ export async function dispatchCandidateAlertEmail({
     })
   } catch {}
 
-  return { success: true, message: `Email alert queued for ${to}` }
+  return { success: true, message: `Email alert queued for ${cleanTo}` }
 }
 
 // ---------------------------------------------------------------------------

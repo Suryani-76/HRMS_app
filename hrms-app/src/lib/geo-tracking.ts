@@ -22,28 +22,54 @@ export interface GeoLocationData {
   postalCode?: string
   isOfficeLocation: boolean
   distanceFromOfficeMeters?: number
-  workMode: 'On-site / Office HQ' | 'Remote / WFH' | 'Field Location'
+  workMode: 'Office Premises' | 'WFH'
   mapUrl: string
   source: 'device-gps' | 'network-wifi' | 'ip-fallback' | 'cached'
 }
 
 // Configurable Corporate Office Locations
+// User specified Office Coordinates: 17°27'00.6"N 78°23'13.2"E
+// Latitude: 17 + 27/60 + 0.6/3600 = 17.450167
+// Longitude: 78 + 23/60 + 13.2/3600 = 78.387000
 export const OFFICE_LOCATIONS = [
   {
-    name: 'OKLUT Tech Hub (Hyderabad)',
-    latitude: 17.4485,
-    longitude: 78.3740,
-    radiusMeters: 1200,
-  },
-  {
-    name: 'OKLUT Corporate HQ (Bengaluru)',
-    latitude: 12.9716,
-    longitude: 77.5946,
-    radiusMeters: 1200,
+    name: 'Office Premises (Hyderabad HQ)',
+    latitude: 17.450167,
+    longitude: 78.387000,
+    radiusMeters: 500, // 500 meters geofence radius
   },
 ]
 
 export const OFFICE_COORDINATES = OFFICE_LOCATIONS[0]
+
+export const SIMULATED_LOCATION_KEY = 'oklut_simulated_work_mode'
+
+/**
+ * Gets currently active simulated location mode ('auto' | 'office' | 'wfh')
+ */
+export function getSimulatedLocationMode(): 'auto' | 'office' | 'wfh' {
+  if (typeof window === 'undefined') return 'auto'
+  try {
+    const mode = localStorage.getItem(SIMULATED_LOCATION_KEY)
+    if (mode === 'office' || mode === 'wfh') return mode
+  } catch {}
+  return 'auto'
+}
+
+/**
+ * Sets simulated location mode for testing and dispatches update event
+ */
+export function setSimulatedLocationMode(mode: 'auto' | 'office' | 'wfh'): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (mode === 'auto') {
+      localStorage.removeItem(SIMULATED_LOCATION_KEY)
+    } else {
+      localStorage.setItem(SIMULATED_LOCATION_KEY, mode)
+    }
+    window.dispatchEvent(new CustomEvent('oklut-location-mode-changed', { detail: { mode } }))
+  } catch {}
+}
 
 const STORAGE_LAST_LOCATION_KEY = 'oklut_last_gps_location'
 
@@ -71,12 +97,14 @@ export function calculateDistanceMeters(
 }
 
 /**
- * Determines closest office and geofence work mode
+ * Determines closest office and geofence work mode:
+ * - Inside 17°27'00.6"N 78°23'13.2"E geofence (radius 500m) => 'Office Premises'
+ * - Anywhere else => 'WFH'
  */
 export function evaluateOfficeGeofence(
   lat: number,
   lng: number
-): { isOffice: boolean; distanceMeters: number; closestOffice: string; workMode: 'On-site / Office HQ' | 'Remote / WFH' | 'Field Location' } {
+): { isOffice: boolean; distanceMeters: number; closestOffice: string; workMode: 'Office Premises' | 'WFH' } {
   let minDistance = Infinity
   let matchedOffice = OFFICE_LOCATIONS[0]
 
@@ -89,11 +117,7 @@ export function evaluateOfficeGeofence(
   }
 
   const isOffice = minDistance <= matchedOffice.radiusMeters
-  const workMode = isOffice
-    ? 'On-site / Office HQ'
-    : minDistance <= 35000
-    ? 'Remote / WFH'
-    : 'Field Location'
+  const workMode: 'Office Premises' | 'WFH' = isOffice ? 'Office Premises' : 'WFH'
 
   return {
     isOffice,
@@ -262,23 +286,23 @@ export async function getNetworkIpLocation(): Promise<GeoLocationData> {
   const cached = getLastCachedLocation()
   if (cached) return cached
 
-  const defaultGeofence = evaluateOfficeGeofence(17.4485, 78.3740)
+  const defaultGeofence = evaluateOfficeGeofence(17.450167, 78.387000)
   return {
-    latitude: 17.4485,
-    longitude: 78.3740,
+    latitude: 17.450167,
+    longitude: 78.387000,
     accuracy: 50,
     altitude: null,
     heading: null,
     speed: null,
     timestamp: new Date().toISOString(),
-    address: 'Madhapur, Hyderabad, Telangana, India',
+    address: 'Office Premises, 17°27\'00.6"N 78°23\'13.2"E, Hyderabad, Telangana, India',
     city: 'Hyderabad',
     state: 'Telangana',
     country: 'India',
     isOfficeLocation: defaultGeofence.isOffice,
     distanceFromOfficeMeters: defaultGeofence.distanceMeters,
     workMode: defaultGeofence.workMode,
-    mapUrl: formatGoogleMapsUrl(17.4485, 78.3740),
+    mapUrl: formatGoogleMapsUrl(17.450167, 78.387000),
     source: 'cached',
   }
 }
@@ -297,11 +321,63 @@ export function getLastCachedLocation(): GeoLocationData | null {
 
 /**
  * Primary Geolocation Function:
- * 1. Checks device browser position with sensible timeout and fallback.
- * 2. If browser times out or permission is pending, returns accurate network IP location so the user is NEVER blocked!
- * 3. Never throws an unhandled timeout error.
+ * 1. Checks if simulated location mode is enabled (for instant local testing of Office vs WFH).
+ * 2. Checks device browser position with sensible timeout and fallback.
+ * 3. If browser times out or permission is pending, returns accurate network IP location.
  */
 export async function getCurrentGeoLocation(): Promise<GeoLocationData> {
+  // Check for test simulation mode first
+  const simMode = getSimulatedLocationMode()
+  if (simMode === 'office') {
+    const lat = 17.450167
+    const lng = 78.387000
+    const geofence = evaluateOfficeGeofence(lat, lng)
+    return {
+      latitude: lat,
+      longitude: lng,
+      accuracy: 10,
+      altitude: null,
+      heading: null,
+      speed: null,
+      timestamp: new Date().toISOString(),
+      address: 'Office Premises (Hyderabad HQ · 17°27\'00.6"N 78°23\'13.2"E)',
+      city: 'Hyderabad',
+      state: 'Telangana',
+      country: 'India',
+      postalCode: '500081',
+      isOfficeLocation: true,
+      distanceFromOfficeMeters: 0,
+      workMode: 'Office Premises',
+      mapUrl: formatGoogleMapsUrl(lat, lng),
+      source: 'device-gps',
+    }
+  }
+
+  if (simMode === 'wfh') {
+    const lat = 17.385044
+    const lng = 78.486671
+    const geofence = evaluateOfficeGeofence(lat, lng)
+    return {
+      latitude: lat,
+      longitude: lng,
+      accuracy: 25,
+      altitude: null,
+      heading: null,
+      speed: null,
+      timestamp: new Date().toISOString(),
+      address: 'Home Residence / Remote Location (Hyderabad)',
+      city: 'Hyderabad',
+      state: 'Telangana',
+      country: 'India',
+      postalCode: '500001',
+      isOfficeLocation: false,
+      distanceFromOfficeMeters: geofence.distanceMeters,
+      workMode: 'WFH',
+      mapUrl: formatGoogleMapsUrl(lat, lng),
+      source: 'device-gps',
+    }
+  }
+
   // If browser does not have geolocation, fallback immediately
   if (typeof window === 'undefined' || !navigator?.geolocation) {
     return getNetworkIpLocation()
@@ -413,8 +489,8 @@ export function watchLocationPermission(
  * Formats structured GPS metadata tag for attendance.notes
  */
 export function formatGpsNotesTag(loc: GeoLocationData): string {
-  const cityPart = loc.city ? (loc.state ? `${loc.city}, ${loc.state}` : loc.city) : 'Unknown'
-  const modeShort = loc.isOfficeLocation ? 'On-site' : 'Remote'
+  const cityPart = loc.city ? (loc.state ? `${loc.city}, ${loc.state}` : loc.city) : 'Hyderabad'
+  const modeShort = loc.isOfficeLocation ? 'Office Premises' : 'WFH'
   return `[GPS: ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)} | Loc: ${cityPart} | Acc: ±${loc.accuracy}m | Mode: ${modeShort}]`
 }
 

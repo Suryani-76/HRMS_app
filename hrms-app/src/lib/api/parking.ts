@@ -3,13 +3,100 @@ import type { ParkingPass } from '@/lib/database.types'
 
 const LOCAL_STORAGE_KEY = 'oklut_db_parking_passes'
 
+export const INITIAL_SAMPLE_PASSES: ParkingPass[] = [
+  {
+    id: 'pass-sample-hr',
+    employee_id: 'emp-sample-hr',
+    employee_code: 'OKL-HR-001',
+    employee_name: 'HR Administrator',
+    employee_email: 'hr@oklut.com',
+    vehicle_type: '4-Wheeler',
+    vehicle_number: 'TS09EA2026',
+    vehicle_model: 'Hyundai Creta (White)',
+    license_number: 'TS0920210001234',
+    emergency_phone: '9876543210',
+    status: 'Approved',
+    allocated_sector: 'Sector 4W - Basement 1',
+    allocated_slot: 'Slot P-4W-B1-01',
+    rejection_reason: null,
+    approved_by: 'HR Admin',
+    approved_at: new Date(Date.now() - 7 * 86400000).toISOString(),
+    qr_code_data: 'OKLUT-PARKING-PASS:hr@oklut.com:TS09EA2026:Slot P-4W-B1-01',
+    qr_code_image: '',
+    is_checked_in: true,
+    last_check_in: new Date(Date.now() - 3 * 3600000).toISOString(),
+    last_check_out: null,
+    created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+  },
+  {
+    id: 'pass-sample-surya',
+    employee_id: 'emp-sample-surya',
+    employee_code: 'OKL-GEN-2026-164',
+    employee_name: 'Gouda Suryani',
+    employee_email: 's.guda@oklut.com',
+    vehicle_type: '2-Wheeler',
+    vehicle_number: 'TS07FA4751',
+    vehicle_model: 'Royal Enfield Hunter 350',
+    license_number: 'TS0720220005678',
+    emergency_phone: '9848012345',
+    status: 'Approved',
+    allocated_sector: 'Sector 2W - Ground Bay',
+    allocated_slot: 'Slot P-2W-G-14',
+    rejection_reason: null,
+    approved_by: 'HR Admin',
+    approved_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    qr_code_data: 'OKLUT-PARKING-PASS:s.guda@oklut.com:TS07FA4751:Slot P-2W-G-14',
+    qr_code_image: '',
+    is_checked_in: false,
+    last_check_in: new Date(Date.now() - 28 * 3600000).toISOString(),
+    last_check_out: new Date(Date.now() - 20 * 3600000).toISOString(),
+    created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 20 * 3600000).toISOString(),
+  },
+  {
+    id: 'pass-sample-rahul',
+    employee_id: 'emp-sample-rahul',
+    employee_code: 'OKL-ENG-2026-042',
+    employee_name: 'Rahul Sharma',
+    employee_email: 'rahul.s@oklut.com',
+    vehicle_type: '4-Wheeler',
+    vehicle_number: 'MH12AB9876',
+    vehicle_model: 'Tata Nexon EV (Dark Edition)',
+    license_number: 'MH1220200007890',
+    emergency_phone: '9123456789',
+    status: 'Pending',
+    allocated_sector: null,
+    allocated_slot: null,
+    rejection_reason: null,
+    approved_by: null,
+    approved_at: null,
+    qr_code_data: null,
+    qr_code_image: null,
+    is_checked_in: false,
+    last_check_in: null,
+    last_check_out: null,
+    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+  },
+]
+
 // Helper to get local cached passes
 function getLocalPasses(): ParkingPass[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    if (!raw) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_SAMPLE_PASSES))
+      return INITIAL_SAMPLE_PASSES
+    }
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed
+    }
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_SAMPLE_PASSES))
+    return INITIAL_SAMPLE_PASSES
   } catch {
-    return []
+    return INITIAL_SAMPLE_PASSES
   }
 }
 
@@ -41,11 +128,21 @@ export async function fetchAllParkingPasses(): Promise<ParkingPass[]> {
 
     if (data && data.length > 0) {
       // Merge remote with local passes by id to avoid dropping local records
-      const remoteMap = new Map((data as ParkingPass[]).map((p) => [p.id, p]))
-      const merged: ParkingPass[] = [...(data as ParkingPass[])]
+      const localMap = new Map(local.map((p) => [p.id, p]))
+      const merged: ParkingPass[] = (data as ParkingPass[]).map((remote) => {
+        const localRecord = localMap.get(remote.id)
+        if (localRecord && localRecord.updated_at && remote.updated_at) {
+          const localTime = new Date(localRecord.updated_at).getTime()
+          const remoteTime = new Date(remote.updated_at).getTime()
+          if (localTime >= remoteTime) {
+            return { ...remote, ...localRecord }
+          }
+        }
+        return remote
+      })
 
       for (const lp of local) {
-        if (!remoteMap.has(lp.id)) {
+        if (!merged.some((m) => m.id === lp.id)) {
           merged.push(lp)
         }
       }
@@ -68,7 +165,17 @@ export async function fetchAllParkingPasses(): Promise<ParkingPass[]> {
  * Fetch parking pass for a specific employee by email or employee code
  */
 export async function fetchParkingPassByEmployee(email: string, employeeCode?: string): Promise<ParkingPass | null> {
-  const emailClean = email.trim().toLowerCase()
+  const emailClean = (email || '').trim().toLowerCase()
+  const codeClean = (employeeCode || '').trim().toLowerCase()
+  const local = getLocalPasses()
+  const localFound = local.find(
+    (p) =>
+      (emailClean && p.employee_email?.toLowerCase() === emailClean) ||
+      (codeClean && p.employee_code?.toLowerCase() === codeClean) ||
+      ((emailClean === 'hr@oklut.com' || emailClean.startsWith('hr@')) &&
+        (p.employee_email?.toLowerCase() === 'hr@oklut.com' || p.employee_email?.toLowerCase().startsWith('hr@')))
+  )
+
   try {
     const { data, error } = await supabase
       .from('parking_passes')
@@ -78,20 +185,22 @@ export async function fetchParkingPassByEmployee(email: string, employeeCode?: s
       .limit(1)
 
     if (!error && data && data.length > 0) {
-      return data[0] as ParkingPass
+      const remote = data[0] as ParkingPass
+      if (localFound && localFound.id === remote.id && localFound.updated_at) {
+        const localTime = new Date(localFound.updated_at).getTime()
+        const remoteTime = new Date(remote.updated_at || 0).getTime()
+        if (localTime >= remoteTime) {
+          return { ...remote, ...localFound }
+        }
+      }
+      return remote
     }
   } catch (e) {
     console.warn('Supabase fetch failed for employee parking pass:', e)
   }
 
   // Fallback to local storage
-  const local = getLocalPasses()
-  const found = local.find(
-    (p) =>
-      p.employee_email.toLowerCase() === emailClean ||
-      (employeeCode && p.employee_code.toLowerCase() === employeeCode.toLowerCase())
-  )
-  return found || null
+  return localFound || null
 }
 
 /**
@@ -235,9 +344,9 @@ export async function rejectParkingPassRequest(
 }
 
 /**
- * Toggle Gate Check-In / Check-Out
+ * Toggle Gate Check-In / Check-Out (Gate Entry & Exit)
  */
-export async function toggleGateCheckIn(passId: string, isCheckedIn: boolean): Promise<void> {
+export async function toggleGateCheckIn(passId: string, isCheckedIn: boolean): Promise<ParkingPass | null> {
   const now = new Date().toISOString()
   const updates: Partial<ParkingPass> = {
     is_checked_in: isCheckedIn,
@@ -245,12 +354,40 @@ export async function toggleGateCheckIn(passId: string, isCheckedIn: boolean): P
     updated_at: now,
   }
 
-  try {
-    await supabase.from('parking_passes').update(updates).eq('id', passId)
-  } catch {}
+  // Update in localStorage immediately
+  const local = getLocalPasses()
+  let updatedPass: ParkingPass | null = null
+  const updatedList = local.map((p) => {
+    if (p.id === passId) {
+      updatedPass = { ...p, ...updates }
+      return updatedPass
+    }
+    return p
+  })
 
-  const local = getLocalPasses().map((p) => (p.id === passId ? { ...p, ...updates } : p))
-  saveLocalPasses(local)
+  if (updatedPass) {
+    saveLocalPasses(updatedList)
+  }
+
+  // Attempt Supabase update
+  try {
+    const { data, error } = await supabase
+      .from('parking_passes')
+      .update(updates)
+      .eq('id', passId)
+      .select('*')
+      .single()
+
+    if (!error && data) {
+      updatedPass = data as ParkingPass
+      saveLocalPasses(local.map((p) => (p.id === passId ? (data as ParkingPass) : p)))
+      return updatedPass
+    }
+  } catch (err) {
+    console.warn('Supabase toggleGateCheckIn error, fallback to local store:', err)
+  }
+
+  return updatedPass
 }
 
 export const INDIAN_STATE_RTO_MAP: Record<string, string> = {

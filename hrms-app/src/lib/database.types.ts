@@ -512,6 +512,10 @@ export interface InsuranceEnrollment {
   declaration_signature?: string | null
   declaration_signed: boolean
   declaration_date?: string | null
+  status?: string | null
+  approved_by?: string | null
+  approved_at?: string | null
+  admin_notes?: string | null
   created_at: string
 }
 
@@ -694,6 +698,12 @@ export interface Database {
       projects: { Row: Project }
       project_members: { Row: ProjectMember }
       project_status_updates: { Row: ProjectStatusUpdate }
+      parking_passes: { Row: ParkingPass; Insert: Partial<ParkingPass>; Update: Partial<ParkingPass> }
+      complaints: { Row: any; Insert: any; Update: any }
+      service_requests: { Row: any; Insert: any; Update: any }
+      employee_bank_details: { Row: any; Insert: any; Update: any }
+      employee_assessments: { Row: any; Insert: any; Update: any }
+      interview_slots: { Row: any; Insert: any; Update: any }
     }
   }
 }

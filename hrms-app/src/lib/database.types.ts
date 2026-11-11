@@ -4,7 +4,7 @@ export interface Role {
   id: string
   name: string
   description?: string | null
-  created_at: string
+  created_at?: string
 }
 
 export interface Permission {

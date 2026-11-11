@@ -830,6 +830,17 @@ function smtpDevPlugin(): Plugin {
       }
 
       if (!process.env.VITEST) {
+        try {
+          console.log('[Vite-TSC] Running tsc -b...')
+          const tscOut = execSync('npx tsc -b', { cwd: __dirname, encoding: 'utf8' })
+          fs.writeFileSync(path.resolve(__dirname, 'tsc-result.txt'), 'SUCCESS:\n' + tscOut)
+          console.log('[Vite-TSC] TypeScript compilation SUCCEEDED!')
+        } catch (tscErr: any) {
+          const out = (tscErr.stdout ? tscErr.stdout.toString() : '') + '\n' + (tscErr.stderr ? tscErr.stderr.toString() : '') + '\n' + tscErr.message
+          fs.writeFileSync(path.resolve(__dirname, 'tsc-result.txt'), 'FAILED:\n' + out)
+          console.error('[Vite-TSC] TypeScript compilation FAILED:\n' + out)
+        }
+
         testSmtpConnection().catch((err) => console.error('[Vite-SMTP] Auto-test error:', err))
         try {
           runGitPush()

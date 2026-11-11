@@ -295,22 +295,26 @@ export async function broadcastJobOpeningToEmployees(
     }))
 
     // Queue in Supabase audit_logs
-    await supabase.from('audit_logs').insert(pendingItems).catch(() => {})
+    try {
+      await supabase.from('audit_logs').insert(pendingItems)
+    } catch {}
 
     // Record broadcast tracking
-    await supabase.from('audit_logs').insert({
-      action: 'JOB_OPENING_BROADCAST',
-      entity_type: 'job_openings',
-      details: {
-        job_id: job.id,
-        job_title: job.title,
-        job_code: jobCode,
-        referral_code: referralCode,
-        recipient_count: recipients.length,
-        automated: true,
-        broadcast_at: new Date().toISOString(),
-      },
-    }).catch(() => {})
+    try {
+      await supabase.from('audit_logs').insert({
+        action: 'JOB_OPENING_BROADCAST',
+        entity_type: 'job_openings',
+        details: {
+          job_id: job.id,
+          job_title: job.title,
+          job_code: jobCode,
+          referral_code: referralCode,
+          recipient_count: recipients.length,
+          automated: true,
+          broadcast_at: new Date().toISOString(),
+        },
+      })
+    } catch {}
 
     return {
       success: true,

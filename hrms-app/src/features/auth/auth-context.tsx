@@ -92,7 +92,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
           role_id: '',
           employee_id: empDirect.id,
           status: empDirect.status || 'Active',
-          role: { id: '', name: roleName, description: roleName },
+          role: { id: '', name: roleName, description: roleName, created_at: empDirect.created_at || new Date().toISOString() },
           created_at: empDirect.created_at,
         } as any,
         employee: empDirect,
@@ -149,7 +149,7 @@ async function fetchProfile(userId: string): Promise<{ user: UserProfile | null;
 
   user = {
     ...user,
-    role: { id: user.role_id || '00000000-0000-4000-8000-0000000000a1', name: currentRoleName, description: currentRoleName },
+    role: { id: user.role_id || '00000000-0000-4000-8000-0000000000a1', name: currentRoleName, description: currentRoleName, created_at: user.created_at || new Date().toISOString() },
   }
 
   return { user, employee }
@@ -306,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: '00000000-0000-4000-8000-0000000000a1',
             name: 'Admin',
             description: 'Full system administrator',
+            created_at: new Date().toISOString(),
           }
         }
 
@@ -340,6 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: '00000000-0000-4000-8000-0000000000a1',
                 name: 'Admin',
                 description: 'Full system administrator',
+                created_at: new Date().toISOString(),
               }
             }
             setState(profile.user)
@@ -366,6 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: '00000000-0000-4000-8000-0000000000a1',
             name: 'Admin',
             description: 'Full system administrator',
+            created_at: new Date().toISOString(),
           },
           created_at: new Date().toISOString(),
         }

@@ -1,0 +1,37 @@
+FAILED:
+src/components/performance/performance-assessment-sheet.tsx(14,3): error TS6133: 'User' is declared but its value is never read.
+src/features/auth/auth-context.tsx(362,11): error TS2353: Object literal may only specify known properties, and 'auth_id' does not exist in type 'UserProfile'.
+src/lib/api/attendance.ts(57,12): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+src/lib/api/core.ts(720,79): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+src/lib/api/core.ts(728,79): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+src/lib/geo-tracking.ts(334,11): error TS6133: 'geofence' is declared but its value is never read.
+src/lib/payroll-excel.ts(3,25): error TS6196: 'Payroll' is declared but never used.
+src/lib/qr-decoder.ts(267,10): error TS6133: 'gfMul' is declared but its value is never read.
+src/lib/qr-decoder.ts(677,9): error TS6133: 'thresholds' is declared but its value is never read.
+src/lib/qr-decoder.ts(857,13): error TS6133: 'tData' is declared but its value is never read.
+src/pages/bank-details-page.tsx(26,3): error TS6133: 'UserPlus' is declared but its value is never read.
+src/pages/careers-page.tsx(16,64): error TS6133: 'DEFAULT_CANDIDATE_PORTAL_URL' is declared but its value is never read.
+src/pages/complaints-page.tsx(169,17): error TS2339: Property 'user_metadata' does not exist on type 'UserProfile'.
+src/pages/incentives-dashboard-page.tsx(26,3): error TS6133: 'TrendingUp' is declared but its value is never read.
+src/pages/incentives-dashboard-page.tsx(425,11): error TS2322: Type '{ title: string; description: string; icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; action: Element; }' is not assignable to type 'IntrinsicAttributes & EmptyStateProps'.
+  Property 'action' does not exist on type 'IntrinsicAttributes & EmptyStateProps'.
+src/pages/insurance-enrollment-page.tsx(43,3): error TS6133: 'FileText' is declared but its value is never read.
+src/pages/insurance-enrollment-page.tsx(44,3): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/pages/insurance-enrollment-page.tsx(45,3): error TS6133: 'Award' is declared but its value is never read.
+src/pages/insurance-enrollment-page.tsx(619,29): error TS6133: 'isPending' is declared but its value is never read.
+src/pages/leave-page.tsx(872,9): error TS6133: 'allEmployees' is declared but its value is never read.
+src/pages/parking-page.tsx(53,35): error TS6133: 'isAdmin' is declared but its value is never read.
+src/pages/parking-page.tsx(53,44): error TS6133: 'isHR' is declared but its value is never read.
+src/pages/parking-page.tsx(167,12): error TS2339: Property 'parking_sector' does not exist on type 'ParkingPass'.
+src/pages/parking-page.tsx(167,32): error TS2339: Property 'parking_sector' does not exist on type 'ParkingPass'.
+src/pages/parking-page.tsx(339,9): error TS6133: 'handleLogout' is declared but its value is never read.
+src/pages/parking-page.tsx(596,9): error TS6133: 'handleToggleCheckIn' is declared but its value is never read.
+src/pages/parking-page.tsx(1090,31): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/payroll-page.tsx(52,40): error TS6196: 'Employee' is declared but never used.
+src/pages/performance-page.tsx(22,1): error TS6192: All imports in import declaration are unused.
+src/pages/projects-page.tsx(128,13): error TS2304: Cannot find name 'Employee'.
+src/pages/tasks-page.tsx(39,1): error TS6133: 'SearchableEmployeeSelect' is declared but its value is never read.
+
+
+Command failed: npx tsc -b

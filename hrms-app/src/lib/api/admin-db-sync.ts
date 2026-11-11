@@ -178,35 +178,27 @@ export async function syncAdminToSupabase(): Promise<{
 
     // Verify all 39 database tables connectivity and log row counts
     try {
-      verifyAllDatabaseTables().catch(() => {})
+      await verifyAllDatabaseTables()
     } catch {}
 
     // Probe SMTP server diagnostics
     try {
-      fetch('/api/smtp-test')
-        .then((r) => r.json())
-        .then((smtpRes) => {
-          if (smtpRes?.success) {
-            console.info('OKLUT HRMS SMTP: Connected and Authenticated Successfully (kindle.herosite.pro:465)', smtpRes)
-          } else {
-            console.warn('OKLUT HRMS SMTP Warning:', smtpRes?.error || 'SMTP check failed', smtpRes)
-          }
-        })
-        .catch(() => {})
+      const smtpRes = await fetch('/api/smtp-test').then((r) => r.json())
+      if (smtpRes?.success) {
+        console.info('OKLUT HRMS SMTP: Connected and Authenticated Successfully (kindle.herosite.pro:465)', smtpRes)
+      } else {
+        console.warn('OKLUT HRMS SMTP Warning:', smtpRes?.error || 'SMTP check failed', smtpRes)
+      }
     } catch {}
 
     // Trigger automated Git commit and push to origin main
     try {
-      fetch('/api/git-push')
-        .then((r) => r.json())
-        .then((gitRes) => {
-          if (gitRes?.success) {
-            console.info('OKLUT HRMS Git: Committed and Pushed to origin main Successfully', gitRes)
-          } else {
-            console.warn('OKLUT HRMS Git Warning:', gitRes?.error || 'Git push notice', gitRes)
-          }
-        })
-        .catch(() => {})
+      const gitRes = await fetch('/api/git-push').then((r) => r.json())
+      if (gitRes?.success) {
+        console.info('OKLUT HRMS Git: Committed and Pushed to origin main Successfully', gitRes)
+      } else {
+        console.warn('OKLUT HRMS Git Warning:', gitRes?.error || 'Git push notice', gitRes)
+      }
     } catch {}
 
     return {

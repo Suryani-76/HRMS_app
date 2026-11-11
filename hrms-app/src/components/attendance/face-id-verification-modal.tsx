@@ -28,7 +28,6 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/lib/utils'
 import {
-  getFaceIdConsent,
   saveFaceIdConsent,
   evaluateFaceQuality,
   evaluateLiveness,

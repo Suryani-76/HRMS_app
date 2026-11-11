@@ -101,6 +101,7 @@ export interface Employee {
 
 export interface UserProfile {
   id: string
+  auth_id?: string | null
   email: string
   role_id: string
   employee_id?: string | null
@@ -109,6 +110,7 @@ export interface UserProfile {
   created_at: string
   role?: Role | null
   employee?: Employee | null
+  user_metadata?: Record<string, any> | null
 }
 
 export interface Attendance {
@@ -545,6 +547,7 @@ export interface ParkingPass {
   emergency_phone?: string | null
   status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked'
   allocated_sector?: string | null
+  parking_sector?: string | null
   allocated_slot?: string | null
   rejection_reason?: string | null
   approved_by?: string | null

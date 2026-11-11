@@ -23,7 +23,6 @@ import {
   RotateCcw,
   Plus,
   Edit3,
-  UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'

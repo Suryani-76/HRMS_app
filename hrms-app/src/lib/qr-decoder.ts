@@ -264,11 +264,6 @@ const GF_LOG = new Uint8Array(256)
   }
 })()
 
-function gfMul(x: number, y: number): number {
-  if (x === 0 || y === 0) return 0
-  return GF_EXP[GF_LOG[x] + GF_LOG[y]]
-}
-
 function checkFinderRatio(stateCount: number[]): boolean {
   let total = 0
   for (let i = 0; i < 5; i++) {
@@ -674,7 +669,6 @@ export function decodeQrFromImage(canvas: HTMLCanvasElement): string | null {
   const data = imgData.data
 
   // Try multiple threshold passes: Otsu, 128, 85, 170, and Inverted
-  const thresholds = [128, 85, 170]
   const passes: { invert: boolean; th: number }[] = [
     { invert: false, th: 128 },
     { invert: false, th: 85 },
@@ -854,7 +848,6 @@ export async function decodeBarcodeOrQrFromBlob(
     const tCtx = thumbCanvas.getContext('2d', { willReadFrequently: true })
     if (tCtx) {
       tCtx.drawImage(canvas, 0, 0, 16, 16)
-      const tData = tCtx.getImageData(0, 0, 16, 16).data
 
       // If filename matched a known item, give it highest priority
       if ('name' in file && file.name) {

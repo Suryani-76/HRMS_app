@@ -472,7 +472,7 @@ function smtpDevPlugin(): Plugin {
 
       // 3. git commit
       try {
-        const commitMsg = 'feat: sync database schema, leave approval view more, attendance session normalize, and SMTP diagnostics'
+        const commitMsg = 'fix: resolve all TypeScript build errors for GitHub Actions deploy'
         const commitRes = execSync(`git commit -m "${commitMsg}"`, { cwd: repoDir, encoding: 'utf8' })
         gitResult.steps.push({ step: 'git commit', output: commitRes })
       } catch (commitErr: any) {
@@ -503,7 +503,7 @@ function smtpDevPlugin(): Plugin {
           if (outerStatus.trim()) {
             execSync('git add -A', { cwd: outerRepoDir, encoding: 'utf8' })
             try {
-              const outerCommit = execSync('git commit -m "feat: sync database schema, leave approval view more, attendance session normalize, and SMTP diagnostics"', { cwd: outerRepoDir, encoding: 'utf8' })
+              const outerCommit = execSync('git commit -m "fix: resolve all TypeScript build errors for GitHub Actions deploy"', { cwd: outerRepoDir, encoding: 'utf8' })
               gitResult.steps.push({ step: 'outer git commit', output: outerCommit })
             } catch {}
             try {
@@ -830,6 +830,7 @@ function smtpDevPlugin(): Plugin {
       }
 
       if (!process.env.VITEST) {
+        // Trigger pass 2: verify all TypeScript errors resolved
         try {
           console.log('[Vite-TSC] Running tsc -b...')
           const tscOut = execSync('npx tsc -b', { cwd: __dirname, encoding: 'utf8' })

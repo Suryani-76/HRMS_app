@@ -50,7 +50,7 @@ import {
 
 export default function ParkingPage() {
   const navigate = useNavigate()
-  const { employee: authEmployee, isAdmin, isHR, user } = useAuth()
+  const { employee: authEmployee, user } = useAuth()
 
   // Authentication State for Parking Portal
   const [emailInput, setEmailInput] = useState('')
@@ -336,10 +336,6 @@ export default function ParkingPage() {
     toast.info('Signed out of parking pass session.')
   }
 
-  const handleLogout = () => {
-    handleExitToApp()
-  }
-
   // Input limitation handlers for Vehicle Form
   const handleVehicleNumberChange = (val: string) => {
     // Uppercase alphanumeric, spaces, and hyphens only, max 14 characters
@@ -589,16 +585,6 @@ export default function ParkingPage() {
     } catch (err: any) {
       console.error(err)
       toast.error('Failed to record gate entry.')
-    }
-  }
-
-  // Toggle Gate Check In / Out
-  const handleToggleCheckIn = async () => {
-    if (!employeePass) return
-    if (employeePass.is_checked_in) {
-      await handleGateExit()
-    } else {
-      await handleGateEntry()
     }
   }
 
@@ -1087,7 +1073,7 @@ export default function ParkingPage() {
                           </div>
                           {passQrImgUrl || employeePass.qr_code_image ? (
                             <img
-                              src={passQrImgUrl || employeePass.qr_code_image}
+                              src={passQrImgUrl || employeePass.qr_code_image || undefined}
                               alt="Parking Pass QR"
                               className="mx-auto w-40 h-40 rounded-xl border p-1"
                             />

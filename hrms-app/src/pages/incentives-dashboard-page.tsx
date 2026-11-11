@@ -23,7 +23,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Award,
   PlusCircle,
-  TrendingUp,
   Gift,
   Coins,
   Briefcase,
@@ -422,13 +421,12 @@ export default function IncentivesDashboardPage() {
               : 'Add your first recruiter incentive record to start tracking.'
           }
           icon={Award}
-          action={
-            <Button onClick={handleOpenCreate} size="sm" className="gap-2 mt-2">
-              <PlusCircle className="h-4 w-4" />
-              Add Incentive
-            </Button>
-          }
-        />
+        >
+          <Button onClick={handleOpenCreate} size="sm" className="gap-2 mt-2">
+            <PlusCircle className="h-4 w-4" />
+            Add Incentive
+          </Button>
+        </EmptyState>
       ) : (
         <div className="rounded-xl border bg-card shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">

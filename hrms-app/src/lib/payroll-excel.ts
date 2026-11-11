@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
-import type { Employee, Payroll, PayrollProfile } from '@/lib/database.types'
+import type { Employee, PayrollProfile } from '@/lib/database.types'
 
 export interface ParsedPayrollRow {
   employeeId: string

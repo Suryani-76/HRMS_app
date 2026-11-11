@@ -11,7 +11,6 @@ import {
   Sparkles,
   Info,
   Calendar,
-  User,
   ShieldCheck,
   RotateCcw,
   MessageSquare,

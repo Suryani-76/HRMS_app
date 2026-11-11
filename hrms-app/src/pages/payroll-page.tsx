@@ -49,7 +49,7 @@ import { downloadPayslipPdf } from '@/lib/payslip-pdf'
 import { PayslipDocumentSheet } from '@/components/payroll/payslip-document-sheet'
 import { ExcelPayrollImportModal } from '@/components/payroll/excel-payroll-import-modal'
 import { downloadPayrollTemplate } from '@/lib/payroll-excel'
-import type { Payroll, PayrollProfile, Employee } from '@/lib/database.types'
+import type { Payroll, PayrollProfile } from '@/lib/database.types'
 
 function ProfileEditor({
   profile,

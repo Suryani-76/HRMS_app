@@ -717,7 +717,7 @@ export async function fetchNotifications(limit = 30) {
       // reject this notification as it does not belong to any leave applied by the user!
       if (appliedLeaves.length === 0) {
         // Asynchronously clean up the orphan notification from the DB
-        supabase.from('notifications').delete().eq('id', n.id).then(() => {}).catch(() => {})
+        supabase.from('notifications').delete().eq('id', n.id).then(() => {}, () => {})
         return false
       }
 
@@ -725,7 +725,7 @@ export async function fetchNotifications(limit = 30) {
         (l) => (l.start_date && msgLower.includes(l.start_date)) || (l.end_date && msgLower.includes(l.end_date))
       )
       if (!hasMatchingLeave) {
-        supabase.from('notifications').delete().eq('id', n.id).then(() => {}).catch(() => {})
+        supabase.from('notifications').delete().eq('id', n.id).then(() => {}, () => {})
         return false
       }
     }

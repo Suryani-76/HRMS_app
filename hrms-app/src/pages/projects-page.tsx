@@ -30,6 +30,7 @@ import type {
   Project,
   ProjectStatus,
   ProjectPriority,
+  Employee,
 } from '@/lib/database.types'
 import {
   FolderKanban,

@@ -36,7 +36,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TableSkeleton } from '@/components/shared/skeletons'
-import { SearchableEmployeeSelect } from '@/components/ui/searchable-employee-select'
 import {
   useTasks,
   useCreateTask,

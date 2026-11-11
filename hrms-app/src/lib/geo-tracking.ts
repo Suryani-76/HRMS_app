@@ -331,7 +331,6 @@ export async function getCurrentGeoLocation(): Promise<GeoLocationData> {
   if (simMode === 'office') {
     const lat = 17.450167
     const lng = 78.387000
-    const geofence = evaluateOfficeGeofence(lat, lng)
     return {
       latitude: lat,
       longitude: lng,

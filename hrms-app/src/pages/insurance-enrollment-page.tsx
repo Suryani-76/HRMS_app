@@ -26,7 +26,6 @@ import {
   Users,
   PhoneCall,
   Home,
-  MapPin,
   Building,
   CreditCard,
   CheckSquare,
@@ -40,9 +39,6 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
-  FileText,
-  AlertCircle,
-  Award,
 } from 'lucide-react'
 import { initials } from '@/lib/utils'
 import { formatDate } from '@/lib/format'
@@ -616,7 +612,6 @@ export default function InsuranceEnrollmentPage() {
                       const status = (enr.status || 'pending').toLowerCase()
                       const isApproved = status === 'approved'
                       const isRejected = status === 'rejected'
-                      const isPending = !isApproved && !isRejected
 
                       return (
                         <tr key={enr.id} className="hover:bg-muted/20 transition-colors align-top">

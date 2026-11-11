@@ -53,8 +53,7 @@ export function sanitizeAttendanceRecords(records: Attendance[]): Attendance[] {
           .from('attendance')
           .update({ notes: cleanedNotes })
           .eq('id', record.id)
-          .then(() => {})
-          .catch(() => {})
+          .then(() => {}, () => {})
 
         return {
           ...record,

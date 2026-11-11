@@ -13,7 +13,7 @@ import type { JobOpening } from '@/lib/database.types'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Logo } from '@/components/ui/logo'
-import { sendCandidateApplicationEmail, getEffectivePortalUrl, DEFAULT_CANDIDATE_PORTAL_URL } from '@/lib/api/email'
+import { sendCandidateApplicationEmail, getEffectivePortalUrl } from '@/lib/api/email'
 
 export default function CareersPage() {
   const [jobs, setJobs] = useState<JobOpening[]>([])

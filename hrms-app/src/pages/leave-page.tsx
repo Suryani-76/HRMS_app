@@ -869,7 +869,6 @@ function EmployeeLeaveTab({
 
 export default function LeavePage() {
   const { user, employee, isManager, isAdmin } = useAuth()
-  const { data: allEmployees = [] } = useEmployees()
   const [applyOpen, setApplyOpen] = useState(false)
   const { data: allRequests = [] } = useLeaveRequests({ status: 'pending' })
   const pendingCount = allRequests.length

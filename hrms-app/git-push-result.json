@@ -1,40 +1,12 @@
 {
-  "timestamp": "2026-11-11T05:52:10.015Z",
+  "timestamp": "2026-11-12T12:04:09.138Z",
   "repoDir": "C:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
-      "step": "git status",
-      "output": " M hrms-app/git-push-result.json\n M hrms-app/smtp-test-result.json\n M hrms-app/vite.config.ts\n"
-    },
-    {
-      "step": "git add -A",
-      "output": ""
-    },
-    {
-      "step": "git commit",
-      "output": "[main 8b829d7] fix: resolve all TypeScript build errors for GitHub Actions deploy\n 3 files changed, 6 insertions(+), 18 deletions(-)\n"
-    },
-    {
-      "step": "git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git status",
-      "output": " M HRMS_app-main\n"
-    },
-    {
-      "step": "outer git commit",
-      "output": "[main 18fc562] fix: resolve all TypeScript build errors for GitHub Actions deploy\n 1 file changed, 1 insertion(+), 1 deletion(-)\n"
-    },
-    {
-      "step": "outer git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git push nygenx main",
-      "output": ""
+      "step": "tsc -b check failed",
+      "output": "src/features/auth/login-page.tsx(12,26): error TS6133: 'isManager' is declared but its value is never read.\r\n"
     }
   ],
-  "success": true,
-  "error": null
+  "success": false,
+  "error": "TypeScript check failed:\nsrc/features/auth/login-page.tsx(12,26): error TS6133: 'isManager' is declared but its value is never read.\r\n"
 }

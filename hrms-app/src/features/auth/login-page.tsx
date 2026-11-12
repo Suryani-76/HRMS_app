@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from './auth-context'
 
 export function LoginPage() {
-  const { user, loading, isManager, login } = useAuth()
+  const { user, loading, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState(() => localStorage.getItem('hrms_remember_email') ?? '')

@@ -21,9 +21,11 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(isManager ? '/' : '/', { replace: true })
+      const fromPath = (location.state as { from?: { pathname: string } } | null)?.from?.pathname
+      const targetPath = fromPath && fromPath !== '/login' ? fromPath : '/'
+      navigate(targetPath, { replace: true })
     }
-  }, [loading, user, isManager, navigate])
+  }, [loading, user, location.state, navigate])
 
   if (loading) {
     return (
@@ -51,7 +53,8 @@ export function LoginPage() {
       setError(error)
       return
     }
-    navigate(from, { replace: true })
+    const targetPath = from && from !== '/login' ? from : '/'
+    navigate(targetPath, { replace: true })
   }
 
   return (

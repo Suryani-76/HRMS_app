@@ -831,11 +831,12 @@ function smtpDevPlugin(): Plugin {
 
       if (!process.env.VITEST) {
         testSmtpConnection().catch((err) => console.error('[Vite-SMTP] Auto-test error:', err))
-        try {
-          runGitPush()
-        } catch (gitErr) {
-          console.error('[Vite-Git] Auto-push error:', gitErr)
-        }
+        // Git auto-push disabled per instruction: "don't push the code to git"
+        // try {
+        //   runGitPush()
+        // } catch (gitErr) {
+        //   console.error('[Vite-Git] Auto-push error:', gitErr)
+        // }
         setTimeout(pollPending, 1000)
         setInterval(pollPending, 4000)
 

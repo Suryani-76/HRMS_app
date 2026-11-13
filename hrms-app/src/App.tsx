@@ -25,7 +25,6 @@ const queryClient = new QueryClient({
 export default function App() {
   useEffect(() => {
     triggerAdminSync()
-    fetch('/api/git-push').catch(() => {})
   }, [])
   return (
     <ErrorBoundary>

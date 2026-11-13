@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-12T12:04:09.135Z",
+  "testedAt": "2026-11-12T12:08:02.460Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -16,7 +16,7 @@
   "serverBanner": null,
   "authResponse": null,
   "connectionTimeMs": null,
-  "totalTimeMs": 28576,
+  "totalTimeMs": 57729,
   "recentAuditLogs": [
     {
       "id": "8b33752f-730c-443d-be3e-b8099b8519a8",

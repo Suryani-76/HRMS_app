@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
-type Theme = 'light' | 'dark' | 'system'
+type Theme = 'maroon' | 'dark' | 'light' | 'system'
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -11,39 +11,43 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme
   setTheme: (theme: Theme) => void
-  resolvedTheme: 'light' | 'dark'
+  resolvedTheme: 'maroon' | 'dark' | 'light'
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined)
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'light',
+  defaultTheme = 'maroon',
   storageKey = 'hrms-theme',
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem(storageKey)
-    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+    if (stored === 'maroon' || stored === 'light' || stored === 'dark' || stored === 'system') return stored as Theme
     return defaultTheme
   })
 
   useEffect(() => {
     const root = window.document.documentElement
-    root.classList.remove('light', 'dark')
+    root.classList.remove('light', 'dark', 'maroon')
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'maroon' : 'light'
       root.classList.add(systemTheme)
+      if (systemTheme === 'maroon') root.classList.add('dark')
     } else {
       root.classList.add(theme)
+      if (theme === 'maroon') {
+        root.classList.add('dark')
+      }
     }
     localStorage.setItem(storageKey, theme)
-  }, [theme])
+  }, [theme, storageKey])
 
-  const resolvedTheme: 'light' | 'dark' =
+  const resolvedTheme: 'maroon' | 'dark' | 'light' =
     theme === 'system'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
+        ? 'maroon'
         : 'light'
       : theme
 
@@ -54,6 +58,7 @@ export function ThemeProvider({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTheme() {
   const context = useContext(ThemeProviderContext)
   if (!context) throw new Error('useTheme must be used within a ThemeProvider')

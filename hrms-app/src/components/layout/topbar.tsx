@@ -48,7 +48,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-rose-950/40 bg-[#0a0507]/90 px-4 backdrop-blur-xl sm:px-6 shadow-sm">
+      <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
         </Button>
@@ -91,11 +91,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setTheme(theme === 'light' ? 'maroon' : 'light')}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label="Toggle theme"
-            className="hover:bg-rose-950/30 text-rose-200"
           >
-            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
           <NotificationCenter />
           <DropdownMenu>

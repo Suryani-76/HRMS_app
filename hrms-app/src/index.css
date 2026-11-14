@@ -3,64 +3,61 @@
 @tailwind utilities;
 
 @layer base {
-  :root,
-  .maroon,
-  .dark {
-    /* BLACK & MAROON COMBINATION (Active Default Theme) */
-    --background: 345 25% 4%;        /* Pitch Black with deep maroon undertone (#0c0507) */
-    --foreground: 345 15% 97%;       /* Crisp White (#fcf6f7) */
-    --card: 345 20% 7%;              /* Velvety Deep Dark Charcoal Card (#14090c) */
-    --card-foreground: 345 15% 97%;
-    --popover: 345 20% 8%;           /* Dropdown and Popover surface (#170a0e) */
-    --popover-foreground: 345 15% 97%;
-    --primary: 345 82% 42%;          /* Vibrant Imperial Maroon / Burgundy (#bf1340) */
-    --primary-foreground: 0 0% 100%; /* Pure White */
-    --secondary: 345 35% 15%;        /* Deep Maroon Accent / Surface (#331920) */
-    --secondary-foreground: 345 60% 92%;
-    --muted: 345 18% 13%;            /* Muted background (#27161b) */
-    --muted-foreground: 345 12% 65%; /* Soft Silver/Rose Gray (#aca0a4) */
-    --accent: 345 42% 17%;           /* Hover / Active Velvet Maroon (#3d141f) */
-    --accent-foreground: 345 90% 96%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 345 80% 50%;
-    --info-foreground: 0 0% 100%;
-    --border: 345 22% 18%;           /* Subtle Maroon Border (#381921) */
-    --input: 345 22% 18%;            /* Input border */
-    --ring: 345 85% 48%;             /* Glowing Maroon focus ring (#e31448) */
-    --radius: 0.75rem;
-  }
-
-  .light {
+  :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 4%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 4%;
     --popover: 0 0% 100%;
     --popover-foreground: 227 100% 18%;
-    --primary: 345 82% 40%;
+    --primary: 201 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 345 30% 94%;
-    --secondary-foreground: 345 80% 20%;
+    --secondary: 227 100% 96%;
+    --secondary-foreground: 227 100% 18%;
     --muted: 240 5% 96%;
     --muted-foreground: 240 4% 46%;
-    --accent: 345 25% 94%;
-    --accent-foreground: 345 70% 15%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
     --destructive: 350 100% 61%;
     --destructive-foreground: 0 0% 100%;
     --success: 97 66% 55%;
     --success-foreground: 240 10% 4%;
     --warning: 38 100% 56%;
     --warning-foreground: 240 10% 4%;
-    --info: 345 75% 50%;
+    --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
-    --border: 345 15% 88%;
-    --input: 345 15% 88%;
-    --ring: 345 82% 40%;
+    --border: 240 6% 90%;
+    --input: 227 20% 90%;
+    --ring: 201 100% 50%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 227 100% 10%;
+    --foreground: 201 20% 95%;
+    --card: 227 50% 12%;
+    --card-foreground: 201 20% 95%;
+    --popover: 227 50% 12%;
+    --popover-foreground: 201 20% 95%;
+    --primary: 201 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 227 60% 20%;
+    --secondary-foreground: 201 20% 95%;
+    --muted: 240 6% 15%;
+    --muted-foreground: 240 5% 64%;
+    --accent: 240 6% 15%;
+    --accent-foreground: 240 5% 90%;
+    --destructive: 350 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 97 66% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 95% 55%;
+    --warning-foreground: 0 0% 100%;
+    --info: 201 100% 50%;
+    --info-foreground: 0 0% 100%;
+    --border: 227 40% 20%;
+    --input: 227 40% 20%;
+    --ring: 201 100% 50%;
   }
 }
 
@@ -81,7 +78,7 @@ html {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #9f1239 #0c0507;
+  scrollbar-color: #3b82f6 #f1f5f9;
 }
 
 ::-webkit-scrollbar {
@@ -90,41 +87,42 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0c0507;
+  background: #f1f5f9;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #9f1239;
+  background: #3b82f6;
   border-radius: 9999px;
-  border: 2px solid #0c0507;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #be123c;
-}
-
-.light * {
-  scrollbar-color: #be123c #f1f5f9;
-}
-
-.light ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-.light ::-webkit-scrollbar-thumb {
-  background: #be123c;
   border: 2px solid #f1f5f9;
 }
 
-.light ::-webkit-scrollbar-thumb:hover {
-  background: #881337;
+::-webkit-scrollbar-thumb:hover {
+  background: #1d4ed8;
+}
+
+.dark * {
+  scrollbar-color: #3b82f6 #1e293b;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+  border: 1px solid #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border: 2px solid #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #60a5fa;
 }
 
 /* Custom Visible Scrollbar Utility */
 .custom-scrollbar {
   scrollbar-width: thin !important;
-  scrollbar-color: #9f1239 #0c0507 !important;
+  scrollbar-color: #3b82f6 #f1f5f9 !important;
   overflow-y: auto;
 }
 
@@ -135,17 +133,36 @@ html {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #0c0507 !important;
+  background: #f1f5f9 !important;
   border-radius: 9999px !important;
-  border: 1px solid #381921 !important;
+  border: 1px solid #e2e8f0 !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #9f1239 !important;
+  background: #3b82f6 !important;
   border-radius: 9999px !important;
-  border: 2px solid #0c0507 !important;
+  border: 2px solid #f1f5f9 !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #be123c !important;
+  background: #1d4ed8 !important;
 }
+
+.dark .custom-scrollbar {
+  scrollbar-color: #3b82f6 #1e293b !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3b82f6 !important;
+  border: 2px solid #1e293b !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #60a5fa !important;
+}
+

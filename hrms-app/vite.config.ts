@@ -484,7 +484,7 @@ function smtpDevPlugin(): Plugin {
 
       // 3. git commit
       try {
-        const commitMsg = 'feat: add black and maroon luxury color theme across HRMS'
+        const commitMsg = 'fix: remove unused isManager variable to pass TypeScript build in GitHub Actions'
         const commitRes = execSync(`git commit -m "${commitMsg}"`, { cwd: repoDir, encoding: 'utf8' })
         gitResult.steps.push({ step: 'git commit', output: commitRes })
       } catch (commitErr: any) {
@@ -515,7 +515,7 @@ function smtpDevPlugin(): Plugin {
           if (outerStatus.trim()) {
             execSync('git add -A', { cwd: outerRepoDir, encoding: 'utf8' })
             try {
-              const outerCommit = execSync('git commit -m "feat: add black and maroon luxury color theme across HRMS"', { cwd: outerRepoDir, encoding: 'utf8' })
+              const outerCommit = execSync('git commit -m "fix: remove unused isManager variable to pass TypeScript build in GitHub Actions"', { cwd: outerRepoDir, encoding: 'utf8' })
               gitResult.steps.push({ step: 'outer git commit', output: outerCommit })
             } catch {}
             try {

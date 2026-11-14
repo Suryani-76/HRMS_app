@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-14T09:53:51.316Z",
+  "testedAt": "2026-11-14T09:55:15.561Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,8 +7,8 @@
     "passConfigured": true
   },
   "steps": [
-    "[+7387ms] TLS Connected to kindle.herosite.pro:465",
-    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Sat, 14 Nov 2026 15:23:59 +0530 ",
+    "[+85ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Sat, 14 Nov 2026 15:25:17 +0530 ",
     "S: 220-We do not authorize the use of this system to transport unsolicited, ",
     "S: 220 and/or bulk e-mail.",
     "C: EHLO localhost",
@@ -36,19 +36,21 @@
   "error": null,
   "serverBanner": "220 and/or bulk e-mail.",
   "authResponse": "235 Authentication succeeded",
-  "connectionTimeMs": 7387,
-  "totalTimeMs": 15015,
+  "connectionTimeMs": 85,
+  "totalTimeMs": 244,
   "recentAuditLogs": [
     {
       "id": "d08b8f32-3e7b-446c-9cd8-4bb9f72c16f1",
-      "action": "EMAIL_PENDING",
+      "action": "EMAIL_SENT",
       "details": {
         "to": "takurakhil123@gmail.com",
         "from": "hr@oklut.com",
         "html": "\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Application Received — Java Developer</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <!-- Header -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);padding:36px 32px;text-align:center;\">\n        <h1 style=\"margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;\">OKLUT HRMS</h1>\n        <p style=\"margin:8px 0 0 0;color:#e0e7ff;font-size:14px;\">Talent Acquisition & Careers</p>\n      </td>\n    </tr>\n\n    <!-- Body Content -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <h2 style=\"margin:0 0 16px 0;font-size:20px;font-weight:600;color:#0f172a;\">Application Confirmation</h2>\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Dear <strong>Akhil Singh Takur</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Thank you for applying for the <strong>Java Developer</strong> role at <strong>OKLUT</strong>! We have received your application and our talent team is reviewing your profile.\n        </p>\n\n        <!-- Details Card -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f1f5f9;border-radius:8px;padding:20px;margin:24px 0;border-left:4px solid #4f46e5;\">\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Applied Role:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">Java Developer</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Application Reference ID:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:700;color:#4f46e5;text-align:right;font-family:monospace;\">CAND-MW5XW7</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Portal Password:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">2002-03-09 (Format: YYYY-MM-DD / DDMMYYYY)</td>\n          </tr>\n        </table>\n\n        <p style=\"margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          You can log in to the Candidate Portal anytime using your <strong>Application Reference ID</strong> and <strong>Date of Birth</strong> as your password to track application status, view interview schedules, and respond to offers.\n        </p>\n\n        <!-- CTA Button -->\n        <div style=\"text-align:center;margin:32px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.25);\">\n            Access Candidate Portal →\n          </a>\n        </div>\n\n        <p style=\"margin:24px 0 0 0;font-size:13px;line-height:1.5;color:#94a3b8;text-align:center;\">\n          Direct Link: <a href=\"https://hrm.oklut.com/candidate-portal\" style=\"color:#4f46e5;word-break:break-all;\">https://hrm.oklut.com/candidate-portal</a>\n        </p>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#94a3b8;\">\n          © 2026 OKLUT HRMS. Sent from <a href=\"mailto:hr@oklut.com\" style=\"color:#64748b;text-decoration:none;\">hr@oklut.com</a>\n        </p>\n        <p style=\"margin:4px 0 0 0;font-size:11px;color:#cbd5e1;\">\n          Please do not reply directly to this automated notification.\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n",
         "refId": "CAND-MW5XW7",
         "sent_at": "2026-11-13T16:59:49.873Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (Java Developer)"
+        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (Java Developer)",
+        "messageId": "<1794650047595.3silbj0@oklut.com>",
+        "delivered_at": "2026-11-14T09:54:08.485Z"
       },
       "created_at": "2026-11-13T16:59:51.560076+00:00"
     },

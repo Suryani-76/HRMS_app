@@ -3,7 +3,6 @@ import {
   Sun,
   Moon,
   Monitor,
-  Sparkles,
   LogOut,
   RefreshCw,
   ScanFace,
@@ -43,7 +42,7 @@ function ThemeOption({
   label,
   icon: Icon,
 }: {
-  value: 'maroon' | 'light' | 'dark' | 'system'
+  value: 'light' | 'dark' | 'system'
   label: string
   icon: typeof Sun
 }) {
@@ -293,10 +292,9 @@ export default function SettingsPage() {
             <CardTitle className="text-base">Appearance</CardTitle>
             <CardDescription>Choose how Oklut HRMS looks for you.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-4">
-            <ThemeOption value="maroon" label="Black & Maroon" icon={Sparkles} />
-            <ThemeOption value="dark" label="Dark" icon={Moon} />
+          <CardContent className="grid gap-3 sm:grid-cols-3">
             <ThemeOption value="light" label="Light" icon={Sun} />
+            <ThemeOption value="dark" label="Dark" icon={Moon} />
             <ThemeOption value="system" label="System" icon={Monitor} />
           </CardContent>
         </Card>

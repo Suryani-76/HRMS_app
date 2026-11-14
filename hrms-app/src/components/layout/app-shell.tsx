@@ -8,13 +8,13 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-rose-950/25 via-background to-background">
+    <div className="flex min-h-screen bg-slate-50/50 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/40 via-white to-white">
       <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 lg:block">
         <SidebarNav />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0 bg-[#0a0507] border-r border-rose-950/40">
+        <SheetContent side="left" className="w-64 p-0">
           <SidebarNav onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>

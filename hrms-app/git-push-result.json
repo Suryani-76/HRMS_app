@@ -1,44 +1,12 @@
 {
-  "timestamp": "2026-11-14T09:59:50.616Z",
+  "timestamp": "2026-11-14T10:03:15.890Z",
   "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
-      "step": "tsc -b check",
-      "output": "Typecheck passed"
-    },
-    {
-      "step": "git status",
-      "output": " M hrms-app/git-push-result.json\n M hrms-app/smtp-test-result.json\n M hrms-app/src/components/layout/app-shell.tsx\n M hrms-app/src/components/layout/sidebar-nav.tsx\n M hrms-app/src/components/layout/topbar.tsx\n M hrms-app/src/components/providers/theme-provider.tsx\n M hrms-app/src/features/auth/login-page.tsx\n M hrms-app/src/index.css\n M hrms-app/src/pages/settings-page.tsx\n M hrms-app/vite.config.ts\n"
-    },
-    {
-      "step": "git add -A",
-      "output": ""
-    },
-    {
-      "step": "git commit",
-      "output": "[main 87a3c60] fix: remove unused isManager variable to pass TypeScript build in GitHub Actions\n 10 files changed, 142 insertions(+), 144 deletions(-)\n"
-    },
-    {
-      "step": "git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git status",
-      "output": " M HRMS_app-main\n"
-    },
-    {
-      "step": "outer git commit",
-      "output": "[main 59ba461] fix: remove unused isManager variable to pass TypeScript build in GitHub Actions\n 1 file changed, 1 insertion(+), 1 deletion(-)\n"
-    },
-    {
-      "step": "outer git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git push nygenx main",
-      "note": "Command failed: git push nygenx main\n^C"
+      "step": "tsc -b check failed",
+      "output": "^C"
     }
   ],
-  "success": true,
-  "error": null
+  "success": false,
+  "error": "TypeScript check failed:\n^C"
 }

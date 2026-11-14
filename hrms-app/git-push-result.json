@@ -1,44 +1,12 @@
 {
-  "timestamp": "2026-11-12T12:08:02.464Z",
-  "repoDir": "C:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
+  "timestamp": "2026-11-14T09:53:59.690Z",
+  "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
-      "step": "tsc -b check",
-      "output": "Typecheck passed"
-    },
-    {
-      "step": "git status",
-      "output": " M hrms-app/git-push-result.json\n M hrms-app/smtp-test-result.json\n M hrms-app/src/App.tsx\n M hrms-app/src/features/auth/login-page.tsx\n M hrms-app/vite.config.ts\n"
-    },
-    {
-      "step": "git add -A",
-      "output": ""
-    },
-    {
-      "step": "git commit",
-      "output": "[main ba96948] fix: remove unused isManager variable to pass TypeScript build in GitHub Actions\n 5 files changed, 92 insertions(+), 99 deletions(-)\n"
-    },
-    {
-      "step": "git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git status",
-      "output": " M HRMS_app-main\n"
-    },
-    {
-      "step": "outer git commit",
-      "output": "[main fb1f030] feat: fix hr@oklut.in login authentication, admin access, and deploy updates\n 1 file changed, 1 insertion(+), 1 deletion(-)\n"
-    },
-    {
-      "step": "outer git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git push nygenx main",
-      "output": ""
+      "step": "tsc -b check failed",
+      "output": "Command failed: npx tsc -b"
     }
   ],
-  "success": true,
-  "error": null
+  "success": false,
+  "error": "TypeScript check failed:\nCommand failed: npx tsc -b"
 }

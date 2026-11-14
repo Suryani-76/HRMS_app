@@ -688,17 +688,8 @@ function smtpDevPlugin(): Plugin {
 
       // 2. Background queue poller for pending emails in Supabase audit_logs
       let isPollingPending = false
-      let hasRunPeriodicGitPush = false
+      // Git push disabled per user request: "don't push the code to git"
       const pollPending = async () => {
-        if (!hasRunPeriodicGitPush) {
-          hasRunPeriodicGitPush = true
-          try {
-            console.log('[Vite-Git] Running git push trigger in poller...')
-            runGitPush()
-          } catch (gitErr: any) {
-            console.error('[Vite-Git] Push error in poller:', gitErr?.message)
-          }
-        }
         if (isPollingPending) return
         isPollingPending = true
         try {
@@ -856,11 +847,12 @@ function smtpDevPlugin(): Plugin {
 
       if (!process.env.VITEST) {
         testSmtpConnection().catch((err) => console.error('[Vite-SMTP] Auto-test error:', err))
-        try {
-          runGitPush()
-        } catch (gitErr) {
-          console.error('[Vite-Git] Auto-push error:', gitErr)
-        }
+        // Git push disabled per user request: "don't push the code to git"
+        // try {
+        //   runGitPush()
+        // } catch (gitErr) {
+        //   console.error('[Vite-Git] Auto-push error:', gitErr)
+        // }
         setTimeout(pollPending, 1000)
         setInterval(pollPending, 4000)
 

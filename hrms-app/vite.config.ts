@@ -465,11 +465,14 @@ function smtpDevPlugin(): Plugin {
     try {
       // 0. TypeScript verification before push
       try {
-        const tscOut = execSync('npx tsc -b', { cwd: appDir, encoding: 'utf8' })
+        const tscOut = execSync('npx tsc -b', { cwd: appDir, encoding: 'utf8', stdio: 'pipe' })
         gitResult.steps.push({ step: 'tsc -b check', output: tscOut || 'Typecheck passed' })
       } catch (tscErr: any) {
-        const tscOutput = tscErr?.stdout?.toString() || tscErr?.message
+        const stdout = tscErr?.stdout?.toString() || ''
+        const stderr = tscErr?.stderr?.toString() || ''
+        const tscOutput = (stdout + '\n' + stderr).trim() || tscErr?.message
         gitResult.steps.push({ step: 'tsc -b check failed', output: tscOutput })
+        fs.writeFileSync(path.resolve(__dirname, 'tsc-error.txt'), tscOutput)
         console.error('[Vite-Git] TypeScript build check failed:', tscOutput)
         throw new Error(`TypeScript check failed:\n${tscOutput}`)
       }

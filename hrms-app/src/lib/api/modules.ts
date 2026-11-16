@@ -278,6 +278,7 @@ export async function createCandidate(input: {
   reference_id?: string
   temp_id?: string
   ats_score?: number
+  notes?: string
 }) {
   const refId = input.reference_id || input.temp_id || `CAND-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
   const atsScore = input.ats_score || Math.floor(Math.random() * 35) + 65
@@ -295,6 +296,7 @@ export async function createCandidate(input: {
     cover_letter: input.cover_letter || null,
     date_of_birth: dobVal,
     dob: dobVal,
+    notes: input.notes || null,
   }
 
   const fullCandidate = {
@@ -334,11 +336,14 @@ export async function createCandidate(input: {
   return data as Candidate
 }
 
-export async function updateCandidateStatus(id: string, status: string): Promise<Candidate> {
+export async function updateCandidateStatus(id: string, status: string, notes?: string): Promise<Candidate> {
   const payload: Record<string, unknown> = {
     status,
     stage: status,
     updated_at: new Date().toISOString(),
+  }
+  if (notes !== undefined) {
+    payload.notes = notes
   }
 
   const { data, error } = await supabase
@@ -453,13 +458,24 @@ export async function createInterview(input: {
   // Sync candidate record so Candidate Portal displays the scheduled interview & meeting link immediately
   try {
     const roundLower = (input.round || '').toLowerCase()
+    const modeLower = (input.mode || '').toLowerCase()
+    const isF2f = modeLower.includes('face') || modeLower === 'face_to_face' || roundLower.includes('face to face')
     const isScreening = roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')
     const isHrRound = roundLower.includes('hr')
 
     const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     }
-    if (isScreening) {
+    if (isF2f) {
+      updatePayload.status = 'Face-to-Face Scheduled'
+      updatePayload.stage = 'Face-to-Face Scheduled'
+      const existingNotes = (await supabase.from('candidates').select('notes').eq('id', input.candidate_id).maybeSingle())?.data?.notes || ''
+      let newNotes = existingNotes
+      if (!newNotes.includes('[FACE_TO_FACE: true]')) {
+        newNotes = `${newNotes}\n[FACE_TO_FACE: true]`.trim()
+      }
+      updatePayload.notes = newNotes
+    } else if (isScreening) {
       updatePayload.status = 'Screening'
       updatePayload.stage = 'Screening'
     } else if (isHrRound) {
@@ -485,7 +501,7 @@ export async function createInterview(input: {
         referenceId: cand.reference_id || input.candidate_id.slice(0, 8).toUpperCase(),
         dateOfBirth: cand.date_of_birth,
         jobTitle: (cand.job_opening as any)?.title || 'Open Position',
-        roundName: input.round || 'Technical',
+        roundName: input.round || (isF2f ? 'Face-to-Face Interview' : 'Technical'),
         scheduledAt: input.scheduled_at,
         mode: input.mode || 'online',
         meetingLink: input.meeting_link || input.exam_link || undefined,
@@ -536,7 +552,30 @@ export async function updateInterviewStatus(
         updated_at: new Date().toISOString(),
       }
 
-      if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
+      const modeLower = (data.mode || '').toLowerCase()
+      const isF2f = modeLower.includes('face') || modeLower === 'face_to_face' || roundLower.includes('face to face')
+
+      if (isF2f) {
+        if (isPassed) {
+          candStatus = 'Document Collection'
+          candUpdate.technical_interview_status = 'passed'
+          candUpdate.hr_interview_status = 'passed'
+          candUpdate.technical_interview_feedback = combinedFeedback || 'Face-to-face round cleared.'
+          candUpdate.hr_interview_feedback = combinedFeedback || 'Face-to-face round cleared.'
+          // Ensure tags present for direct document collection unlock after clearing face to face
+          const existingNotes = (await supabase.from('candidates').select('notes').eq('id', data.candidate_id).maybeSingle())?.data?.notes || ''
+          let newNotes = existingNotes
+          if (!newNotes.includes('[FACE_TO_FACE: true]')) newNotes = `${newNotes}\n[FACE_TO_FACE: true]`.trim()
+          if (!newNotes.includes('[F2F_PASSED: true]')) newNotes = `${newNotes}\n[F2F_PASSED: true]`.trim()
+          if (!newNotes.includes('[DOCS_REQUESTED: true]')) newNotes = `${newNotes}\n[DOCS_REQUESTED: true]`.trim()
+          candUpdate.notes = newNotes
+        } else if (isFailed) {
+          candStatus = 'Rejected'
+          candUpdate.technical_interview_status = 'failed'
+          candUpdate.hr_interview_status = 'failed'
+          candUpdate.technical_interview_feedback = combinedFeedback || 'Face-to-face round not cleared.'
+        }
+      } else if (roundLower.includes('screen') || roundLower.includes('exam') || roundLower.includes('round 1')) {
         if (isPassed) {
           candStatus = 'Shortlisted'
           candUpdate.exam_score = rating ? rating * 20 : 90
@@ -547,9 +586,13 @@ export async function updateInterviewStatus(
         }
       } else if (roundLower.includes('hr') || roundLower.includes('round 3')) {
         if (isPassed) {
-          candStatus = 'Offer Sent'
+          candStatus = 'Document Collection'
           candUpdate.hr_interview_status = 'passed'
           candUpdate.hr_interview_feedback = combinedFeedback || 'HR round cleared successfully.'
+          const existingNotes = (await supabase.from('candidates').select('notes').eq('id', data.candidate_id).maybeSingle())?.data?.notes || ''
+          let newNotes = existingNotes
+          if (!newNotes.includes('[DOCS_REQUESTED: true]')) newNotes = `${newNotes}\n[DOCS_REQUESTED: true]`.trim()
+          candUpdate.notes = newNotes
         } else if (isFailed) {
           candStatus = 'Rejected'
           candUpdate.hr_interview_status = 'failed'
@@ -791,28 +834,80 @@ export async function createOffer(input: {
     terms_conditions: input.terms_conditions || null,
   })
 
+  // Determine a valid employee id for issued_by to satisfy offers_issued_by_fkey
+  let issuedBy: string | null = null
+  const authUserId = session.session?.user?.id
+  if (authUserId) {
+    // Check if this id exists in employees table
+    const { data: empMatch } = await supabase
+      .from('employees')
+      .select('id')
+      .or(`id.eq.${authUserId},user_id.eq.${authUserId}`)
+      .limit(1)
+      .maybeSingle()
+
+    if (empMatch?.id) {
+      issuedBy = empMatch.id
+    }
+  }
+
+  // If not found, try to find an admin or HR employee in employees table, or leave null
+  if (!issuedBy) {
+    const { data: fallbackEmp } = await supabase
+      .from('employees')
+      .select('id')
+      .ilike('email', '%hr@%')
+      .limit(1)
+      .maybeSingle()
+    if (fallbackEmp?.id) {
+      issuedBy = fallbackEmp.id
+    }
+  }
+
   const payload: Record<string, unknown> = {
     candidate_id: input.candidate_id,
     job_opening_id: input.job_opening_id || null,
     salary_offered: input.salary_offered ?? null,
     joining_date: input.joining_date || null,
     status: input.status || 'issued',
-    issued_by: session.session?.user.id ?? null,
+    issued_by: issuedBy,
     offer_letter_url: letterMeta,
   }
 
-  const { data, error } = await supabase
+  // Attempt insert with issued_by; if foreign key still complains, fall back to null
+  let data: any = null
+  const { data: insertedData, error } = await supabase
     .from('offers')
     .insert(payload)
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    if (error.message?.includes('offers_issued_by_fkey') || error.code === '23503') {
+      const fallbackPayload = { ...payload, issued_by: null }
+      const { data: retryData, error: retryError } = await supabase
+        .from('offers')
+        .insert(fallbackPayload)
+        .select()
+        .single()
+      if (retryError) throw retryError
+      data = retryData
+    } else {
+      throw error
+    }
+  } else {
+    data = insertedData
+  }
 
   try {
+    const existingNotes = (await supabase.from('candidates').select('notes').eq('id', input.candidate_id).maybeSingle())?.data?.notes || ''
+    const cleanNotes = existingNotes.replace(/\[Offer Terms\][^|\n]+(?:\|[^|\n]+)?/g, '').trim()
+    const offerMetaNote = `[Offer Terms] Bond: ${bondText} | Relocation: ${relocText}`
+    const updatedNotes = cleanNotes ? `${cleanNotes}\n${offerMetaNote}\n[OFFER_RELEASED: true]` : `${offerMetaNote}\n[OFFER_RELEASED: true]`
+
     await supabase.from('candidates').update({
       status: 'offered',
-      notes: `[Offer Terms] Bond: ${bondText} | Relocation: ${relocText}`,
+      notes: updatedNotes,
       updated_at: new Date().toISOString(),
     }).eq('id', input.candidate_id)
 

@@ -55,6 +55,7 @@ import {
   Bell,
   LogOut,
   Info,
+  RefreshCw,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/format'
 import { StatusPill } from '@/components/shared/status-pill'
@@ -80,7 +81,6 @@ import {
   SubmittedDocumentsStatusCard,
 } from '@/components/shared/candidate-verification-docs'
 import {
-  sendDocsRequiredAlertEmail,
   sendInterviewScheduledAlertEmail,
   sendInterviewRescheduledAlertEmail,
 } from '@/lib/api/email'
@@ -253,6 +253,7 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
     email: row.email,
     category: (isFresher ? 'Fresher' : 'Experienced') as MockCandidate['category'],
     status: (row.status ?? 'applied') as MockCandidate['status'],
+    notes: (row as any).notes ?? null,
     applied_at: row.applied_at,
     created_at: row.applied_at,
     exam_score: row.exam_score ?? (examIv?.status === 'passed' ? (examIv.rating ? examIv.rating * 20 : 90) : isShortlistedOrBeyond ? 90 : null),
@@ -319,7 +320,8 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
 
   let rawOffer = row.offer ?? null
   if (Array.isArray(rawOffer)) {
-    rawOffer = rawOffer[0] ?? null
+    // Pick latest offer if array
+    rawOffer = [...rawOffer].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ?? null
   }
   const offerRow = rawOffer
 
@@ -340,10 +342,22 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
       if (parsed.pdf_url) pdfUrl = parsed.pdf_url
       if (parsed.terms_conditions) termsConditions = parsed.terms_conditions
     } catch {
-      if (offerRow.offer_letter_url.startsWith('http') || offerRow.offer_letter_url.startsWith('data:')) {
+      if (offerRow.offer_letter_url.startsWith('http') || offerRow.offer_letter_url.startsWith('data:') || offerRow.offer_letter_url.startsWith('blob:')) {
         pdfUrl = offerRow.offer_letter_url
       }
     }
+  }
+
+  if (!pdfUrl && (offerRow as any)?.pdf_url) {
+    pdfUrl = (offerRow as any).pdf_url
+  }
+
+  // Also check localStorage for any uploaded offer letter for this candidate
+  if (!pdfUrl && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(`hrms_offer_letter_${row.id}`) || localStorage.getItem(`hrms_offer_letter_${row.email}`)
+      if (stored) pdfUrl = stored
+    } catch {}
   }
 
   const offer: MockOffer | null = offerRow
@@ -351,7 +365,7 @@ function mapDbCandidateToSnapshot(row: DbCandidateRow): PortalSnapshot | null {
       id: offerRow.id,
       candidate_id: offerRow.candidate_id,
       job_opening_id: offerRow.job_opening_id ?? null,
-      pdf_url: pdfUrl ?? offerRow.offer_letter_url ?? null,
+      pdf_url: pdfUrl ?? null,
       document_title: 'Offer of Employment',
       terms_content_html: termsConditions ?? '',
       terms_checkbox_labels: [],
@@ -759,7 +773,15 @@ export default function CandidatePortalPage() {
         return
       }
       setPortal(scenario)
-      setTermsAccepted(false)
+      const candNotes = (scenario.candidate as any)?.notes || ''
+      const initialDocs = getCandidateVerificationDocs(scenario.candidate.id, scenario.candidate.email, (scenario.candidate.category || '').toLowerCase() === 'experienced', candNotes)
+      const initialUploaded = (initialDocs.documents || []).filter((d) => !!d.fileName).length
+      if (initialUploaded > 0 && candNotes.includes('[TERMS_ACCEPTED: true]')) {
+        setTermsAccepted(true)
+      } else {
+        setTermsAccepted(false)
+      }
+      setDocSubmission(initialDocs)
       setNotifications([])
       dqEvaluated.current = null
       firedReminderKeys.current = new Set()
@@ -783,28 +805,175 @@ export default function CandidatePortalPage() {
   const handleSignOut = () => {
     setSignedIn(false)
     setNotifications([])
+    setTermsAccepted(false)
+    setManageDocsOpen(false)
     firedReminderKeys.current = new Set()
   }
 
+  const candStatusNorm = (candidate?.status ?? '').toLowerCase()
   const categoryLower = (candidate?.category ?? '').toLowerCase()
   const jobReqLower = ((job as any)?.requirements ?? '').toLowerCase()
-  const isFresher = categoryLower === 'fresher' || (jobReqLower.includes('fresher') && !categoryLower.includes('experienced') && !jobReqLower.includes('experienced'))
-  const isExperienced = !isFresher || categoryLower === 'experienced' || jobReqLower.includes('experienced')
-  const totalRounds = isExperienced ? 2 : 3
+  const candNotesStr = typeof (candidate as any)?.notes === 'string' ? (candidate as any).notes : ''
+  const isDirectDocsManual =
+    candNotesStr.includes('[DIRECT_DOCS: true]') ||
+    candStatusNorm === 'document collection'
+
+  const faceToFaceInterview = interviews.find((i) => {
+    const m = (i.mode || '').toLowerCase()
+    const r = (i.round || '').toLowerCase()
+    return m.includes('face') || m.includes('in-person') || r.includes('face') || r.includes('in-person')
+  })
+
+  const isFaceToFace =
+    !isDirectDocsManual &&
+    (!!faceToFaceInterview ||
+      candNotesStr.includes('[FACE_TO_FACE: true]') ||
+      candStatusNorm.includes('face') ||
+      candStatusNorm.includes('in-person'))
+
+  const isDirectDocs = isDirectDocsManual
+
+  const isFresher = !isDirectDocsManual && !isFaceToFace && (categoryLower === 'fresher' || (jobReqLower.includes('fresher') && !categoryLower.includes('experienced') && !jobReqLower.includes('experienced')))
+  const isExperienced = !isDirectDocsManual && !isFaceToFace && (!isFresher || categoryLower === 'experienced' || jobReqLower.includes('experienced'))
+  const totalRounds = isDirectDocsManual ? 1 : isFaceToFace ? 1 : isExperienced ? 2 : 3
 
   const [docSubmission, setDocSubmission] = useState<CandidateDocSubmission>(() => {
     return getCandidateVerificationDocs(candidate?.id || '', candidate?.email, isExperienced, (candidate as any)?.notes)
   })
   const [manageDocsOpen, setManageDocsOpen] = useState(false)
 
-  // Synchronize candidate verification softcopies across sessions and tabs
+  // Synchronize candidate verification softcopies across sessions and tabs & Database fetch
   useEffect(() => {
     if (!candidate?.id) return
-    setDocSubmission(getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, (candidate as any)?.notes))
+
+    let isMounted = true
+
+    // Direct database fetch to guarantee latest verification status from DB
+    async function syncFromDb() {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate.id)
+        let query = supabase.from('candidates').select('*, offer:offers(*)')
+        if (isUuid) {
+          query = query.eq('id', candidate.id)
+        } else if (candidate.email) {
+          query = query.eq('email', candidate.email)
+        } else if (candidate.candidate_id) {
+          query = query.or(`temp_id.ilike.${candidate.candidate_id},reference_id.ilike.${candidate.candidate_id}`)
+        } else {
+          return
+        }
+
+        const { data, error } = await query.maybeSingle()
+        if (!error && data && isMounted) {
+          const fresh = getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, data.notes)
+          const dbStatus = (data.status || '').toLowerCase()
+          const uploadedCount = (fresh.documents || []).filter((d) => !!d.fileName).length
+          if (uploadedCount === 0) {
+            fresh.status = 'draft'
+            fresh.offerReleased = false
+            setTermsAccepted(false)
+          } else if (
+            uploadedCount > 0 &&
+            (dbStatus.includes('verified') ||
+              dbStatus.includes('offer') ||
+              dbStatus === 'hired' ||
+              (typeof data.notes === 'string' &&
+                (data.notes.includes('[DOCS_VERIFIED: true]') || data.notes.includes('[OFFER_RELEASED: true]'))))
+          ) {
+            fresh.status = 'verified'
+          }
+          if (uploadedCount > 0 && typeof data.notes === 'string' && data.notes.includes('[TERMS_ACCEPTED: true]')) {
+            setTermsAccepted(true)
+          }
+          setDocSubmission(fresh)
+
+          // Also update portal snapshot candidate status and offer if it changed
+          setPortal((prev) => {
+            let nextOffer = prev.offer
+            if (data.offer) {
+              const rawOffer = Array.isArray(data.offer)
+                ? [...data.offer].sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0]
+                : data.offer
+              if (rawOffer) {
+                let parsedPdfUrl: string | null = null
+                let parsedTerms: string | null = null
+                let parsedBond: number | null = null
+                let parsedReloc = false
+                if (rawOffer.offer_letter_url) {
+                  try {
+                    const parsed = JSON.parse(rawOffer.offer_letter_url)
+                    if (parsed.pdf_url) parsedPdfUrl = parsed.pdf_url
+                    if (parsed.terms_conditions) parsedTerms = parsed.terms_conditions
+                    if (parsed.bond) {
+                      parsedBond = parsed.bond.includes('1') ? 1 : parsed.bond.includes('2') ? 2 : parsed.bond.includes('3') ? 3 : 0
+                    }
+                    if (parsed.relocation) parsedReloc = parsed.relocation === 'Yes'
+                  } catch {
+                    if (rawOffer.offer_letter_url.startsWith('http') || rawOffer.offer_letter_url.startsWith('data:') || rawOffer.offer_letter_url.startsWith('blob:')) {
+                      parsedPdfUrl = rawOffer.offer_letter_url
+                    }
+                  }
+                }
+                let localSavedPdf: string | null = null
+                if (typeof window !== 'undefined') {
+                  try {
+                    localSavedPdf = localStorage.getItem(`hrms_offer_letter_${data.id}`) || localStorage.getItem(`hrms_offer_letter_${data.email}`)
+                  } catch {}
+                }
+                const effectivePdf = parsedPdfUrl || rawOffer.pdf_url || (rawOffer.offer_letter_url?.startsWith('data:') || rawOffer.offer_letter_url?.startsWith('http') ? rawOffer.offer_letter_url : null) || localSavedPdf || prev.offer?.pdf_url || null
+
+                nextOffer = {
+                  id: rawOffer.id,
+                  candidate_id: rawOffer.candidate_id,
+                  job_opening_id: rawOffer.job_opening_id ?? null,
+                  pdf_url: effectivePdf,
+                  document_title: 'Offer of Employment',
+                  terms_content_html: parsedTerms || rawOffer.terms_conditions || prev.offer?.terms_content_html || '',
+                  terms_checkbox_labels: [],
+                  salary_offered: rawOffer.salary_offered || prev.offer?.salary_offered || 600000,
+                  joining_date: rawOffer.joining_date || prev.offer?.joining_date || '',
+                  service_bond_years: parsedBond ?? rawOffer.service_bond_years ?? prev.offer?.service_bond_years ?? null,
+                  relocation_required: parsedReloc || rawOffer.relocation_required || prev.offer?.relocation_required || false,
+                  relocation_location: rawOffer.relocation_location || prev.offer?.relocation_location || null,
+                  salary_breakdown: rawOffer.salary_breakdown || prev.offer?.salary_breakdown || {
+                    base_salary: 0,
+                    variable: 0,
+                    allowances: 0,
+                    gross_total: 0,
+                  },
+                  status: (rawOffer.status ?? 'sent') as any,
+                  candidate_response: (rawOffer.candidate_response ?? null) as any,
+                  created_at: rawOffer.created_at,
+                }
+              }
+            }
+            return {
+              ...prev,
+              offer: nextOffer,
+              candidate: {
+                ...prev.candidate,
+                status: data.status || prev.candidate.status,
+                notes: data.notes || (prev.candidate as any)?.notes,
+              },
+            }
+          })
+        }
+      } catch (err) {
+        console.warn('candidate portal db sync notice:', err)
+      }
+    }
+
+    syncFromDb()
+
+    // Poll every 3 seconds and on window focus/visibilitychange so status updates from HR are caught immediately
+    const pollInterval = setInterval(syncFromDb, 3000)
+    const handleFocus = () => syncFromDb()
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleFocus)
+
     const handleDocsUpdate = (e: any) => {
       if (!e?.detail || e?.detail?.candidateId === candidate.id || e?.detail?.email === candidate.email) {
-        const updatedSub = getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, (candidate as any)?.notes)
-        setDocSubmission(updatedSub)
+        syncFromDb()
         if (e?.type === 'candidate-offer-released' || e?.detail?.submission?.offerReleased) {
           toast.success('Congratulations! Your official offer letter has been released by HR.')
         }
@@ -813,10 +982,14 @@ export default function CandidatePortalPage() {
     window.addEventListener('candidate-documents-updated', handleDocsUpdate)
     window.addEventListener('candidate-offer-released', handleDocsUpdate)
     return () => {
+      isMounted = false
+      clearInterval(pollInterval)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleFocus)
       window.removeEventListener('candidate-documents-updated', handleDocsUpdate)
       window.removeEventListener('candidate-offer-released', handleDocsUpdate)
     }
-  }, [candidate?.id, candidate?.email, (candidate as any)?.notes, isExperienced])
+  }, [candidate?.id, candidate?.email, isExperienced])
 
   const disqualified = !!(candidate?.malpractice_flag || candidate?.cheating_detected)
   const policyDisqualified = !!candidate?.disqualified_at
@@ -831,7 +1004,6 @@ export default function CandidatePortalPage() {
       ? Math.round((candidate.exam_score / totalQuestions) * 100)
       : (candidate?.exam_score ?? 0)
 
-  const candStatusNorm = (candidate?.status ?? '').toLowerCase()
   const isCandidateShortlisted = ['shortlisted', 'technical round', 'hr round', 'offer sent', 'hired'].includes(candStatusNorm)
   const isCandidateAtHrOrAbove = ['hr round', 'offer sent', 'hired'].includes(candStatusNorm)
   const isCandidateOfferedOrHired = ['offer sent', 'hired'].includes(candStatusNorm)
@@ -904,8 +1076,24 @@ export default function CandidatePortalPage() {
   const nowMs = new Date().getTime()
   const isExamLive = examStartMs > 0 && examEndMs > 0 && nowMs >= examStartMs && nowMs <= examEndMs
 
+  const faceToFacePassed =
+    candNotesStr.includes('[F2F_PASSED: true]') ||
+    candNotesStr.includes('[FACE_TO_FACE_PASSED: true]') ||
+    candStatusNorm.includes('face to face passed') ||
+    (faceToFaceInterview && ['passed', 'completed', 'cleared'].includes((faceToFaceInterview.status || '').toLowerCase()) && !!faceToFaceInterview.feedback) ||
+    (faceToFaceInterview && (faceToFaceInterview.status || '').toLowerCase() === 'passed')
+
+  const virtualAllCleared = isExperienced
+    ? roundCleared2 && roundCleared3
+    : isExamPassed && roundCleared2 && roundCleared3
+
   // Shortlist badge — every required round cleared.
-  const clearedAllEffective = isExperienced ? roundCleared2 && roundCleared3 : isExamPassed && roundCleared2 && roundCleared3
+  const clearedAllEffective = isDirectDocsManual
+    ? true
+    : isFaceToFace
+      ? faceToFacePassed
+      : virtualAllCleared
+
   const allRequiredRoundsCleared = clearedAllEffective
 
   const isCandidateMovedToScreeningOrShortlisted =
@@ -914,35 +1102,49 @@ export default function CandidatePortalPage() {
     ((candidate as any)?.stage || '').toLowerCase() === 'screening' ||
     ((candidate as any)?.stage || '').toLowerCase() === 'shortlisted'
 
-  const candidateStatusBadge = isExperienced
+  const candidateStatusBadge = isDirectDocsManual
     ? isHired
       ? 'Hired'
-      : overallRejected
-        ? 'Rejected'
-        : allRequiredRoundsCleared
-          ? 'Shortlisted'
-          : hrStatus === 'passed'
-            ? 'HR Interview Passed'
-            : techStatus === 'passed'
-              ? 'Technical Interview Passed'
-              : isCandidateMovedToScreeningOrShortlisted
-                ? 'Shortlisted'
-                : 'Applied'
-    : isHired
-      ? 'Hired'
-      : overallRejected || (scorePercentage !== null && !isExamPassed) || examExpiredUnattempted
-        ? 'Rejected'
-        : allRequiredRoundsCleared
-          ? 'Shortlisted'
-          : hrStatus === 'passed'
-            ? 'HR Interview Passed'
-            : techStatus === 'passed'
-              ? 'Technical Interview Passed'
-              : isExamPassed
-                ? 'Stage 1 Cleared'
-                : isCandidateMovedToScreeningOrShortlisted
-                  ? 'Shortlisted'
-                  : 'Applied'
+      : 'Document Collection'
+    : isFaceToFace
+      ? isHired
+        ? 'Hired'
+        : overallRejected
+          ? 'Rejected'
+          : faceToFacePassed
+            ? 'Face-to-Face Cleared'
+            : faceToFaceInterview
+              ? 'Face-to-Face Scheduled'
+              : 'Applied'
+      : isExperienced
+        ? isHired
+          ? 'Hired'
+          : overallRejected
+            ? 'Rejected'
+            : allRequiredRoundsCleared
+              ? 'Shortlisted'
+              : hrStatus === 'passed'
+                ? 'HR Interview Passed'
+                : techStatus === 'passed'
+                  ? 'Technical Interview Passed'
+                  : isCandidateMovedToScreeningOrShortlisted
+                    ? 'Shortlisted'
+                    : 'Applied'
+        : isHired
+          ? 'Hired'
+          : overallRejected || (scorePercentage !== null && !isExamPassed) || examExpiredUnattempted
+            ? 'Rejected'
+            : allRequiredRoundsCleared
+              ? 'Shortlisted'
+              : hrStatus === 'passed'
+                ? 'HR Interview Passed'
+                : techStatus === 'passed'
+                  ? 'Technical Interview Passed'
+                  : isExamPassed
+                    ? 'Stage 1 Cleared'
+                    : isCandidateMovedToScreeningOrShortlisted
+                      ? 'Shortlisted'
+                      : 'Applied'
 
   const displayStatusBadge = isDqActive ? 'Disqualified' : candidateStatusBadge
 
@@ -969,6 +1171,26 @@ export default function CandidatePortalPage() {
                 : 'Scheduled'
 
   const rounds: RoundDef[] = useMemo(() => {
+    if (isDirectDocsManual) {
+      return [
+        {
+          key: 'technical' as RoundKey,
+          label: 'Direct Document Verification & Selection',
+          sublabel: 'Direct Track',
+          icon: UserSearch,
+        },
+      ]
+    }
+    if (isFaceToFace) {
+      return [
+        {
+          key: 'technical' as RoundKey,
+          label: 'Face-to-Face Interview (In-Person)',
+          sublabel: 'Stage 1 · In-Person',
+          icon: UserSearch,
+        },
+      ]
+    }
     if (isExperienced) {
       return [
         { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: 'Stage 1 · Round 1', icon: UserSearch },
@@ -980,7 +1202,7 @@ export default function CandidatePortalPage() {
       { key: 'technical' as RoundKey, label: 'Technical Interview', sublabel: 'Stage 2 · Round 2', icon: UserSearch },
       { key: 'hr' as RoundKey, label: 'HR Interview', sublabel: 'Stage 3 · Round 3', icon: HeartHandshake },
     ]
-  }, [isExperienced])
+  }, [isDirectDocsManual, isFaceToFace, isExperienced])
 
   const examWindow = useMemo(() => {
     const startRaw = job?.exam_start_date ?? job?.exam_window_start ?? job?.exam_start_time
@@ -999,7 +1221,7 @@ export default function CandidatePortalPage() {
     return interviews.filter((i) => {
       const r = (i.round || '').toLowerCase()
       if (key === 'exam') return r.includes('exam') || r.includes('screen') || r.includes('round 1')
-      if (key === 'technical') return r.includes('tech')
+      if (key === 'technical') return r.includes('tech') || (isFaceToFace && (r.includes('face') || (i.mode || '').toLowerCase().includes('face')))
       return r.includes('hr')
     })
   }
@@ -1015,6 +1237,9 @@ export default function CandidatePortalPage() {
   // No-show detection — the candidate booked a slot, the window elapsed, and
   // the interview was never attended. The round can no longer be taken.
   const isRoundMissed = (key: 'technical' | 'hr'): boolean => {
+    if (isFaceToFace && key === 'technical') {
+      return !faceToFacePassed && !!faceToFaceInterview && (faceToFaceInterview.status || '').toLowerCase() === 'failed'
+    }
     const isCleared = key === 'technical' ? roundCleared2 : roundCleared3
     if (isCleared) return false
 
@@ -1036,6 +1261,19 @@ export default function CandidatePortalPage() {
   }
 
   const getRoundState = (key: RoundKey, prevPassed: boolean): RoundState => {
+    if (isFaceToFace && key === 'technical') {
+      if (faceToFacePassed) return 'passed'
+      if (faceToFaceInterview) {
+        const s = (faceToFaceInterview.status ?? '').toLowerCase()
+        if (s === 'failed') return 'failed'
+        if (s === 'completed' && !faceToFaceInterview.feedback) return 'pending'
+        return 'booked'
+      }
+      return 'available'
+    }
+    if (isDirectDocsManual && key === 'technical') {
+      return 'passed'
+    }
     if (key === 'exam') {
       if (isExamPassed) return 'passed'
       if (scorePercentage !== null && scorePercentage < (passPercentage ?? 60)) return 'failed'
@@ -1085,7 +1323,7 @@ export default function CandidatePortalPage() {
       for (const r of rounds) states[r.key] = 'passed'
     }
     return states
-  }, [rounds, interviews, interviewSlots, candidate, examWindow, job, clearedAllEffective, isDqActive, isExamPassed, scorePercentage, overallRejected, examExpiredUnattempted, awaitingEvaluation, roundCleared2, roundCleared3, isRoundMissed])
+  }, [rounds, interviews, interviewSlots, candidate, examWindow, job, clearedAllEffective, isDqActive, isExamPassed, scorePercentage, overallRejected, examExpiredUnattempted, awaitingEvaluation, roundCleared2, roundCleared3, isRoundMissed, isFaceToFace, faceToFacePassed, faceToFaceInterview, isDirectDocsManual])
 
   // ------------------------------------------------------------------
   // FIXED PROGRESS — roundsCleared derives from the LIVE round states so
@@ -1101,53 +1339,112 @@ export default function CandidatePortalPage() {
 
   const allRoundsPassed = rounds.length > 0 && rounds.every((r) => roundStates[r.key] === 'passed')
 
+  // Document collection triggered by HR via HRMS Documentation section or Direct Track
+  const isDocCollectionTriggered = useMemo(() => {
+    if (candStatusNorm === 'document collection' || candNotesStr.includes('[DIRECT_DOCS: true]')) return true
+    if (candNotesStr.includes('[DOCS_REQUESTED: true]')) return true
+    return false
+  }, [candStatusNorm, candNotesStr])
+
+  // Can upload documents if all rounds passed OR explicitly triggered by HR
+  const canUploadDocs = allRoundsPassed || isDocCollectionTriggered
+
+  // Candidate documents verified & approved by HR/Admin
+  const uploadedSoftcopiesCount = (docSubmission.documents || []).filter((d) => !!d.fileName).length
+  const hasUploadedDocs = uploadedSoftcopiesCount > 0
+
+  const docsVerified =
+    // Cannot be verified if no documents uploaded at all, unless candidate is hired or offer response already recorded
+    hasUploadedDocs &&
+    (docSubmission.status === 'verified' ||
+      candStatusNorm.includes('verified') ||
+      candStatusNorm.includes('approved') ||
+      candStatusNorm === 'hired' ||
+      candStatusNorm === 'offer sent' ||
+      candStatusNorm === 'offered' ||
+      (typeof (candidate as any)?.notes === 'string' &&
+        ((candidate as any).notes.includes('[DOCS_VERIFIED: true]') ||
+         (candidate as any).notes.includes('[OFFER_RELEASED: true]'))) ||
+      // If all required documents are marked verified
+      (docSubmission.documents &&
+        docSubmission.documents.length > 0 &&
+        docSubmission.documents.filter((d) => d.required).every((d) => d.status === 'verified')))
+
+  const termsAcceptedEffective =
+    hasUploadedDocs &&
+    docsVerified &&
+    (termsAccepted ||
+      !!docSubmission.termsAgreedAt ||
+      (typeof (candidate as any)?.notes === 'string' && (candidate as any).notes.includes('[TERMS_ACCEPTED: true]')))
+
   // Effective offer — the snapshot's offer record, or a synthesized one once
   // every required round is cleared.
   const effectiveOffer = useMemo<MockOffer | null>(() => {
-    if (portal.offer) return portal.offer
-    if (clearedAllEffective) return buildMockOffer(portal.candidate, portal.job)
-    return null
-  }, [portal.offer, clearedAllEffective, portal])
+    let localSavedPdf: string | null = null
+    if (typeof window !== 'undefined' && candidate?.id) {
+      try {
+        localSavedPdf = localStorage.getItem(`hrms_offer_letter_${candidate.id}`) || (candidate.email ? localStorage.getItem(`hrms_offer_letter_${candidate.email}`) : null)
+      } catch {}
+    }
 
-  // Offer displayed to the candidate once Terms & Conditions are accepted.
-  // Falls back to a synthesized offer so the letter view always renders.
+    if (portal.offer) {
+      if (!portal.offer.pdf_url && localSavedPdf) {
+        return { ...portal.offer, pdf_url: localSavedPdf }
+      }
+      return portal.offer
+    }
+    if (clearedAllEffective) {
+      const syn = buildMockOffer(portal.candidate, portal.job)
+      if (localSavedPdf) syn.pdf_url = localSavedPdf
+      return syn
+    }
+    return null
+  }, [portal.offer, clearedAllEffective, portal, candidate])
+
+  // Offer displayed to the candidate once Terms & Conditions are accepted AND released by HR.
   const offerToShow = useMemo<MockOffer | null>(() => {
-    if (effectiveOffer) return effectiveOffer
-    if (termsAccepted) return buildMockOffer(candidate, job)
-    return null
-  }, [effectiveOffer, termsAccepted, candidate, job])
+    let localSavedPdf: string | null = null
+    if (typeof window !== 'undefined' && candidate?.id) {
+      try {
+        localSavedPdf = localStorage.getItem(`hrms_offer_letter_${candidate.id}`) || (candidate.email ? localStorage.getItem(`hrms_offer_letter_${candidate.email}`) : null)
+      } catch {}
+    }
 
-  // Candidate documents verified & approved by HR/Admin
-  const docsVerified =
-    docSubmission.status === 'verified' ||
-    candStatusNorm === 'hired' ||
-    offerToShow?.candidate_response != null ||
-    (typeof (candidate as any)?.notes === 'string' &&
-      ((candidate as any).notes.includes('[DOCS_VERIFIED: true]') ||
-       (candidate as any).notes.includes('[OFFER_RELEASED: true]')))
+    if (effectiveOffer) {
+      if (!effectiveOffer.pdf_url && localSavedPdf) {
+        return { ...effectiveOffer, pdf_url: localSavedPdf }
+      }
+      return effectiveOffer
+    }
+    // Only synthesize when terms have actually been accepted
+    if (termsAcceptedEffective) {
+      const syn = buildMockOffer(candidate, job)
+      if (localSavedPdf) syn.pdf_url = localSavedPdf
+      return syn
+    }
+    return null
+  }, [effectiveOffer, termsAcceptedEffective, candidate, job])
 
   const docsSubmitted =
-    docSubmission.status === 'submitted' ||
-    docSubmission.status === 'under_review' ||
-    docSubmission.status === 'verified' ||
-    candStatusNorm === 'hired' ||
-    offerToShow?.candidate_response != null
-
-  const termsAcceptedEffective =
-    termsAccepted ||
-    !!docSubmission.termsAgreedAt ||
-    offerToShow?.candidate_response != null ||
-    (typeof (candidate as any)?.notes === 'string' && (candidate as any).notes.includes('[TERMS_ACCEPTED: true]'))
+    hasUploadedDocs &&
+    (docSubmission.status === 'submitted' ||
+      docSubmission.status === 'under_review' ||
+      docSubmission.status === 'verified' ||
+      candStatusNorm === 'hired' ||
+      offerToShow?.candidate_response != null)
 
   const isOfferReleased = useMemo(() => {
-    if (offerToShow?.candidate_response != null) return true
-    if (['hired', 'offer sent', 'offered'].includes(candStatusNorm)) return true
-    if (portal.offer && ['issued', 'released', 'accepted'].includes((portal.offer.status || '').toLowerCase())) return true
+    // Offer letter MUST ONLY be shown if docs are uploaded, docs are verified, and terms are accepted first
+    if (!hasUploadedDocs || !docsVerified || !termsAcceptedEffective) return false
+
+    // Then check if HR has actually released the offer
     if (docSubmission.offerReleased === true) return true
     const candNotes = (candidate as any)?.notes
     if (typeof candNotes === 'string' && candNotes.includes('[OFFER_RELEASED: true]')) return true
+    if (portal.offer && ['issued', 'released', 'accepted'].includes((portal.offer.status || '').toLowerCase())) return true
+    if (['hired', 'offer sent', 'offered'].includes(candStatusNorm)) return true
     return false
-  }, [offerToShow?.candidate_response, candStatusNorm, portal.offer, docSubmission.offerReleased, (candidate as any)?.notes])
+  }, [hasUploadedDocs, docsVerified, termsAcceptedEffective, candStatusNorm, portal.offer, docSubmission.offerReleased, (candidate as any)?.notes])
 
   // ------------------------------------------------------------------
   // Action handlers — database-first, in-memory fallback. Every handler
@@ -1188,14 +1485,18 @@ export default function CandidatePortalPage() {
       'success'
     )
 
-    // Forward document requirement email alert to candidate
-    if (candidate?.email) {
-      sendDocsRequiredAlertEmail({
-        candidateName: candidate.name || 'Candidate',
-        candidateEmail: candidate.email,
-        referenceId: (candidate as any).reference_id || candidate.id.slice(0, 8).toUpperCase(),
-        jobTitle: job?.title || 'Open Position',
-      }).catch((e) => console.warn('Docs required email dispatch notice:', e))
+    // Update candidate notes in database with terms accepted tag so HR is notified immediately
+    if (candidate?.id) {
+      try {
+        const { data: candDb } = await supabase.from('candidates').select('notes').eq('id', candidate.id).maybeSingle()
+        const existingNotes = candDb?.notes || ''
+        if (!existingNotes.includes('[TERMS_ACCEPTED: true]')) {
+          const newNotes = `${existingNotes}\n[TERMS_ACCEPTED: true]`.trim()
+          await supabase.from('candidates').update({ notes: newNotes, updated_at: nowIso }).eq('id', candidate.id)
+        }
+      } catch (err) {
+        console.warn('Could not sync terms acceptance to candidate record:', err)
+      }
     }
   }
 
@@ -2080,7 +2381,13 @@ export default function CandidatePortalPage() {
           <CardHeader>
             <CardTitle>Hiring Pipeline</CardTitle>
             <CardDescription>
-              {isFresher ? 'Online Exam → Technical Interview → HR Interview' : 'Technical Interview → HR Interview'}
+              {isDirectDocs
+                ? (candNotesStr.includes('[FACE_TO_FACE: true]') || candStatusNorm.includes('face')
+                    ? '🤝 Face-to-Face (In-Person) Track → Direct Document Submission'
+                    : '📄 Direct Document Collection Track → Offer Letter')
+                : isFresher
+                  ? 'Online Exam → Technical Interview → HR Interview'
+                  : 'Technical Interview → HR Interview'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -2261,21 +2568,53 @@ export default function CandidatePortalPage() {
                       />
                     )}
                     {state !== 'locked' && round.key === 'technical' && (
-                      <TechnicalRound
-                        roundNumber={idx + 1}
-                        state={state}
-                        interviews={roundInterviews('technical')}
-                        technical_interview_status={candidate?.technical_interview_status ?? null}
-                        slotsExpired={slotsExpiredFor('technical')}
-                        missed={isRoundMissed('technical')}
-                        onOpenSchedule={handleOpenSlotModal}
-                        onCancelSlot={handleCancelSlot}
-                        onRevertReschedule={handleRevertReschedule}
-                        onAttend={handleAttendInterview}
-                        feedback={candidate?.technical_interview_feedback ?? null}
-                        showFeedback={showTechFeedback}
-                        onToggleFeedback={() => setShowTechFeedback((v) => !v)}
-                      />
+                      isDirectDocsManual ? (
+                        <div className="mt-3 p-4 rounded-xl border border-blue-200 bg-blue-50/60 space-y-2 text-xs">
+                          <div className="flex items-center gap-2 font-bold text-blue-950 text-sm">
+                            <UserSearch className="h-4 w-4 text-blue-700" />
+                            Direct Document Collection Track
+                          </div>
+                          <p className="text-blue-900 leading-relaxed">
+                            You have been selected for direct document collection! Assessment rounds are waived. Please upload your verification documents below directly so our HR team can verify your profile and issue your official offer letter.
+                          </p>
+                        </div>
+                      ) : isFaceToFace ? (
+                        <div className="mt-3 p-4 rounded-xl border border-blue-200 bg-blue-50/60 space-y-2 text-xs">
+                          <div className="flex items-center gap-2 font-bold text-blue-950 text-sm">
+                            <UserSearch className="h-4 w-4 text-blue-700" />
+                            {faceToFacePassed
+                              ? 'Face-to-Face Interview Cleared ✓'
+                              : 'Face-to-Face (In-Person) Scheduled'}
+                          </div>
+                          <p className="text-blue-900 leading-relaxed">
+                            {faceToFacePassed
+                              ? 'Congratulations! You have successfully cleared your in-person interview. Please upload your verification documents below so our HR team can verify them and release your official offer letter.'
+                              : 'You are invited for an in-person / face-to-face interview at our office. Once this round is held and cleared by the interview panel, the document verification upload section below will automatically unlock for you.'}
+                          </p>
+                          {faceToFaceInterview?.scheduled_at && (
+                            <div className="mt-2 p-2.5 bg-white/80 rounded-lg border border-blue-100 flex items-center justify-between text-xs text-blue-950">
+                              <span><strong>Scheduled Time:</strong> {formatDateTime(faceToFaceInterview.scheduled_at)}</span>
+                              <span><strong>Venue / Location:</strong> {faceToFaceInterview.meeting_link || 'Oklut Corporate Office'}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <TechnicalRound
+                          roundNumber={idx + 1}
+                          state={state}
+                          interviews={roundInterviews('technical')}
+                          technical_interview_status={candidate?.technical_interview_status ?? null}
+                          slotsExpired={slotsExpiredFor('technical')}
+                          missed={isRoundMissed('technical')}
+                          onOpenSchedule={handleOpenSlotModal}
+                          onCancelSlot={handleCancelSlot}
+                          onRevertReschedule={handleRevertReschedule}
+                          onAttend={handleAttendInterview}
+                          feedback={candidate?.technical_interview_feedback ?? null}
+                          showFeedback={showTechFeedback}
+                          onToggleFeedback={() => setShowTechFeedback((v) => !v)}
+                        />
+                      )
                     )}
                     {state !== 'locked' && round.key === 'hr' && (
                       <HRRound
@@ -2301,7 +2640,7 @@ export default function CandidatePortalPage() {
           </CardContent>
         </Card>
 
-        {allRoundsPassed && (
+        {canUploadDocs && (
           /* STEP 1: Documents must be verified by HR first */
           !docsVerified ? (
             !docsSubmitted || manageDocsOpen ? (
@@ -2367,6 +2706,33 @@ export default function CandidatePortalPage() {
                       <p className="text-xs text-indigo-900 leading-relaxed">
                         Your pre-offer verification documents have been received by the HR &amp; Admin team. As per hiring process, <strong>HR will verify and approve your documents first</strong>. Once approved, the <strong>Company Terms &amp; Conditions</strong> section will automatically unlock for your review, followed by your official Offer Letter release.
                       </p>
+                      <div className="pt-2 flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 gap-1.5 font-semibold shadow-xs"
+                          onClick={async () => {
+                            try {
+                              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate.id)
+                              let query = supabase.from('candidates').select('notes, status')
+                              if (isUuid) query = query.eq('id', candidate.id)
+                              else if (candidate.email) query = query.eq('email', candidate.email)
+                              const { data } = await query.maybeSingle()
+                              const fresh = getCandidateVerificationDocs(candidate.id, candidate.email, isExperienced, data?.notes)
+                              setDocSubmission(fresh)
+                              if (fresh.status === 'verified') {
+                                toast.success('HR has approved your documents! Terms & Conditions unlocked.')
+                              } else {
+                                toast.info('Documents are currently under review by the HR team.')
+                              }
+                            } catch {
+                              toast.info('Checking with HR...')
+                            }
+                          }}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" /> Check HR Verification Status
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Step-by-Step Progress Pipeline */}
@@ -2406,11 +2772,38 @@ export default function CandidatePortalPage() {
           ) : /* STEP 2: Documents ARE approved by HR! Check if Terms & Conditions accepted */
           !termsAcceptedEffective ? (
             <div className="space-y-6">
-              <SubmittedDocumentsStatusCard
-                submission={docSubmission}
-                candidateName={candidate.name}
-                onOpenManage={() => setManageDocsOpen(true)}
-              />
+              {manageDocsOpen || uploadedSoftcopiesCount === 0 ? (
+                <div className="space-y-4">
+                  <CandidateDocumentUploadSection
+                    candidateId={candidate.id}
+                    candidateEmail={candidate.email}
+                    candidateName={candidate.name}
+                    isExperienced={isExperienced}
+                    onSubmissionComplete={(sub) => {
+                      setDocSubmission(sub)
+                      setManageDocsOpen(false)
+                    }}
+                  />
+                  {manageDocsOpen && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setManageDocsOpen(false)}
+                        className="text-xs"
+                      >
+                        ← Back to Status Summary
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <SubmittedDocumentsStatusCard
+                  submission={docSubmission}
+                  candidateName={candidate.name}
+                  onOpenManage={() => setManageDocsOpen(true)}
+                />
+              )}
 
               <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-5 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2421,14 +2814,14 @@ export default function CandidatePortalPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-base text-emerald-950">
-                          Documents Verified &amp; Approved by HR ✓
+                          Profile &amp; Documents Approved by HR ✓
                         </h4>
                         <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] py-0 px-2 h-4 font-semibold">
-                          Pre-Verification Cleared
+                          Approval Granted
                         </Badge>
                       </div>
                       <p className="text-xs text-emerald-800 mt-1">
-                        All your verification softcopies have been reviewed and approved by HR. You are now eligible to review and accept the official <strong>Company Terms &amp; Conditions</strong> to proceed to offer letter release.
+                        Your profile and verification documents have been approved by HR! Please review and check the official <strong>Company Terms &amp; Conditions</strong> below to notify HR and receive your Offer Letter.
                       </p>
                     </div>
                   </div>
@@ -2437,19 +2830,78 @@ export default function CandidatePortalPage() {
                     className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-10 px-5 shadow-md gap-2 shrink-0"
                     onClick={() => setTermsOpen(true)}
                   >
-                    <FileText className="h-4 w-4" /> Review &amp; Accept Terms &amp; Conditions →
+                    <FileText className="h-4 w-4" /> Check Terms &amp; Conditions →
                   </Button>
+                </div>
+
+                {/* Inline checklist for Terms & Conditions */}
+                <div className="rounded-lg border border-purple-200 bg-white/90 p-4 space-y-3 mt-2 shadow-2xs">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-purple-600" />
+                      Required Policy &amp; Terms Acceptance Points
+                    </span>
+                    <Badge variant="outline" className="border-purple-300 text-purple-700 text-[10px]">
+                      Mandatory Check
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-700">
+                    {TERMS_CHECKBOX_LABELS.map((label, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded border border-slate-100">
+                        <span className="h-4 w-4 rounded-full bg-purple-100 text-purple-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="truncate">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => setTermsOpen(true)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Open &amp; Agree All Points
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           ) : /* STEP 3: Terms Accepted! Awaiting Offer Release or Released */
           !isOfferReleased ? (
             <div className="space-y-6">
-              <SubmittedDocumentsStatusCard
-                submission={docSubmission}
-                candidateName={candidate.name}
-                onOpenManage={() => setManageDocsOpen(true)}
-              />
+              {manageDocsOpen || uploadedSoftcopiesCount === 0 ? (
+                <div className="space-y-4">
+                  <CandidateDocumentUploadSection
+                    candidateId={candidate.id}
+                    candidateEmail={candidate.email}
+                    candidateName={candidate.name}
+                    isExperienced={isExperienced}
+                    onSubmissionComplete={(sub) => {
+                      setDocSubmission(sub)
+                      setManageDocsOpen(false)
+                    }}
+                  />
+                  {manageDocsOpen && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setManageDocsOpen(false)}
+                        className="text-xs"
+                      >
+                        ← Back to Status Summary
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <SubmittedDocumentsStatusCard
+                  submission={docSubmission}
+                  candidateName={candidate.name}
+                  onOpenManage={() => setManageDocsOpen(true)}
+                />
+              )}
 
               <Card className="border-amber-300 bg-gradient-to-b from-amber-50/40 via-white to-white shadow-sm">
                 <CardHeader className="pb-3 border-b">
@@ -2478,7 +2930,7 @@ export default function CandidatePortalPage() {
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Next Step: Official Offer Letter
                     </div>
                     <p className="text-xs text-emerald-900 leading-relaxed">
-                      You have accepted the company terms and conditions. The HR recruitment team has been notified to generate and release your official employment offer letter. It will be released and displayed right here shortly.
+                      You have accepted the company terms and conditions. The HR recruitment team has been notified to release your official employment offer letter. Once released by HR, it will be displayed right here.
                     </p>
                   </div>
                 </CardContent>
@@ -2487,11 +2939,38 @@ export default function CandidatePortalPage() {
           ) : (
             /* STEP 4: Official Offer Letter Released */
             <div className="space-y-6">
-              <SubmittedDocumentsStatusCard
-                submission={docSubmission}
-                candidateName={candidate.name}
-                onOpenManage={() => setManageDocsOpen(true)}
-              />
+              {manageDocsOpen || uploadedSoftcopiesCount === 0 ? (
+                <div className="space-y-4">
+                  <CandidateDocumentUploadSection
+                    candidateId={candidate.id}
+                    candidateEmail={candidate.email}
+                    candidateName={candidate.name}
+                    isExperienced={isExperienced}
+                    onSubmissionComplete={(sub) => {
+                      setDocSubmission(sub)
+                      setManageDocsOpen(false)
+                    }}
+                  />
+                  {manageDocsOpen && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setManageDocsOpen(false)}
+                        className="text-xs"
+                      >
+                        ← Back to Status Summary
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <SubmittedDocumentsStatusCard
+                  submission={docSubmission}
+                  candidateName={candidate.name}
+                  onOpenManage={() => setManageDocsOpen(true)}
+                />
+              )}
 
               <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -2528,6 +3007,28 @@ export default function CandidatePortalPage() {
               )}
             </div>
           )
+        )}
+
+        {!canUploadDocs && !isDqActive && (
+          <Card className="border-slate-200 bg-slate-50/60 shadow-2xs">
+            <CardContent className="p-4 flex items-center gap-3 text-xs text-slate-600">
+              <div className="h-9 w-9 rounded-lg bg-slate-200/80 text-slate-600 flex items-center justify-center shrink-0">
+                <Lock className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-slate-800 text-sm">
+                  Pre-Offer Document Verification (Locked)
+                </div>
+                <p className="text-slate-500 mt-0.5">
+                  {isFaceToFace
+                    ? 'Document upload will automatically unlock once your Face-to-Face interview round is held and cleared.'
+                    : isExperienced
+                      ? 'Document upload will automatically unlock after clearing both Technical and HR interview rounds.'
+                      : 'Document upload will automatically unlock after clearing all 3 evaluation rounds (Screening / Online Exam, Technical Interview, and HR Interview).'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <Dialog
@@ -3979,13 +4480,26 @@ function OfferLetterSection({
   onDiscussMessageChange: (value: string) => void
 }) {
   const responded = offer.candidate_response != null
-  const pdfUrl = offer.pdf_url
+  let pdfUrl = offer.pdf_url
+
+  if (!pdfUrl && typeof window !== 'undefined' && candidate?.id) {
+    try {
+      pdfUrl = localStorage.getItem(`hrms_offer_letter_${candidate.id}`) || (candidate.email ? localStorage.getItem(`hrms_offer_letter_${candidate.email}`) : null)
+    } catch {}
+  }
 
   const handleDownload = () => {
     const filename = `Offer_Letter_${candidate.name.replace(/\s+/g, '_')}.pdf`
-    if (pdfUrl && (pdfUrl.startsWith('data:') || pdfUrl.startsWith('http') || pdfUrl.startsWith('blob:'))) {
+    let effectiveDownloadUrl = pdfUrl
+    if (!effectiveDownloadUrl && typeof window !== 'undefined' && candidate?.id) {
+      try {
+        effectiveDownloadUrl = localStorage.getItem(`hrms_offer_letter_${candidate.id}`) || (candidate.email ? localStorage.getItem(`hrms_offer_letter_${candidate.email}`) : null)
+      } catch {}
+    }
+
+    if (effectiveDownloadUrl && (effectiveDownloadUrl.startsWith('data:') || effectiveDownloadUrl.startsWith('http') || effectiveDownloadUrl.startsWith('blob:'))) {
       const a = document.createElement('a')
-      a.href = pdfUrl
+      a.href = effectiveDownloadUrl
       a.download = filename
       a.target = '_blank'
       document.body.appendChild(a)

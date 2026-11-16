@@ -500,7 +500,7 @@ export function useCreateCandidate() {
 export function useUpdateCandidateStatus() {
   const { invalidate, toastError } = useInvalidate()
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => api.updateCandidateStatus(id, status),
+    mutationFn: ({ id, status, notes }: { id: string; status: string; notes?: string }) => api.updateCandidateStatus(id, status, notes),
     onSuccess: () => { invalidate([queryKeys.candidates, queryKeys.employees, queryKeys.dashboardStats]); toast.success('Candidate updated') },
     onError: toastError,
   })

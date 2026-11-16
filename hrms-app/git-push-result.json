@@ -1,36 +1,12 @@
 {
-  "timestamp": "2026-11-14T10:57:59.896Z",
-  "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
+  "timestamp": "2026-11-16T12:40:48.245Z",
+  "repoDir": "C:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
-      "step": "tsc -b check",
-      "output": "Typecheck passed"
-    },
-    {
-      "step": "git status",
-      "output": " M hrms-app/git-push-result.json\n M hrms-app/vite.config.ts\n"
-    },
-    {
-      "step": "git add -A",
-      "output": ""
-    },
-    {
-      "step": "git commit",
-      "output": "[main c963fd8] fix: remove unused isManager variable to pass TypeScript build in GitHub Actions\n 2 files changed, 36 insertions(+), 20 deletions(-)\n"
-    },
-    {
-      "step": "git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git status",
-      "output": " M HRMS_app-main\n"
-    },
-    {
-      "step": "outer repo check",
-      "note": "Command failed: git add -A\nfatal: Unable to create 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository, e.g.\nan editor opened by 'git commit'. Please make sure all processes\nare terminated then try again. If it still fails, a git process\nmay have crashed in this repository earlier:\nremove the file manually to continue.\n"
+      "step": "tsc -b check failed",
+      "output": "src/components/shared/candidate-verification-docs.tsx(20,3): error TS6133: 'Send' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(48,3): error TS6133: 'createDefaultCandidateDocuments' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(837,10): error TS6133: 'isReleasingOffer' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(1026,9): error TS6133: 'handleReleaseOffer' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(1041,9): error TS6133: 'handleRevokeOffer' is declared but its value is never read.\r\nsrc/pages/candidate-portal.tsx(84,3): error TS6133: 'sendDocsRequiredAlertEmail' is declared but its value is never read.\r\nsrc/pages/candidate-portal.tsx(2729,32): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.\r\nsrc/pages/recruitment-page.tsx(965,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ name: string; email: string; phone?: string | undefined; date_of_birth?: string | undefined; dob?: string | undefined; job_opening_id?: string | undefined; status?: string | undefined; ... 6 more ...; ats_score?: number | undefined; }'.\r\nsrc/pages/recruitment-page.tsx(1254,35): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(1891,17): error TS2304: Cannot find name 'supabase'.\r\nsrc/pages/recruitment-page.tsx(1919,17): error TS2304: Cannot find name 'supabase'.\r\nsrc/pages/recruitment-page.tsx(3061,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(3092,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(3218,55): error TS6133: 'docSub' is declared but its value is never read.\r\nsrc/pages/recruitment-page.tsx(3265,36): error TS2339: Property 'notes' does not exist on type 'Candidate'."
     }
   ],
-  "success": true,
-  "error": null
+  "success": false,
+  "error": "TypeScript check failed:\nsrc/components/shared/candidate-verification-docs.tsx(20,3): error TS6133: 'Send' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(48,3): error TS6133: 'createDefaultCandidateDocuments' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(837,10): error TS6133: 'isReleasingOffer' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(1026,9): error TS6133: 'handleReleaseOffer' is declared but its value is never read.\r\nsrc/components/shared/candidate-verification-docs.tsx(1041,9): error TS6133: 'handleRevokeOffer' is declared but its value is never read.\r\nsrc/pages/candidate-portal.tsx(84,3): error TS6133: 'sendDocsRequiredAlertEmail' is declared but its value is never read.\r\nsrc/pages/candidate-portal.tsx(2729,32): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.\r\nsrc/pages/recruitment-page.tsx(965,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ name: string; email: string; phone?: string | undefined; date_of_birth?: string | undefined; dob?: string | undefined; job_opening_id?: string | undefined; status?: string | undefined; ... 6 more ...; ats_score?: number | undefined; }'.\r\nsrc/pages/recruitment-page.tsx(1254,35): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(1891,17): error TS2304: Cannot find name 'supabase'.\r\nsrc/pages/recruitment-page.tsx(1919,17): error TS2304: Cannot find name 'supabase'.\r\nsrc/pages/recruitment-page.tsx(3061,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(3092,9): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type '{ id: string; status: string; }'.\r\nsrc/pages/recruitment-page.tsx(3218,55): error TS6133: 'docSub' is declared but its value is never read.\r\nsrc/pages/recruitment-page.tsx(3265,36): error TS2339: Property 'notes' does not exist on type 'Candidate'."
 }

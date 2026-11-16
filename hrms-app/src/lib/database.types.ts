@@ -371,6 +371,7 @@ export interface Candidate {
   status?: string | null
   category?: string | null
   source?: string | null
+  notes?: string | null
   malpractice_flag?: boolean | null
   cheating_detected?: boolean | null
   exam_score?: number | null

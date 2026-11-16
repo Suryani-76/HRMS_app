@@ -1,13 +1,16 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp, Paperclip } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp, Paperclip, FileCheck } from 'lucide-react'
 import {
   sendCandidateApplicationEmail,
   getEffectivePortalUrl,
   broadcastJobOpeningToEmployees,
   generateJobCode,
   generateReferralCode,
+  sendDocsRequiredAlertEmail,
+  sendDocsApprovedAlertEmail,
 } from '@/lib/api/email'
 import {
   CandidateDocumentsAdminViewer,
@@ -927,6 +930,7 @@ function CandidatesTab() {
   const [jobId, setJobId] = useState('')
   const [source, setSource] = useState('')
   const [resumeUrl, setResumeUrl] = useState('')
+  const [directDocsMode, setDirectDocsMode] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -942,6 +946,9 @@ function CandidatesTab() {
     const refId = 'CAND-' + Math.random().toString(36).substring(2, 8).toUpperCase()
     const birthDate = dob || '2000-01-01'
 
+    const initialStatus = directDocsMode ? 'Document Collection' : 'Applied'
+    const notesTag = directDocsMode ? '[DIRECT_DOCS: true]\n[DOCS_REQUESTED: true]' : undefined
+
     try {
       await create.mutateAsync({
         name: name.trim(),
@@ -955,30 +962,44 @@ function CandidatesTab() {
         reference_id: refId,
         temp_id: refId,
         ats_score,
-        status: 'Applied',
+        status: initialStatus,
+        notes: notesTag,
       })
 
       const job = jobs.find((j) => j.id === jobId)
-      await sendCandidateApplicationEmail({
-        candidateName: name.trim(),
-        candidateEmail: email.trim(),
-        jobTitle: job?.title || 'Open Position',
-        referenceId: refId,
-        dateOfBirth: birthDate,
-        candidatePortalUrl: getEffectivePortalUrl(),
-      })
+      if (directDocsMode) {
+        sendDocsRequiredAlertEmail({
+          candidateName: name.trim(),
+          candidateEmail: email.trim(),
+          jobTitle: job?.title || 'Open Position',
+          referenceId: refId,
+        }).catch(() => {})
+      } else {
+        await sendCandidateApplicationEmail({
+          candidateName: name.trim(),
+          candidateEmail: email.trim(),
+          jobTitle: job?.title || 'Open Position',
+          referenceId: refId,
+          dateOfBirth: birthDate,
+          candidatePortalUrl: getEffectivePortalUrl(),
+        })
+      }
 
-      toast.success(`Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | Password (DOB): ${birthDate})`)
+      toast.success(
+        directDocsMode
+          ? `Candidate added on Direct Document Collection Track! Document upload request email sent to ${email} (Portal ID: ${refId} | Password: ${birthDate})`
+          : `Candidate added! Confirmation email sent to ${email} (Portal ID: ${refId} | Password (DOB): ${birthDate})`
+      )
     } catch (err: any) {
       console.error('Candidate addition error:', err)
       toast.error('Failed to add candidate: ' + (err?.message || 'Unknown error'))
     }
 
     setDialog(false)
-    setName(''); setEmail(''); setPhone(''); setDob(''); setJobId(''); setSource(''); setResumeUrl('')
+    setName(''); setEmail(''); setPhone(''); setDob(''); setJobId(''); setSource(''); setResumeUrl(''); setDirectDocsMode(false)
   }
 
-  const stageOptions = ['Applied', 'Screening', 'Shortlisted', 'Technical Round', 'HR Round', 'Offer Sent', 'Hired', 'Rejected']
+  const stageOptions = ['Applied', 'Screening', 'Shortlisted', 'Technical Round', 'HR Round', 'Document Collection', 'Documents Verified', 'Offer Sent', 'Hired', 'Rejected']
 
   const filteredCandidates = candidates.filter((c) => {
     const matchesSearch =
@@ -1105,28 +1126,36 @@ function CandidatesTab() {
                           {c.source ? c.source.split('(')[0].trim() : 'Website Application'}
                         </p>
                         {(() => {
+                          const candNotes = (c as any).notes || ''
+                          const candStatus = (c.status || '').toLowerCase()
+                          // Guard: Fresh applications without submitted documents must never show verified badge
+                          if (candStatus === 'applied' && !candNotes.includes('[VERIFICATION_DOCS:')) {
+                            return null
+                          }
                           const docSub = getCandidateVerificationDocs(
                             c.id,
                             c.email,
                             (c.category || '').toLowerCase() === 'experienced',
-                            (c as any).notes
+                            candNotes
                           )
                           const upCount = docSub.documents.filter((d) => !!d.fileName).length
                           if (upCount === 0) return null
+                          const isVerified = (docSub.status === 'verified' || candNotes.includes('[DOCS_VERIFIED: true]')) &&
+                            (candNotes.includes('[DOCS_VERIFIED: true]') || candStatus.includes('verified') || candStatus.includes('offer') || candStatus === 'hired')
                           return (
                             <div className="mt-1">
                               <button
                                 type="button"
                                 onClick={() => setSelectedCandidate(c)}
                                 className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold border transition-colors ${
-                                  docSub.status === 'verified'
+                                  isVerified
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                     : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
                                 }`}
                                 title="View candidate softcopy verification documents"
                               >
                                 <Paperclip className="h-2.5 w-2.5" />
-                                {docSub.status === 'verified' ? 'Docs Verified ✓' : `Softcopies: ${upCount} Uploaded`}
+                                {isVerified ? 'Docs Verified ✓' : `Softcopies: ${upCount} Uploaded`}
                               </button>
                             </div>
                           )
@@ -1208,6 +1237,34 @@ function CandidatesTab() {
                               }}
                             >
                               Shortlist
+                            </Button>
+                          )}
+                          {!['document collection', 'documents verified', 'offer sent', 'hired'].includes((c.status || '').toLowerCase()) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-xs font-semibold text-indigo-700 border-indigo-300 hover:bg-indigo-50 gap-1"
+                              onClick={async () => {
+                                const existingNotes = (c as any)?.notes || ''
+                                let updatedNotes = existingNotes
+                                if (!updatedNotes.includes('[DIRECT_DOCS: true]')) updatedNotes = `${updatedNotes}\n[DIRECT_DOCS: true]`.trim()
+                                if (!updatedNotes.includes('[DOCS_REQUESTED: true]')) updatedNotes = `${updatedNotes}\n[DOCS_REQUESTED: true]`.trim()
+                                await updateStatus.mutateAsync({
+                                  id: c.id,
+                                  status: 'Document Collection',
+                                  notes: updatedNotes,
+                                })
+                                sendDocsRequiredAlertEmail({
+                                  candidateName: c.name,
+                                  candidateEmail: c.email,
+                                  jobTitle: c.job_opening?.title || 'Selected Position',
+                                  referenceId: (c as any).reference_id || (c as any).temp_id,
+                                }).catch(() => {})
+                                toast.success(`Switched ${c.name} to Direct Document Collection! Upload email alert sent.`)
+                              }}
+                              title="Directly request pre-offer verification documents from candidate"
+                            >
+                              <FileCheck className="h-3 w-3" /> Collect Docs
                             </Button>
                           )}
                         </div>
@@ -1647,6 +1704,41 @@ function CandidatesTab() {
                 <p className="text-[11px] text-muted-foreground">Upload resume (PDF/DOC) to calculate ATS score.</p>
               </div>
             </div>
+
+            {/* Direct Document Collection Option */}
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                    <FileCheck className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <Label htmlFor="direct-docs-toggle" className="text-xs font-semibold text-slate-900 cursor-pointer">
+                      Direct Document Collection Track
+                    </Label>
+                    <p className="text-[11px] text-slate-600">
+                      Skip interview rounds and directly request verification documents from candidate.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  id="direct-docs-toggle"
+                  type="checkbox"
+                  checked={directDocsMode}
+                  onChange={(e) => setDirectDocsMode(e.target.checked)}
+                  className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+              </div>
+              {directDocsMode && (
+                <div className="text-[11px] text-indigo-900 bg-white/80 p-2.5 rounded-lg border border-indigo-100 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                  <span>
+                    The candidate will immediately receive a Document Collection email. Once they upload and you verify the softcopies, they can check terms and receive their offer letter.
+                  </span>
+                </div>
+              )}
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={create.isPending}>
@@ -1682,6 +1774,7 @@ function InterviewsTab() {
   const [round, setRound] = useState('Screening')
   const [scheduledAt, setScheduledAt] = useState('')
   const [mode, setMode] = useState('video')
+  const [directDocsCollection, setDirectDocsCollection] = useState(false)
   const [link, setLink] = useState('')
   const [examLink, setExamLink] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -1769,18 +1862,75 @@ function InterviewsTab() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!candidateId || !scheduledAt) return
+    const isFaceToFace = mode === 'face_to_face'
+    const effectiveRound = isFaceToFace ? 'Face-to-Face Interview' : round || undefined
+
     await create.mutateAsync({
       candidate_id: candidateId,
       job_opening_id: jobId || undefined,
       interviewer_id: interviewerId || undefined,
-      round: round || undefined,
+      round: effectiveRound,
       scheduled_at: new Date(scheduledAt).toISOString(),
       mode: mode || undefined,
-      meeting_link: (round === 'Screening' ? (examLink || link) : (link || examLink)) || undefined,
-      exam_link: (examLink || link) || undefined,
+      meeting_link: isFaceToFace
+        ? (link || 'Oklut Office / Corporate Headquarters')
+        : ((round === 'Screening' ? (examLink || link) : (link || examLink)) || undefined),
+      exam_link: isFaceToFace ? undefined : ((examLink || link) || undefined),
     })
+
+    // If direct document collection is explicitly enabled, trigger email and unlock portal docs
+    if (directDocsCollection) {
+      const selectedCand = candidates.find((c) => c.id === candidateId)
+      if (selectedCand) {
+        try {
+          const existingNotes = (selectedCand as any)?.notes || ''
+          let newNotes = existingNotes
+          if (isFaceToFace && !newNotes.includes('[FACE_TO_FACE: true]')) newNotes = `${newNotes}\n[FACE_TO_FACE: true]`.trim()
+          if (!newNotes.includes('[DIRECT_DOCS: true]')) newNotes = `${newNotes}\n[DIRECT_DOCS: true]`.trim()
+          if (!newNotes.includes('[DOCS_REQUESTED: true]')) newNotes = `${newNotes}\n[DOCS_REQUESTED: true]`.trim()
+
+          await supabase.from('candidates').update({
+            status: 'Document Collection',
+            stage: 'Document Collection',
+            notes: newNotes,
+            updated_at: new Date().toISOString(),
+          }).eq('id', candidateId)
+
+          sendDocsRequiredAlertEmail({
+            candidateName: selectedCand.name,
+            candidateEmail: selectedCand.email,
+            jobTitle: selectedCand.job_opening?.title || 'Selected Position',
+            referenceId: (selectedCand as any).reference_id || (selectedCand as any).temp_id,
+          }).catch(() => {})
+
+          toast.success(`Direct document collection unlocked for ${selectedCand.name}.`)
+        } catch (err) {
+          console.warn('Direct doc trigger notice:', err)
+        }
+      }
+    } else if (isFaceToFace) {
+      // Just tag face to face scheduled in notes; document upload unlocks after clearing the round
+      const selectedCand = candidates.find((c) => c.id === candidateId)
+      if (selectedCand) {
+        try {
+          const existingNotes = (selectedCand as any)?.notes || ''
+          let newNotes = existingNotes
+          if (!newNotes.includes('[FACE_TO_FACE: true]')) newNotes = `${newNotes}\n[FACE_TO_FACE: true]`.trim()
+
+          await supabase.from('candidates').update({
+            status: 'Face-to-Face Scheduled',
+            stage: 'Face-to-Face Scheduled',
+            notes: newNotes,
+            updated_at: new Date().toISOString(),
+          }).eq('id', candidateId)
+        } catch (err) {
+          console.warn('F2F status update notice:', err)
+        }
+      }
+    }
+
     setDialog(false)
-    setCandidateId(''); setJobId(''); setInterviewerId(''); setLink(''); setExamLink('')
+    setCandidateId(''); setJobId(''); setInterviewerId(''); setLink(''); setExamLink(''); setDirectDocsCollection(false)
   }
 
   const pendingReschedules = interviews.filter(
@@ -2135,12 +2285,23 @@ function InterviewsTab() {
               </div>
               <div className="space-y-2">
                 <Label>Round</Label>
-                <Select value={round} onValueChange={setRound}>
+                <Select
+                  value={mode === 'face_to_face' ? 'Face-to-Face Interview' : round}
+                  onValueChange={(val) => {
+                    if (val === 'Face-to-Face Interview') {
+                      setMode('face_to_face')
+                    } else {
+                      setRound(val)
+                    }
+                  }}
+                  disabled={mode === 'face_to_face'}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Screening">Screening / Online Exam</SelectItem>
                     <SelectItem value="Technical">Technical Interview</SelectItem>
                     <SelectItem value="HR">HR Interview</SelectItem>
+                    <SelectItem value="Face-to-Face Interview">Face-to-Face Interview (In-Person)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2156,28 +2317,71 @@ function InterviewsTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Mode</Label>
-                <Select value={mode} onValueChange={setMode}>
+                <Label>Interview Mode *</Label>
+                <Select
+                  value={mode}
+                  onValueChange={(v) => {
+                    setMode(v)
+                    if (v === 'face_to_face') {
+                      setRound('Face-to-Face Interview')
+                    }
+                  }}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="video">Video</SelectItem>
-                    <SelectItem value="phone">Phone</SelectItem>
-                    <SelectItem value="onsite">On-site</SelectItem>
+                    <SelectItem value="face_to_face">🤝 Face-to-Face (In-Person)</SelectItem>
+                    <SelectItem value="video">🎥 Online Video</SelectItem>
+                    <SelectItem value="phone">📞 Phone</SelectItem>
+                    <SelectItem value="onsite">🏢 On-site Walk-in</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {/* Direct Document Collection toggle & banner */}
+            <div className={`p-3 rounded-lg border transition-colors ${
+              directDocsCollection
+                ? 'bg-emerald-50 border-emerald-300'
+                : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  id="direct-doc-collect"
+                  checked={directDocsCollection}
+                  onChange={(e) => setDirectDocsCollection(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div className="text-xs">
+                  <label htmlFor="direct-doc-collect" className="font-semibold text-slate-900 cursor-pointer block">
+                    Immediate Document Collection Override
+                  </label>
+                  <p className="text-slate-600 mt-0.5 leading-relaxed">
+                    {mode === 'face_to_face'
+                      ? 'By default, document upload unlocks after the Face-to-Face round is cleared. Check this box only if you want the candidate to upload verification documents immediately prior to attending.'
+                      : 'Enable if this candidate is fast-tracked and should directly submit verification documents in their portal without completing interview rounds.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Scheduled at *</Label>
               <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} required />
             </div>
+            {mode !== 'face_to_face' && (
+              <div className="space-y-2">
+                <Label>Exam link (Optional)</Label>
+                <Input value={examLink} onChange={(e) => setExamLink(e.target.value)} placeholder="https://test.com/..." />
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Exam link (Optional)</Label>
-              <Input value={examLink} onChange={(e) => setExamLink(e.target.value)} placeholder="https://test.com/..." />
-            </div>
-            <div className="space-y-2">
-              <Label>Meeting link (Optional)</Label>
-              <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://meet.google.com/..." />
+              <Label>{mode === 'face_to_face' ? 'Office Location / Venue Address' : 'Meeting link (Optional)'}</Label>
+              <Input
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder={mode === 'face_to_face' ? 'e.g. Oklut Inc. Corporate HQ, 4th Floor Conference Room' : 'https://meet.google.com/...'}
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
@@ -2349,6 +2553,20 @@ function OffersTab() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!candidateId) return
+
+    // Store in localStorage as instant reliable backup for client-side candidate portal
+    if (pdfDataUrl) {
+      try {
+        localStorage.setItem(`hrms_offer_letter_${candidateId}`, pdfDataUrl)
+        const matchedCand = candidates.find((c) => c.id === candidateId)
+        if (matchedCand?.email) {
+          localStorage.setItem(`hrms_offer_letter_${matchedCand.email}`, pdfDataUrl)
+        }
+      } catch (err) {
+        console.warn('LocalStorage offer letter backup warning:', err)
+      }
+    }
+
     await create.mutateAsync({
       candidate_id: candidateId,
       job_opening_id: jobId || undefined,
@@ -2722,6 +2940,496 @@ function OffersTab() {
   )
 }
 
+function DocumentationTab() {
+  const { data: candidates = [], isLoading: candidatesLoading } = useCandidates()
+  const { data: interviews = [] } = useInterviews()
+  const updateCandidateStatus = useUpdateCandidateStatus()
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [docFilter, setDocFilter] = useState<'all' | 'ready' | 'requested' | 'submitted' | 'verified' | 'terms_accepted'>('all')
+  const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null)
+  const [triggeringDocId, setTriggeringDocId] = useState<string | null>(null)
+
+  // Map candidate interview results & doc status
+  const candidatesWithDocInfo = useMemo(() => {
+    return candidates.map((cand) => {
+      const candInterviews = interviews.filter((i) => i.candidate_id === cand.id)
+      const candStatusNorm = (cand.status || '').toLowerCase()
+      const notes = (cand as any).notes || ''
+
+      const isDocsRequestedFlag = notes.includes('[DOCS_REQUESTED: true]') || candStatusNorm.includes('document') || candStatusNorm.includes('collect')
+      const isDocsVerifiedFlag = notes.includes('[DOCS_VERIFIED: true]') || candStatusNorm.includes('verified') || candStatusNorm === 'hired'
+      const isTermsAcceptedFlag = notes.includes('[TERMS_ACCEPTED: true]') || candStatusNorm === 'offer sent' || candStatusNorm === 'offered' || candStatusNorm === 'hired'
+
+      // Check verification docs from storage/notes
+      const docSub = getCandidateVerificationDocs(
+        cand.id,
+        cand.email,
+        (cand.category || '').toLowerCase() === 'experienced',
+        notes
+      )
+
+      const uploadedCount = docSub.documents.filter((d) => !!d.fileName).length
+      const totalDocs = docSub.documents.length
+      const verifiedCount = docSub.documents.filter((d) => d.status === 'verified').length
+
+      // Check interview rounds passed & face-to-face / direct docs mode
+      const isDirectTrack = notes.includes('[DIRECT_DOCS: true]') || candStatusNorm.includes('document collection')
+      const isF2F = candInterviews.some((i) => (i.mode || '').toLowerCase().includes('face') || (i.round || '').toLowerCase().includes('face to face')) || notes.includes('[FACE_TO_FACE: true]')
+      const passedInterviews = candInterviews.filter((i) => (i.status || '').toLowerCase() === 'passed')
+      const f2fPassed = isF2F && (notes.includes('[F2F_PASSED: true]') || candInterviews.some((i) => ((i.mode || '').toLowerCase().includes('face') || (i.round || '').toLowerCase().includes('face')) && (i.status || '').toLowerCase() === 'passed'))
+
+      const isFresher = (cand.category || '').toLowerCase() !== 'experienced'
+      const virtualAllPassed = isFresher ? passedInterviews.length >= 2 || candStatusNorm === 'shortlisted' : passedInterviews.length >= 1 || candStatusNorm === 'shortlisted'
+      const isEligibleForDocs = isDirectTrack || f2fPassed || virtualAllPassed || candStatusNorm.includes('verified') || candStatusNorm.includes('offer') || candStatusNorm === 'hired'
+
+      // Determine document stage
+      let docStage: 'ready' | 'requested' | 'submitted' | 'verified' | 'terms_accepted' | 'pending' = 'pending'
+      if ((isTermsAcceptedFlag || docSub.termsAgreedAt) && (uploadedCount > 0 || isDocsVerifiedFlag)) {
+        docStage = 'terms_accepted'
+      } else if (uploadedCount > 0 && (docSub.status === 'verified' || isDocsVerifiedFlag)) {
+        docStage = 'verified'
+      } else if (uploadedCount > 0 || docSub.status === 'submitted' || docSub.status === 'under_review') {
+        docStage = 'submitted'
+      } else if (isDocsRequestedFlag) {
+        docStage = 'requested'
+      } else if (isEligibleForDocs) {
+        docStage = 'ready'
+      } else {
+        docStage = 'pending'
+      }
+
+      return {
+        candidate: cand,
+        docSub,
+        uploadedCount,
+        totalDocs,
+        verifiedCount,
+        passedInterviewsCount: passedInterviews.length,
+        totalInterviewsCount: candInterviews.length,
+        isDocsRequested: isDocsRequestedFlag,
+        isDocsVerified: isDocsVerifiedFlag,
+        isTermsAccepted: isTermsAcceptedFlag || !!docSub.termsAgreedAt,
+        isF2F,
+        docStage,
+      }
+    })
+  }, [candidates, interviews])
+
+  // Filter candidates
+  const filteredList = useMemo(() => {
+    return candidatesWithDocInfo.filter((item) => {
+      const cand = item.candidate
+      const matchesSearch =
+        !searchQuery ||
+        cand.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        cand.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (cand.job_opening?.title && cand.job_opening.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        ((cand as any).reference_id && (cand as any).reference_id.toLowerCase().includes(searchQuery.toLowerCase()))
+
+      const matchesFilter = docFilter === 'all' || item.docStage === docFilter
+      return matchesSearch && matchesFilter
+    })
+  }, [candidatesWithDocInfo, searchQuery, docFilter])
+
+  // Stat counts
+  const stats = useMemo(() => {
+    const total = candidatesWithDocInfo.length
+    const ready = candidatesWithDocInfo.filter((c) => c.docStage === 'ready').length
+    const requested = candidatesWithDocInfo.filter((c) => c.docStage === 'requested').length
+    const submitted = candidatesWithDocInfo.filter((c) => c.docStage === 'submitted').length
+    const verified = candidatesWithDocInfo.filter((c) => c.docStage === 'verified').length
+    const termsAccepted = candidatesWithDocInfo.filter((c) => c.docStage === 'terms_accepted').length
+    return { total, ready, requested, submitted, verified, termsAccepted }
+  }, [candidatesWithDocInfo])
+
+  // Trigger Document Collection for a candidate
+  const handleTriggerDocCollection = async (cand: any) => {
+    setTriggeringDocId(cand.id)
+    try {
+      const existingNotes = (cand as any)?.notes || ''
+      let updatedNotes = existingNotes
+      if (!updatedNotes.includes('[DIRECT_DOCS: true]')) {
+        updatedNotes = `${updatedNotes}\n[DIRECT_DOCS: true]`.trim()
+      }
+      if (!updatedNotes.includes('[DOCS_REQUESTED: true]')) {
+        updatedNotes = `${updatedNotes}\n[DOCS_REQUESTED: true]`.trim()
+      }
+
+      await updateCandidateStatus.mutateAsync({
+        id: cand.id,
+        status: 'Document Collection',
+        notes: updatedNotes,
+      })
+
+      // Send automated email alert via SMTP
+      await sendDocsRequiredAlertEmail({
+        candidateName: cand.name,
+        candidateEmail: cand.email,
+        jobTitle: cand.job_opening?.title || 'Selected Position',
+        referenceId: (cand as any).reference_id || (cand as any).temp_id,
+      })
+
+      toast.success(`Document collection requested for ${cand.name}! Email alert sent and portal section unlocked.`)
+    } catch (err: any) {
+      toast.error('Failed to request documents: ' + (err?.message || 'Unknown error'))
+    } finally {
+      setTriggeringDocId(null)
+    }
+  }
+
+  // Handle when HR verifies documents inside modal
+  const handleDocsVerifiedInModal = async (cand: any) => {
+    try {
+      const existingNotes = (cand as any)?.notes || ''
+      let updatedNotes = existingNotes
+      if (!updatedNotes.includes('[DOCS_VERIFIED: true]')) {
+        updatedNotes = `${updatedNotes}\n[DOCS_VERIFIED: true]`.trim()
+      }
+
+      await updateCandidateStatus.mutateAsync({
+        id: cand.id,
+        status: 'Documents Verified',
+        notes: updatedNotes,
+      })
+
+      // Send documents approved alert email
+      await sendDocsApprovedAlertEmail({
+        candidateName: cand.name,
+        candidateEmail: cand.email,
+        jobTitle: cand.job_opening?.title || 'Selected Position',
+        referenceId: (cand as any).reference_id || (cand as any).temp_id,
+      })
+
+      toast.success(`Verification documents approved for ${cand.name}! Status updated to "Documents Verified" and confirmation email sent.`)
+    } catch (err: any) {
+      console.error(err)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[240px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate name, email, or role..."
+              className="pl-9 h-9"
+            />
+          </div>
+
+          <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setDocFilter('all')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'all' ? 'bg-white shadow-xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All ({stats.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocFilter('ready')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'ready' ? 'bg-white shadow-xs text-indigo-700 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Ready ({stats.ready})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocFilter('requested')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'requested' ? 'bg-white shadow-xs text-amber-700 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Requested ({stats.requested})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocFilter('submitted')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'submitted' ? 'bg-white shadow-xs text-blue-700 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Submitted ({stats.submitted})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocFilter('verified')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'verified' ? 'bg-white shadow-xs text-emerald-700 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Verified ({stats.verified})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocFilter('terms_accepted')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                docFilter === 'terms_accepted' ? 'bg-white shadow-xs text-purple-700 font-semibold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Terms Accepted ({stats.termsAccepted})
+            </button>
+          </div>
+        </div>
+
+        <a
+          href="/candidate-portal"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-2xs"
+          title="Open Candidate Self-Service Portal"
+        >
+          <ExternalLink className="h-3.5 w-3.5 text-indigo-600" />
+          Preview Candidate Portal
+        </a>
+      </div>
+
+      {/* Documentation Candidates Table */}
+      {candidatesLoading ? (
+        <TableSkeleton rows={5} />
+      ) : filteredList.length === 0 ? (
+        <EmptyState
+          title="No candidates found in Documentation"
+          description={searchQuery ? "Try refining your search keyword." : "Candidates will appear here for softcopy document collection and verification."}
+          icon={FileText}
+        />
+      ) : (
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
+                  <th className="px-4 py-3.5">Candidate</th>
+                  <th className="px-4 py-3.5">Job Role</th>
+                  <th className="px-4 py-3.5">Interview Pipeline</th>
+                  <th className="px-4 py-3.5">Document Collection Status</th>
+                  <th className="px-4 py-3.5">Softcopies</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredList.map(({ candidate: cand, uploadedCount, totalDocs, verifiedCount, docStage, passedInterviewsCount, isF2F }) => {
+                  const portalId = (cand as any).temp_id || (cand as any).reference_id || 'CAN-' + cand.id.slice(-4).toUpperCase()
+                  const isTriggering = triggeringDocId === cand.id
+
+                  return (
+                    <tr key={cand.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      {/* Candidate info */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                            {cand.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900 flex items-center gap-1.5">
+                              {cand.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Mail className="h-3 w-3 inline" /> {cand.email}
+                            </p>
+                            <span className="font-mono text-[10px] text-slate-500">
+                              ID: {portalId}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Job Role */}
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-slate-800">
+                          {cand.job_opening?.title ?? 'Selected Candidate'}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground">
+                            {(cand.category || '').toLowerCase() === 'experienced' ? 'Experienced Track' : 'Fresher Track'}
+                          </span>
+                          {isF2F && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 font-semibold">
+                              🤝 Face-to-Face
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Interview status */}
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            {(cand.notes || '').includes('[DIRECT_DOCS: true]') ? (
+                              <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] py-0.5 px-2 font-semibold shadow-2xs">
+                                📄 Direct Document Track
+                              </Badge>
+                            ) : isF2F ? (
+                              <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] py-0.5 px-2 font-semibold shadow-2xs">
+                                🤝 Face-to-Face (Direct Docs)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className={`text-[10px] py-0 px-2 font-semibold ${
+                                passedInterviewsCount >= 3 || cand.status?.toLowerCase().includes('round')
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                              }`}>
+                                {passedInterviewsCount >= 3 ? 'All 3 Rounds Cleared' : `${passedInterviewsCount} Passed`}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Candidate Stage: <strong>{cand.status || 'Applied'}</strong>
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Document Stage Badge */}
+                      <td className="px-4 py-3">
+                        {docStage === 'terms_accepted' ? (
+                          <Badge className="bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-semibold py-1 px-2.5 gap-1 shadow-2xs">
+                            <CheckCircle2 className="h-3 w-3" /> Terms Accepted ✓ Ready for Offer
+                          </Badge>
+                        ) : docStage === 'verified' ? (
+                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1 px-2.5 gap-1 shadow-2xs">
+                            <CheckCircle2 className="h-3 w-3" /> Documents Approved ✓ (Terms Pending)
+                          </Badge>
+                        ) : docStage === 'submitted' ? (
+                          <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold py-1 px-2.5 gap-1 shadow-2xs">
+                            <Upload className="h-3 w-3" /> Review Pending ({uploadedCount})
+                          </Badge>
+                        ) : docStage === 'requested' ? (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 text-[11px] font-semibold py-1 px-2.5 gap-1">
+                            <Clock className="h-3 w-3 text-amber-600 animate-spin" /> Docs Requested (Email Sent)
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-[11px] font-semibold py-1 px-2.5">
+                            Ready to Request
+                          </Badge>
+                        )}
+                      </td>
+
+                      {/* Softcopies count */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                verifiedCount === totalDocs && totalDocs > 0
+                                  ? 'bg-emerald-500'
+                                  : uploadedCount > 0
+                                    ? 'bg-blue-500'
+                                    : 'bg-slate-300'
+                              }`}
+                              style={{ width: `${totalDocs > 0 ? (uploadedCount / totalDocs) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700">
+                            {uploadedCount}/{totalDocs}
+                          </span>
+                        </div>
+                        {uploadedCount > 0 && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {verifiedCount} verified
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Button 1: Collect / Request Documents */}
+                          {docStage === 'ready' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleTriggerDocCollection(cand)}
+                              disabled={isTriggering}
+                              className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-2xs"
+                              title="Send document upload email request and unlock portal section"
+                            >
+                              {isTriggering ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              Collect Documents
+                            </Button>
+                          )}
+
+                          {docStage === 'requested' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleTriggerDocCollection(cand)}
+                              disabled={isTriggering}
+                              className="h-8 text-xs border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100 font-medium gap-1"
+                              title="Resend email alert for document upload"
+                            >
+                              {isTriggering ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              Resend Request
+                            </Button>
+                          )}
+
+                          {/* Button 2: Review / View Uploaded Documents */}
+                          <Button
+                            size="sm"
+                            variant={uploadedCount > 0 ? 'default' : 'outline'}
+                            onClick={() => setSelectedCandidate(cand)}
+                            className={`h-8 text-xs font-semibold gap-1 ${
+                              uploadedCount > 0
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                                : 'text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            {uploadedCount > 0 ? `Review Documents (${uploadedCount})` : 'Review / Checklist'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Review Documents Modal Dialog */}
+      <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCheck className="h-5 w-5 text-indigo-600" />
+              Candidate Verification Documents — {selectedCandidate?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Review uploaded softcopies, inspect individual files, approve or reject with comments.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCandidate && (
+            <div className="space-y-4 pt-2">
+              <CandidateDocumentsAdminViewer
+                candidate={selectedCandidate}
+                isExperienced={(selectedCandidate.category || '').toLowerCase() === 'experienced'}
+                onVerifiedChange={() => handleDocsVerifiedInModal(selectedCandidate)}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 
 
 
@@ -2748,11 +3456,15 @@ export default function RecruitmentPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="documentation" className="relative flex items-center gap-1.5">
+            Documentation
+          </TabsTrigger>
           <TabsTrigger value="offers">Offers</TabsTrigger>
         </TabsList>
         <TabsContent value="jobs" className="mt-4"><JobsTab /></TabsContent>
         <TabsContent value="candidates" className="mt-4"><CandidatesTab /></TabsContent>
         <TabsContent value="interviews" className="mt-4"><InterviewsTab /></TabsContent>
+        <TabsContent value="documentation" className="mt-4"><DocumentationTab /></TabsContent>
         <TabsContent value="offers" className="mt-4"><OffersTab /></TabsContent>
       </Tabs>
     </div>

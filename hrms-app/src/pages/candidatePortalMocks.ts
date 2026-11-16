@@ -55,7 +55,8 @@ export interface MockCandidate {
   name: string
   email: string
   category: 'Fresher' | 'Experienced'
-  status: 'applied' | 'rejected' | 'hired' | 'passed' | 'failed' | 'booked' | 'scheduled' | 'ongoing' | 'cancelled' | 'proposed' | 'completed'
+  status: 'applied' | 'rejected' | 'hired' | 'passed' | 'failed' | 'booked' | 'scheduled' | 'ongoing' | 'cancelled' | 'proposed' | 'completed' | string
+  notes?: string | null
   applied_at: string
   created_at: string
   exam_score: number | null
@@ -1113,10 +1114,9 @@ export const MOCK_SCENARIOS: PortalSnapshot[] = [
   },
 ]
 
-// Default scenario loaded on demo login — an all-rounds-cleared candidate so
-// the portal opens on the Offer stage (T&C modal → offer letter).
+// Default scenario loaded on demo login — a fresh upcoming candidate, empty documents.
 export const DEFAULT_SCENARIO: PortalSnapshot =
-  MOCK_SCENARIOS.find((s) => s.id === 'fresher-offer-ready') ?? MOCK_SCENARIOS[0]
+  MOCK_SCENARIOS.find((s) => s.id === 'fresher-fresh') ?? MOCK_SCENARIOS[0]
 
 // ---------------------------------------------------------------------------
 // Candidate profiles — the four demo identities exposed by the login screen's

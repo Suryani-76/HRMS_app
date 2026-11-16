@@ -1020,29 +1020,76 @@ export function getCandidateVerificationDocs(
   }
 
   const hasOfferReleasedNote = !!(candidateNotes && candidateNotes.includes('[OFFER_RELEASED: true]'))
+  const hasDocsVerifiedNote = !!(candidateNotes && candidateNotes.includes('[DOCS_VERIFIED: true]'))
 
-  // 1. Try localStorage by candidateId
+  // 1. Try parsing from candidate notes first (DATABASE SOURCE OF TRUTH)
+  if (candidateNotes && candidateNotes.includes('[VERIFICATION_DOCS:')) {
+    try {
+      const match = candidateNotes.match(/\[VERIFICATION_DOCS:\s*(\{.*?\})\]/s)
+      if (match && match[1]) {
+        const parsedMeta = JSON.parse(match[1])
+        if (parsedMeta && Array.isArray(parsedMeta.documents)) {
+          const uploadedCount = parsedMeta.documents.filter((d: any) => !!d.fileName).length
+          const isReallyVerified = uploadedCount > 0 && (hasDocsVerifiedNote || parsedMeta.status === 'verified')
+          const sub = {
+            candidateId,
+            submittedAt: parsedMeta.submittedAt,
+            status: uploadedCount === 0 ? 'draft' : isReallyVerified ? 'verified' : (parsedMeta.status || 'submitted'),
+            offerReleased: uploadedCount > 0 && isReallyVerified ? (parsedMeta.offerReleased || hasOfferReleasedNote) : false,
+            offerReleasedAt: parsedMeta.offerReleasedAt,
+            offerReleasedBy: parsedMeta.offerReleasedBy,
+            termsAgreedAt: parsedMeta.termsAgreedAt,
+            documents: parsedMeta.documents,
+            overallNotes: parsedMeta.overallNotes,
+          }
+          return sub
+        }
+      }
+    } catch (e) {
+      console.warn('candidate notes docs parse error:', e)
+    }
+  }
+
+  // 2. Try localStorage by candidateId
   try {
     const rawById = localStorage.getItem(`${CANDIDATE_DOCS_KEY_PREFIX}${candidateId}`)
     if (rawById) {
       const parsed = JSON.parse(rawById)
       if (parsed && Array.isArray(parsed.documents)) {
-        if (hasOfferReleasedNote) parsed.offerReleased = true
-        return parsed
+        if (!parsed.candidateId || parsed.candidateId === candidateId) {
+          const uploadedCount = parsed.documents.filter((d: any) => !!d.fileName).length
+          if (uploadedCount === 0) {
+            parsed.status = 'draft'
+            parsed.offerReleased = false
+          } else {
+            // Cannot be verified unless database notes explicitly confirm it
+            parsed.status = hasDocsVerifiedNote ? 'verified' : (parsed.status === 'verified' && hasDocsVerifiedNote ? 'verified' : (parsed.status || 'submitted'))
+            parsed.offerReleased = (parsed.status === 'verified') && (hasOfferReleasedNote || !!parsed.offerReleased)
+          }
+          return parsed
+        }
       }
     }
   } catch (e) {
     console.warn('localStorage read error for candidateId:', e)
   }
 
-  // 2. Try localStorage by email
+  // 3. Try localStorage by email ONLY IF it specifically belongs to this candidateId
   if (email) {
     try {
       const rawByEmail = localStorage.getItem(`${CANDIDATE_DOCS_KEY_PREFIX}${email.toLowerCase()}`)
       if (rawByEmail) {
         const parsed = JSON.parse(rawByEmail)
-        if (parsed && Array.isArray(parsed.documents)) {
-          if (hasOfferReleasedNote) parsed.offerReleased = true
+        // Guard: Do NOT load another candidate's old uploaded docs if candidateId does not match!
+        if (parsed && Array.isArray(parsed.documents) && parsed.candidateId === candidateId) {
+          const uploadedCount = parsed.documents.filter((d: any) => !!d.fileName).length
+          if (uploadedCount === 0) {
+            parsed.status = 'draft'
+            parsed.offerReleased = false
+          } else {
+            parsed.status = hasDocsVerifiedNote ? 'verified' : (parsed.status === 'verified' && hasDocsVerifiedNote ? 'verified' : (parsed.status || 'submitted'))
+            parsed.offerReleased = (parsed.status === 'verified') && (hasOfferReleasedNote || !!parsed.offerReleased)
+          }
           return parsed
         }
       }
@@ -1051,36 +1098,11 @@ export function getCandidateVerificationDocs(
     }
   }
 
-  // 3. Try parsing from candidate notes if provided
-  if (candidateNotes && candidateNotes.includes('[VERIFICATION_DOCS:')) {
-    try {
-      const match = candidateNotes.match(/\[VERIFICATION_DOCS:\s*(\{.*?\})\]/s)
-      if (match && match[1]) {
-        const parsedMeta = JSON.parse(match[1])
-        if (parsedMeta && Array.isArray(parsedMeta.documents)) {
-          return {
-            candidateId,
-            submittedAt: parsedMeta.submittedAt,
-            status: parsedMeta.status || 'submitted',
-            offerReleased: parsedMeta.offerReleased || hasOfferReleasedNote,
-            offerReleasedAt: parsedMeta.offerReleasedAt,
-            offerReleasedBy: parsedMeta.offerReleasedBy,
-            termsAgreedAt: parsedMeta.termsAgreedAt,
-            documents: parsedMeta.documents,
-            overallNotes: parsedMeta.overallNotes,
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('candidate notes docs parse error:', e)
-    }
-  }
-
-  // 4. Default fresh submission template
+  // 4. Default fresh submission template — clean and empty for new candidates
   return {
     candidateId,
     status: 'draft',
-    offerReleased: hasOfferReleasedNote,
+    offerReleased: false,
     documents: createDefaultCandidateDocuments(isExperienced),
   }
 }
@@ -1118,16 +1140,21 @@ export async function saveCandidateVerificationDocs(
   // Database-first sync: update candidates table notes with document summary
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+    let query = supabase.from('candidates').select('notes, status')
     if (isUuid) {
-      const { data: cand } = await supabase
-        .from('candidates')
-        .select('notes')
-        .eq('id', candidateId)
-        .maybeSingle()
+      query = query.eq('id', candidateId)
+    } else if (email) {
+      query = query.eq('email', email)
+    } else {
+      query = query.or(`temp_id.ilike.${candidateId},reference_id.ilike.${candidateId}`)
+    }
 
+    const { data: cand } = await query.maybeSingle()
+    if (cand) {
       const cleanNotes = (cand?.notes || '')
         .replace(/\[VERIFICATION_DOCS:\s*\{.*?\}\]/gs, '')
         .replace(/\[OFFER_RELEASED:\s*(true|false)\]/gi, '')
+        .replace(/\[DOCS_VERIFIED:\s*(true|false)\]/gi, '')
         .trim()
       const metaTag = `[VERIFICATION_DOCS: ${JSON.stringify({
         status: payload.status,
@@ -1144,18 +1171,31 @@ export async function saveCandidateVerificationDocs(
           fileName: d.fileName,
           fileSize: d.fileSize,
           fileType: d.fileType,
+          fileData: d.fileData,
           uploadedAt: d.uploadedAt,
           status: d.status,
           adminNotes: d.adminNotes,
         })),
       })}]`
 
+      const verifiedTag = payload.status === 'verified' ? '\n[DOCS_VERIFIED: true]' : ''
       const offerReleaseTag = payload.offerReleased ? '\n[OFFER_RELEASED: true]' : ''
-      const updatedNotes = cleanNotes ? `${cleanNotes}\n${metaTag}${offerReleaseTag}` : `${metaTag}${offerReleaseTag}`
+      const updatedNotes = cleanNotes
+        ? `${cleanNotes}\n${metaTag}${verifiedTag}${offerReleaseTag}`
+        : `${metaTag}${verifiedTag}${offerReleaseTag}`
+
+      const updateData: Record<string, any> = {
+        notes: updatedNotes,
+        updated_at: new Date().toISOString(),
+      }
+      if (payload.status === 'verified' && !cand?.status?.toLowerCase().includes('offer') && cand?.status !== 'hired') {
+        updateData.status = 'Documents Verified'
+      }
+
       await supabase
         .from('candidates')
-        .update({ notes: updatedNotes, updated_at: new Date().toISOString() })
-        .eq('id', candidateId)
+        .update(updateData)
+        .eq(isUuid ? 'id' : 'email', isUuid ? candidateId : (cand as any).email || email)
 
       await supabase.from('audit_logs').insert({
         action: 'CANDIDATE_DOCS_SUBMITTED',
@@ -1228,16 +1268,13 @@ export async function verifyAllCandidateDocuments(
   const now = new Date().toISOString()
 
   const updatedDocs = current.documents.map((d) => {
-    if (d.fileName) {
-      return {
-        ...d,
-        status: 'verified' as const,
-        verifiedAt: now,
-        verifiedBy,
-        adminNotes: 'Verified and approved by HR.',
-      }
+    return {
+      ...d,
+      status: 'verified' as const,
+      verifiedAt: now,
+      verifiedBy,
+      adminNotes: d.adminNotes || 'Verified and approved by HR.',
     }
-    return d
   })
 
   const updatedSubmission: CandidateDocSubmission = {
@@ -1368,6 +1405,87 @@ export async function releaseOfferLetterForCandidate(
   }
 
   return updatedSubmission
+}
+
+export async function clearAllCandidateDocuments(
+  candidateId: string,
+  email?: string,
+  isExperienced: boolean = false
+): Promise<CandidateDocSubmission> {
+  const freshDocs = createDefaultCandidateDocuments(isExperienced)
+  const clearedSubmission: CandidateDocSubmission = {
+    candidateId,
+    status: 'draft',
+    offerReleased: false,
+    documents: freshDocs,
+  }
+
+  // Clear localStorage
+  try {
+    localStorage.removeItem(`${CANDIDATE_DOCS_KEY_PREFIX}${candidateId}`)
+    if (email) {
+      localStorage.removeItem(`${CANDIDATE_DOCS_KEY_PREFIX}${email.toLowerCase()}`)
+    }
+    // Also remove any other local keys stored for this candidate
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k && (k.includes(candidateId) || (email && k.includes(email.toLowerCase())))) {
+        if (k.startsWith(CANDIDATE_DOCS_KEY_PREFIX) || k.startsWith('hrms_offer_letter_')) {
+          localStorage.removeItem(k)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('localStorage clear warning:', e)
+  }
+
+  // Clear in candidates table notes
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+    let query = supabase.from('candidates').select('notes, status')
+    if (isUuid) {
+      query = query.eq('id', candidateId)
+    } else if (email) {
+      query = query.eq('email', email)
+    } else {
+      query = query.or(`temp_id.ilike.${candidateId},reference_id.ilike.${candidateId}`)
+    }
+
+    const { data: cand } = await query.maybeSingle()
+    if (cand) {
+      const cleanNotes = (cand.notes || '')
+        .replace(/\[VERIFICATION_DOCS:\s*\{.*?\}\]/gs, '')
+        .replace(/\[OFFER_RELEASED:\s*(true|false)\]/gi, '')
+        .replace(/\[DOCS_VERIFIED:\s*(true|false)\]/gi, '')
+        .replace(/\[TERMS_ACCEPTED:\s*(true|false)\]/gi, '')
+        .trim()
+
+      const targetId = (cand as any).id || (isUuid ? candidateId : null)
+      if (targetId) {
+        await supabase
+          .from('candidates')
+          .update({
+            notes: cleanNotes,
+            status: 'Document Collection',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', targetId)
+      }
+    }
+  } catch (err) {
+    console.warn('Database notes clear warning:', err)
+  }
+
+  // Notify listeners
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('candidate-documents-updated', {
+        detail: { candidateId, email, submission: clearedSubmission },
+      })
+    )
+  }
+
+  return clearedSubmission
 }
 
 export async function revokeOfferLetterForCandidate(

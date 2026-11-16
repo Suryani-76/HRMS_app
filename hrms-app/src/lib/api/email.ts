@@ -644,24 +644,27 @@ export function generateInterviewScheduledHtml(payload: InterviewScheduledAlertP
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#64748b;">Interview Mode:</td>
-            <td style="padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;text-transform:capitalize;">${payload.mode || 'Online Video'}</td>
+            <td style="padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;text-transform:capitalize;">${payload.mode === 'face_to_face' ? 'Face-to-Face / In-Person (Direct Docs Submission)' : payload.mode || 'Online Video'}</td>
           </tr>
           ${payload.interviewerName ? `
           <tr>
-            <td style="padding:6px 0;font-size:13px;color:#64748b;">Interviewer:</td>
+            <td style="padding:6px 0;font-size:13px;color:#64748b;">Interviewer / Venue Host:</td>
             <td style="padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;">${payload.interviewerName}</td>
           </tr>` : ''}
           ${payload.meetingLink ? `
           <tr>
-            <td style="padding:6px 0;font-size:13px;color:#64748b;">Video Meeting Link:</td>
+            <td style="padding:6px 0;font-size:13px;color:#64748b;">${payload.mode === 'face_to_face' ? 'Office Location / Venue Instructions:' : 'Video Meeting Link:'}</td>
             <td style="padding:6px 0;font-size:13px;font-weight:600;color:#2563eb;text-align:right;word-break:break-all;">
-              <a href="${payload.meetingLink.startsWith('http') ? payload.meetingLink : `https://${payload.meetingLink}`}" style="color:#2563eb;">Join Meeting</a>
+              ${payload.mode === 'face_to_face' ? `<span>${payload.meetingLink}</span>` : `<a href="${payload.meetingLink.startsWith('http') ? payload.meetingLink : `https://${payload.meetingLink}`}" style="color:#2563eb;">Join Meeting</a>`}
             </td>
           </tr>` : ''}
         </table>
 
         <p style="margin:20px 0;font-size:13px;color:#475569;line-height:1.6;">
-          Please join the meeting 5 minutes prior to the scheduled time. Ensure a quiet environment and stable internet connection. You can also view this interview and manage slots directly in your Candidate Portal.
+          ${payload.mode === 'face_to_face'
+            ? 'For this <strong>Face-to-Face Interview</strong>, online evaluation rounds are waived. Please log in to your Candidate Portal to directly upload and submit your pre-offer verification documents.'
+            : 'Please join the meeting 5 minutes prior to the scheduled time. Ensure a quiet environment and stable internet connection. You can also view this interview and manage slots directly in your Candidate Portal.'
+          }
         </p>
 
         <div style="text-align:center;margin:30px 0;">
@@ -943,6 +946,77 @@ export async function sendDocsRequiredAlertEmail(payload: DocsRequiredAlertPaylo
     html,
     refId: payload.referenceId,
     alertType: 'docs_required',
+  })
+}
+
+// ---------------------------------------------------------------------------
+// 5b. Verification Documents Approved Email Alert
+// ---------------------------------------------------------------------------
+
+export interface DocsApprovedAlertPayload {
+  candidateName: string
+  candidateEmail: string
+  referenceId?: string
+  jobTitle: string
+  portalUrl?: string
+}
+
+export function generateDocsApprovedHtml(payload: DocsApprovedAlertPayload): string {
+  const portalUrl = getEffectivePortalUrl(payload.portalUrl)
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Documents Verified & Approved — OKLUT</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="background:linear-gradient(135deg, #10b981 0%, #047857 100%);padding:36px 32px;text-align:center;">
+        <span style="display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;">
+          ✓ Documentation Verified
+        </span>
+        <h1 style="margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;">Documents Approved</h1>
+        <p style="margin:4px 0 0 0;color:#d1fae5;font-size:14px;">Role: ${payload.jobTitle}</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:36px 32px;">
+        <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;">
+          Dear <strong>${payload.candidateName}</strong>,
+        </p>
+        <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;">
+          We are pleased to inform you that your submitted verification documents for the <strong>${payload.jobTitle}</strong> position have been reviewed and successfully approved by our HR team!
+        </p>
+        <div style="background-color:#ecfdf5;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #a7f3d0;">
+          <p style="margin:0;font-size:13px;color:#065f46;line-height:1.6;">
+            <strong>Next Step:</strong> Your official offer letter is now being finalized. Please visit your Candidate Portal to review and accept the offer once generated.
+          </p>
+        </div>
+
+        <div style="text-align:center;margin:30px 0;">
+          <a href="${portalUrl}" target="_blank" style="background-color:#10b981;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;">
+            Visit Candidate Portal →
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
+        © ${new Date().getFullYear()} OKLUT Inc. &bull; Automated notification from OKLUT HRMS
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendDocsApprovedAlertEmail(payload: DocsApprovedAlertPayload) {
+  const subject = `✓ Verification Documents Approved: ${payload.jobTitle} — OKLUT`
+  const html = generateDocsApprovedHtml(payload)
+  return dispatchCandidateAlertEmail({
+    to: payload.candidateEmail,
+    subject,
+    html,
+    refId: payload.referenceId,
+    alertType: 'docs_approved',
   })
 }
 

@@ -17,7 +17,6 @@ import {
   Check,
   X,
   Info,
-  Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,9 +41,9 @@ import {
   saveCandidateVerificationDocs,
   updateCandidateDocVerification,
   verifyAllCandidateDocuments,
-  releaseOfferLetterForCandidate,
-  revokeOfferLetterForCandidate,
+  clearAllCandidateDocuments,
 } from '@/lib/api/candidatePortal'
+import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/format'
 
 // ---------------------------------------------------------------------------
@@ -419,6 +418,8 @@ export function CandidateDocumentUploadSection({
 
       const nextSubmission: CandidateDocSubmission = {
         ...submission,
+        status: submission.status === 'draft' ? 'submitted' : submission.status,
+        submittedAt: submission.submittedAt || nowIso,
         documents: updatedDocs,
       }
       setSubmission(nextSubmission)
@@ -428,7 +429,7 @@ export function CandidateDocumentUploadSection({
     reader.readAsDataURL(file)
   }
 
-  const handleRemoveFile = (docId: string) => {
+  const handleRemoveFile = async (docId: string) => {
     const updatedDocs = submission.documents.map((d) => {
       if (d.id === docId) {
         return {
@@ -439,18 +440,33 @@ export function CandidateDocumentUploadSection({
           fileData: undefined,
           uploadedAt: undefined,
           status: 'pending' as const,
+          adminNotes: undefined,
         }
       }
       return d
     })
 
+    const hasAnyDocsLeft = updatedDocs.some((d) => !!d.fileName)
     const nextSubmission: CandidateDocSubmission = {
       ...submission,
+      status: hasAnyDocsLeft ? submission.status : 'draft',
+      offerReleased: hasAnyDocsLeft ? submission.offerReleased : false,
       documents: updatedDocs,
     }
     setSubmission(nextSubmission)
-    saveCandidateVerificationDocs(candidateId, nextSubmission, candidateEmail)
+    await saveCandidateVerificationDocs(candidateId, nextSubmission, candidateEmail)
     toast.info('Document attachment removed.')
+  }
+
+  const handleClearAllFiles = async () => {
+    try {
+      const reset = await clearAllCandidateDocuments(candidateId, candidateEmail, isExperienced)
+      setSubmission(reset)
+      onSubmissionComplete?.(reset)
+      toast.success('All documents cleared! Please upload your fresh softcopies.')
+    } catch (err: any) {
+      toast.error('Failed to reset documents: ' + (err?.message || 'Unknown error'))
+    }
   }
 
   const handleAddCustomDoc = (e: React.FormEvent) => {
@@ -523,7 +539,7 @@ export function CandidateDocumentUploadSection({
                 Pre-Offer Document Verification (Softcopy Submission)
               </CardTitle>
               <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                Employment Terms Accepted ✓ · Upload standard verification softcopies before official offer release
+                Upload standard verification softcopies for HR review and profile verification
               </CardDescription>
             </div>
           </div>
@@ -590,17 +606,30 @@ export function CandidateDocumentUploadSection({
           ))}
         </div>
 
-        {/* Add Additional Document Option */}
+        {/* Add Additional Document Option & Clear/Reset */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-xs text-slate-700 hover:text-indigo-600 gap-1.5"
-            onClick={() => setAddCustomOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Additional Certificate or Document
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs text-slate-700 hover:text-indigo-600 gap-1.5"
+              onClick={() => setAddCustomOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Additional Certificate or Document
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 gap-1.5"
+              onClick={handleClearAllFiles}
+              title="Remove all uploaded softcopies and reset checklist"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Clear All Documents (Make Empty)
+            </Button>
+          </div>
 
           <span className="text-xs text-muted-foreground">
             Total files attached: <strong>{totalUploaded}</strong>
@@ -616,7 +645,7 @@ export function CandidateDocumentUploadSection({
             <p className="text-xs text-slate-600">
               {isSubmitted
                 ? `Submitted on ${formatDateTime(submission.submittedAt || new Date().toISOString())}. You can still view or replace files if requested by HR.`
-                : 'Once submitted, your softcopies will be forwarded to HR & Admin. Upon HR verification, your official offer letter will be released.'}
+                : 'Once submitted, your softcopies will be forwarded to HR & Admin. Upon HR verification, you will receive company Terms & Conditions to accept, followed by your official offer letter.'}
             </p>
           </div>
 
@@ -703,8 +732,12 @@ export function SubmittedDocumentsStatusCard({
   onOpenManage: () => void
 }) {
   const [previewDoc, setPreviewDoc] = useState<CandidateVerificationDoc | null>(null)
-  const uploadedDocs = submission.documents.filter((d) => !!d.fileName)
-  const isVerified = submission.status === 'verified'
+  const uploadedDocs = (submission.documents || []).filter((d) => !!d.fileName)
+  const isVerified = submission.status === 'verified' && uploadedDocs.length > 0
+
+  if (uploadedDocs.length === 0) {
+    return null
+  }
 
   return (
     <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/50 via-white to-slate-50 p-4 shadow-sm space-y-3">
@@ -780,9 +813,11 @@ export function SubmittedDocumentsStatusCard({
 export function CandidateDocumentsAdminViewer({
   candidate,
   isExperienced = false,
+  onVerifiedChange,
 }: {
   candidate: any
   isExperienced?: boolean
+  onVerifiedChange?: () => void
 }) {
   const candidateId = candidate.id || candidate.candidate_id
   const candidateEmail = candidate.email
@@ -795,10 +830,62 @@ export function CandidateDocumentsAdminViewer({
   const [previewDoc, setPreviewDoc] = useState<CandidateVerificationDoc | null>(null)
   const [rejectDialogDoc, setRejectDialogDoc] = useState<CandidateVerificationDoc | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [isReleasingOffer, setIsReleasingOffer] = useState(false)
 
   useEffect(() => {
-    setSubmission(getCandidateVerificationDocs(candidateId, candidateEmail, isExperienced, candidateNotes))
+    // 1. Initial synchronous load from cache / memory
+    const initial = getCandidateVerificationDocs(candidateId, candidateEmail, isExperienced, candidateNotes)
+    setSubmission(initial)
+
+    // 2. Direct database fetch to guarantee latest softcopies if uploaded by candidate
+    let isMounted = true
+    async function fetchLatestFromDb() {
+      try {
+        if (!candidateId) return
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+        let query = supabase.from('candidates').select('notes, resume_url, updated_at')
+        if (isUuid) {
+          query = query.eq('id', candidateId)
+        } else if (candidateEmail) {
+          query = query.eq('email', candidateEmail)
+        } else {
+          return
+        }
+
+        const { data, error } = await query.maybeSingle()
+        if (!error && data && data.notes && isMounted) {
+          const fresh = getCandidateVerificationDocs(candidateId, candidateEmail, isExperienced, data.notes)
+          // If fresh has uploaded files or status, update state and local cache
+          // Preserve verified status if currently verified!
+          if (submission.status === 'verified') {
+            fresh.status = 'verified'
+          }
+          if (fresh.documents.some((d) => !!d.fileName) || fresh.status !== 'draft') {
+            setSubmission(fresh)
+            saveCandidateVerificationDocs(candidateId, fresh, candidateEmail)
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch candidate docs from db:', err)
+      }
+    }
+
+    fetchLatestFromDb()
+
+    // 3. Listen for real-time document upload events
+    const handleDocUpdate = (event: any) => {
+      const detail = event?.detail
+      if (detail && (detail.candidateId === candidateId || detail.email === candidateEmail)) {
+        if (detail.submission && isMounted) {
+          setSubmission(detail.submission)
+        }
+      }
+    }
+
+    window.addEventListener('candidate-documents-updated', handleDocUpdate)
+    return () => {
+      isMounted = false
+      window.removeEventListener('candidate-documents-updated', handleDocUpdate)
+    }
   }, [candidateId, candidateEmail, isExperienced, candidateNotes])
 
   const uploadedDocs = submission.documents.filter((d) => !!d.fileName)
@@ -817,7 +904,10 @@ export function CandidateDocumentsAdminViewer({
       candidateEmail
     )
     setSubmission(updated)
-    toast.success('Document marked as verified.')
+    if (updated.status === 'verified') {
+      onVerifiedChange?.()
+    }
+    toast.success('Document marked as verified and approved.')
   }
 
   const handleOpenReject = (doc: CandidateVerificationDoc) => {
@@ -838,49 +928,93 @@ export function CandidateDocumentsAdminViewer({
     setSubmission(updated)
     setRejectDialogDoc(null)
     setRejectReason('')
-    toast.warning('Document marked for re-upload.')
+    toast.warning('Document marked as rejected. Candidate will be asked to re-upload.')
   }
 
   const handleVerifyAll = async () => {
-    if (uploadedDocs.length === 0) {
-      toast.error('No uploaded documents available to verify.')
-      return
-    }
     const updated = await verifyAllCandidateDocuments(candidateId, 'HR Admin', candidateEmail)
     setSubmission(updated)
-    toast.success('All candidate verification softcopies verified and approved! The Terms & Conditions section is now unlocked for the candidate.')
-  }
 
-  const handleReleaseOffer = async () => {
-    if (!isDocsVerified) {
-      toast.error('Please verify and approve candidate documents first.')
-      return
-    }
-    if (!hasTermsAgreed) {
-      toast.error('The candidate must review and accept the Company Terms & Conditions in their portal before the offer letter can be released.')
-      return
-    }
-    setIsReleasingOffer(true)
+    // Ensure database candidate record is directly updated with verified status and tag
     try {
-      const updated = await releaseOfferLetterForCandidate(candidateId, 'HR Admin', candidateEmail)
-      setSubmission(updated)
-      toast.success(
-        `Official Offer Letter released to ${candidate.name}! It is now visible and unlocked in the Candidate Portal.`
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+      let query = supabase.from('candidates').select('notes, status')
+      if (isUuid) {
+        query = query.eq('id', candidateId)
+      } else if (candidateEmail) {
+        query = query.eq('email', candidateEmail)
+      }
+
+      const { data: cand } = await query.maybeSingle()
+      if (cand) {
+        const cleanNotes = (cand.notes || '')
+          .replace(/\[DOCS_VERIFIED:\s*(true|false)\]/gi, '')
+          .trim()
+        const newNotes = cleanNotes ? `${cleanNotes}\n[DOCS_VERIFIED: true]` : '[DOCS_VERIFIED: true]'
+        const updatePayload: Record<string, any> = {
+          notes: newNotes,
+          updated_at: new Date().toISOString(),
+        }
+        if (!cand.status?.toLowerCase().includes('offer') && cand.status !== 'hired') {
+          updatePayload.status = 'Documents Verified'
+        }
+        await supabase
+          .from('candidates')
+          .update(updatePayload)
+          .eq(isUuid ? 'id' : 'email', isUuid ? candidateId : candidateEmail)
+      }
+    } catch (err) {
+      console.warn('DB candidate verify update note:', err)
+    }
+
+    // Direct local cross-tab dispatch
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('candidate-documents-updated', {
+          detail: { candidateId, email: candidateEmail, submission: updated, status: 'verified' },
+        })
       )
-    } catch (e: any) {
-      toast.error('Failed to release offer letter: ' + e?.message)
-    } finally {
-      setIsReleasingOffer(false)
     }
+
+    onVerifiedChange?.()
+    toast.success('Profile and verification documents approved! Terms & Conditions is now unlocked.')
   }
 
-  const handleRevokeOffer = async () => {
+  const handleRejectAll = async () => {
     try {
-      const updated = await revokeOfferLetterForCandidate(candidateId, 'HR Admin', candidateEmail)
-      setSubmission(updated)
-      toast.info(`Offer letter release revoked for ${candidate.name}. It is now locked in candidate portal.`)
-    } catch (e: any) {
-      toast.error('Failed to revoke offer letter: ' + e?.message)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId)
+      let query = supabase.from('candidates').select('notes, status')
+      if (isUuid) {
+        query = query.eq('id', candidateId)
+      } else if (candidateEmail) {
+        query = query.eq('email', candidateEmail)
+      }
+
+      const { data: cand } = await query.maybeSingle()
+      if (cand) {
+        const cleanNotes = (cand.notes || '')
+          .replace(/\[DOCS_VERIFIED:\s*(true|false)\]/gi, '')
+          .trim()
+        const newNotes = cleanNotes ? `${cleanNotes}\n[DOCS_REJECTED: true]` : '[DOCS_REJECTED: true]'
+        await supabase
+          .from('candidates')
+          .update({
+            status: 'Rejected',
+            notes: newNotes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq(isUuid ? 'id' : 'email', isUuid ? candidateId : candidateEmail)
+      }
+      const rejectedSubmission: CandidateDocSubmission = {
+        ...submission,
+        status: 'rejected',
+      }
+      setSubmission(rejectedSubmission)
+      saveCandidateVerificationDocs(candidateId, rejectedSubmission, candidateEmail)
+      toast.error(`Candidate profile rejected. Status updated to Rejected.`)
+    } catch (err) {
+      console.warn('DB candidate reject error:', err)
+      toast.error('Failed to update candidate status to rejected.')
     }
   }
 
@@ -910,23 +1044,62 @@ export function CandidateDocumentsAdminViewer({
                   ? 'default'
                   : 'secondary'
             }
-            className="text-xs font-semibold"
+            className={`text-xs font-semibold ${
+              submission.status === 'verified'
+                ? 'bg-emerald-600 text-white'
+                : submission.status === 'rejected'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-slate-100 text-slate-800'
+            }`}
           >
             {submission.status === 'verified'
-              ? 'All Verified ✓'
-              : `${verifiedDocs.length}/${uploadedDocs.length} Verified`}
+              ? 'Status: Approved ✓'
+              : submission.status === 'rejected'
+                ? 'Status: Rejected ✗'
+                : 'Status: Pending Review'}
           </Badge>
 
-          {uploadedDocs.length > 0 && submission.status !== 'verified' && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleVerifyAll}
-              className="h-8 text-xs gap-1 border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-semibold"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approve &amp; Verify All
-            </Button>
-          )}
+          {/* Quick Approve / Reject Profile Buttons for HR */}
+          <Button
+            size="sm"
+            onClick={handleVerifyAll}
+            className={`h-8 text-xs gap-1 font-semibold shadow-2xs ${
+              submission.status === 'verified'
+                ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" /> Approve Profile
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRejectAll}
+            className="h-8 text-xs gap-1 border-red-300 text-red-700 bg-red-50 hover:bg-red-100 font-semibold shadow-2xs"
+          >
+            <XCircle className="h-3.5 w-3.5" /> Reject Profile
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (window.confirm(`Reset and remove all verification files for ${candidate.name}? The candidate will be requested to upload fresh documents.`)) {
+                try {
+                  const reset = await clearAllCandidateDocuments(candidateId, candidateEmail, isExperienced)
+                  setSubmission(reset)
+                  toast.success(`Removed all documents for ${candidate.name}. Candidate can now upload fresh files.`)
+                } catch (e: any) {
+                  toast.error('Failed to reset candidate documents: ' + e.message)
+                }
+              }
+            }}
+            className="h-8 text-xs gap-1 border-slate-300 text-slate-700 hover:bg-slate-100 font-medium shadow-2xs"
+            title="Clear all uploaded softcopies and request candidate to upload again"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Reset Docs
+          </Button>
         </div>
       </div>
 
@@ -953,15 +1126,6 @@ export function CandidateDocumentsAdminViewer({
                 </p>
               </div>
             </div>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleRevokeOffer}
-              className="h-7 text-xs border-amber-300 text-amber-900 bg-white hover:bg-amber-50 font-medium"
-            >
-              Revoke / Hold Offer
-            </Button>
           </div>
         </div>
       ) : !isDocsVerified ? (
@@ -992,7 +1156,6 @@ export function CandidateDocumentsAdminViewer({
               type="button"
               size="sm"
               onClick={handleVerifyAll}
-              disabled={uploadedDocs.length === 0}
               className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm px-4"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1017,20 +1180,10 @@ export function CandidateDocumentsAdminViewer({
                   </Badge>
                 </div>
                 <p className="text-[11px] text-amber-900 mt-0.5">
-                  Documents have been verified and approved. The Terms &amp; Conditions section is now unlocked in the candidate&apos;s portal. Once the candidate accepts the terms, the Offer Letter release button will become active.
+                  Documents have been verified and approved. The Terms &amp; Conditions section is now unlocked in the candidate&apos;s portal. Once the candidate accepts the terms, HR will provide the offer letter from the Offers section.
                 </p>
               </div>
             </div>
-
-            <Button
-              type="button"
-              size="sm"
-              disabled={true}
-              className="h-9 text-xs bg-slate-200 text-slate-500 border border-slate-300 font-semibold gap-1.5 shadow-none px-4 cursor-not-allowed"
-            >
-              <Clock className="h-3.5 w-3.5" />
-              Waiting for Candidate Terms Acceptance
-            </Button>
           </div>
         </div>
       ) : (
@@ -1043,140 +1196,154 @@ export function CandidateDocumentsAdminViewer({
               <div>
                 <div className="flex items-center gap-2">
                   <h5 className="font-bold text-xs text-emerald-950">
-                    Step 3: Ready for Official Offer Letter Release ✓
+                    Terms &amp; Conditions Accepted ✓
                   </h5>
                   <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-2 h-4 font-semibold">
                     Terms Digitally Accepted
                   </Badge>
                 </div>
                 <p className="text-[11px] text-emerald-800 mt-0.5">
-                  Candidate has digitally accepted the Company Terms &amp; Conditions {submission.termsAgreedAt ? `on ${formatDateTime(submission.termsAgreedAt)}` : ''}. Click below to officially generate and release the Offer Letter.
+                  Candidate has digitally accepted the Company Terms &amp; Conditions {submission.termsAgreedAt ? `on ${formatDateTime(submission.termsAgreedAt)}` : ''}. The offer letter can now be generated and issued from the Offers section.
                 </p>
               </div>
             </div>
-
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleReleaseOffer}
-              disabled={isReleasingOffer}
-              className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm px-4"
-            >
-              {isReleasingOffer ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
-              Release Official Offer Letter →
-            </Button>
           </div>
         </div>
       )}
 
       {/* Document List */}
-      {uploadedDocs.length === 0 ? (
-        <div className="p-6 text-center border rounded-xl border-dashed bg-slate-50">
-          <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-          <p className="text-xs font-semibold text-slate-700">No Softcopy Documents Uploaded Yet</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            The candidate has not submitted pre-offer verification documents from their portal yet.
-          </p>
+      <div className="grid gap-2.5">
+        <div className="flex items-center justify-between pb-1 border-b text-xs text-slate-500 font-medium">
+          <span>Verification Checklist ({uploadedDocs.length}/{submission.documents.length} Uploaded)</span>
+          <span>{verifiedDocs.length} Verified</span>
         </div>
-      ) : (
-        <div className="grid gap-2.5">
-          {submission.documents.map((doc) => {
-            const hasFile = !!doc.fileName
-            return (
-              <div
-                key={doc.id}
-                className={`p-3 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                  doc.status === 'verified'
-                    ? 'bg-emerald-50/30 border-emerald-200'
-                    : doc.status === 'rejected'
-                      ? 'bg-red-50/40 border-red-200'
-                      : hasFile
-                        ? 'bg-slate-50 border-slate-200'
-                        : 'bg-slate-50/40 border-dashed text-muted-foreground'
-                }`}
-              >
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900">{doc.title}</span>
-                    {doc.required && (
-                      <span className="text-[10px] text-red-600 font-bold uppercase">(Mandatory)</span>
-                    )}
-                    <Badge
-                      variant={
-                        doc.status === 'verified'
-                          ? 'success'
-                          : doc.status === 'rejected'
-                            ? 'destructive'
-                            : hasFile
-                              ? 'secondary'
-                              : 'outline'
-                      }
-                      className="text-[10px] py-0 px-1.5 h-4 capitalize"
-                    >
-                      {hasFile ? doc.status : 'Pending Upload'}
-                    </Badge>
-                  </div>
-                  {hasFile ? (
-                    <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                      <Paperclip className="h-3 w-3 text-slate-400" />
-                      <span className="font-mono text-slate-800">{doc.fileName}</span>
-                      {doc.fileSize && <span>({doc.fileSize})</span>}
-                      {doc.uploadedAt && <span>· {formatDateTime(doc.uploadedAt)}</span>}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground">{doc.description}</p>
+
+        {submission.documents.map((doc) => {
+          const hasFile = !!doc.fileName
+          return (
+            <div
+              key={doc.id}
+              className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                doc.status === 'verified'
+                  ? 'bg-emerald-50/40 border-emerald-200'
+                  : doc.status === 'rejected'
+                    ? 'bg-red-50/40 border-red-200'
+                    : hasFile
+                      ? 'bg-indigo-50/30 border-indigo-200'
+                      : 'bg-slate-50/50 border-dashed border-slate-200 text-muted-foreground'
+              }`}
+            >
+              <div className="space-y-1.5 min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-semibold ${hasFile ? 'text-slate-900' : 'text-slate-600'}`}>{doc.title}</span>
+                  {doc.required && (
+                    <span className="text-[10px] text-red-600 font-bold uppercase">(Mandatory)</span>
                   )}
-                  {doc.adminNotes && (
-                    <p className="text-[11px] text-slate-500 italic">HR Note: {doc.adminNotes}</p>
-                  )}
+                  <Badge
+                    variant={
+                      doc.status === 'verified'
+                        ? 'success'
+                        : doc.status === 'rejected'
+                          ? 'destructive'
+                          : hasFile
+                            ? 'secondary'
+                            : 'outline'
+                    }
+                    className={`text-[10px] py-0 px-2 h-4.5 capitalize font-medium ${
+                      doc.status === 'verified'
+                        ? 'bg-emerald-600 text-white'
+                        : doc.status === 'rejected'
+                          ? 'bg-red-600 text-white'
+                          : hasFile
+                            ? 'bg-blue-100 text-blue-800 border-blue-200'
+                            : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {hasFile ? (doc.status === 'verified' ? 'Approved ✓' : doc.status === 'rejected' ? 'Rejected ✗' : 'Uploaded (Pending Review)') : 'Awaiting Upload'}
+                  </Badge>
                 </div>
 
-                {hasFile && (
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                {hasFile ? (
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                    <span className="inline-flex items-center gap-1 font-mono text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      <Paperclip className="h-3 w-3 text-slate-400" />
+                      {doc.fileName}
+                    </span>
+                    {doc.fileSize && <span>({doc.fileSize})</span>}
+                    {doc.uploadedAt && <span>· Uploaded: {formatDateTime(doc.uploadedAt)}</span>}
+                    {doc.verifiedBy && doc.status === 'verified' && (
+                      <span className="text-emerald-700 font-medium">· Verified by {doc.verifiedBy}</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">{doc.description}</p>
+                )}
+
+                {doc.adminNotes && (
+                  <div className={`text-[11px] px-2.5 py-1 rounded-md border mt-1 ${
+                    doc.status === 'rejected'
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    <strong>HR Note:</strong> {doc.adminNotes}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                {hasFile ? (
+                  <>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs gap-1 border-slate-300 hover:bg-slate-100"
+                      className="h-8 text-xs gap-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium"
                       onClick={() => setPreviewDoc(doc)}
                     >
-                      <Eye className="h-3 w-3" /> View Softcopy
+                      <Eye className="h-3.5 w-3.5" /> View
                     </Button>
 
                     {doc.status !== 'verified' ? (
                       <Button
                         size="sm"
                         variant="default"
-                        className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                        className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-2xs"
                         onClick={() => handleVerifyOne(doc.id)}
                       >
-                        <Check className="h-3 w-3" /> Verify
+                        <Check className="h-3.5 w-3.5" /> Approve
                       </Button>
                     ) : (
-                      <span className="text-emerald-700 font-bold text-xs flex items-center gap-1 px-2">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Verified
-                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs text-emerald-800 bg-emerald-50 border-emerald-200 font-semibold cursor-default"
+                        disabled
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Approved
+                      </Button>
                     )}
 
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 text-xs text-red-600 hover:bg-red-50"
+                      className="h-8 text-xs text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200"
                       onClick={() => handleOpenReject(doc)}
-                      title="Request re-upload"
+                      title="Request document re-upload with note"
                     >
-                      <X className="h-3 w-3" /> Reject
+                      <X className="h-3.5 w-3.5" /> Reject
                     </Button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground italic px-2 py-1">
+                      No softcopy attached
+                    </span>
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
-      )}
+            </div>
+          )
+        })}
+      </div>
 
       {/* Reject Reason Dialog */}
       <Dialog open={!!rejectDialogDoc} onOpenChange={(open) => !open && setRejectDialogDoc(null)}>

@@ -238,23 +238,95 @@ export async function updateJobOpening(id: string, input: Partial<JobOpening>) {
   return data as JobOpening
 }
 
+export const CANDIDATE_LIST_COLUMNS = [
+  'id',
+  'name',
+  'email',
+  'phone',
+  'date_of_birth',
+  'dob',
+  'status',
+  'stage',
+  'category',
+  'source',
+  'temp_id',
+  'reference_id',
+  'ats_score',
+  'applied_at',
+  'updated_at',
+  'notes',
+  'job_opening_id',
+  'exam_score',
+  'exam_completed_at',
+  'exam_started_at',
+  'exam_feedback',
+  'technical_interview_status',
+  'technical_interview_feedback',
+  'technical_interview_date',
+  'hr_interview_status',
+  'hr_interview_feedback',
+  'hr_interview_date',
+  'disqualified_at',
+  'disqualified_reason',
+  'converted_employee_id',
+].join(', ')
+
+export async function fetchCandidateResume(candidateId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('candidates')
+      .select('resume_url')
+      .eq('id', candidateId)
+      .maybeSingle()
+    if (!error && data) {
+      return data.resume_url || null
+    }
+  } catch (err) {
+    console.warn('fetchCandidateResume error:', err)
+  }
+  return null
+}
+
 export async function fetchCandidates(jobOpeningId?: string): Promise<Candidate[]> {
   try {
-    let query = supabase
-      .from('candidates')
-      .select('*, job_opening:job_openings(title)')
-      .order('applied_at', { ascending: false })
-    if (jobOpeningId) query = query.eq('job_opening_id', jobOpeningId)
-    let { data, error } = await query
+    const candQuery = (async () => {
+      let q = supabase
+        .from('candidates')
+        .select(CANDIDATE_LIST_COLUMNS)
+        .limit(300)
+      if (jobOpeningId) q = q.eq('job_opening_id', jobOpeningId)
+      return q
+    })()
 
-    if (error) {
-      const res = await supabase.from('candidates').select('*').order('applied_at', { ascending: false })
-      data = res.data
-      error = res.error
+    const jobsQuery = (async () => {
+      return supabase.from('job_openings').select('id, title, department_id, location, job_type')
+    })()
+
+    const [candRes, jobsRes] = await Promise.all([candQuery, jobsQuery])
+
+    if (!candRes.error && candRes.data) {
+      const jobMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j]))
+      const cands = candRes.data.map((c: any) => ({
+        ...c,
+        job_opening: c.job_opening_id ? jobMap.get(c.job_opening_id) || null : null,
+      })) as Candidate[]
+
+      // Sort in memory by applied_at desc
+      cands.sort((a, b) => {
+        const timeA = new Date(a.applied_at || a.updated_at || 0).getTime()
+        const timeB = new Date(b.applied_at || b.updated_at || 0).getTime()
+        return timeB - timeA
+      })
+
+      return cands
     }
 
-    if (!error && data) {
-      return data as Candidate[]
+    if (candRes.error) {
+      console.warn('fetchCandidates primary query warning, attempting fallback:', candRes.error.message)
+      const fallback = await supabase.from('candidates').select('*').limit(50)
+      if (!fallback.error && fallback.data) {
+        return fallback.data as Candidate[]
+      }
     }
   } catch (err) {
     console.error('fetchCandidates error:', err)

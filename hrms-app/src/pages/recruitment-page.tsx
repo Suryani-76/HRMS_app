@@ -18,6 +18,7 @@ import {
 import {
   getCandidateVerificationDocs,
 } from '@/lib/api/candidatePortal'
+import { fetchCandidateResume } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -789,15 +790,30 @@ function CandidatesTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
 
-  const downloadCandidateResume = (cand: any) => {
+  const handleOpenResumePreview = async (cand: any) => {
     if (!cand) return
-    const filename = cand.resume_url && !cand.resume_url.startsWith('data:')
-      ? cand.resume_url
+    if (!cand.resume_url) {
+      const resumeUrl = await fetchCandidateResume(cand.id)
+      setPreviewResumeCandidate({ ...cand, resume_url: resumeUrl })
+    } else {
+      setPreviewResumeCandidate(cand)
+    }
+  }
+
+  const downloadCandidateResume = async (cand: any) => {
+    if (!cand) return
+    let resumeUrl = cand.resume_url
+    if (!resumeUrl) {
+      resumeUrl = await fetchCandidateResume(cand.id)
+    }
+
+    const filename = resumeUrl && !resumeUrl.startsWith('data:')
+      ? resumeUrl
       : `${cand.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`
 
-    if (cand.resume_url?.startsWith('data:') || cand.resume_url?.startsWith('http')) {
+    if (resumeUrl?.startsWith('data:') || resumeUrl?.startsWith('http')) {
       const a = document.createElement('a')
-      a.href = cand.resume_url
+      a.href = resumeUrl
       a.download = filename
       a.target = '_blank'
       document.body.appendChild(a)
@@ -1301,7 +1317,7 @@ function CandidatesTab() {
                             size="icon"
                             className="h-8 w-8 text-slate-600 hover:text-indigo-600 hover:bg-slate-100"
                             title="Preview & Download Resume"
-                            onClick={() => setPreviewResumeCandidate(c)}
+                            onClick={() => handleOpenResumePreview(c)}
                           >
                             <FileText className="h-4 w-4" />
                           </Button>
@@ -1477,7 +1493,7 @@ function CandidatesTab() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
-                        onClick={() => setPreviewResumeCandidate(c)}
+                        onClick={() => handleOpenResumePreview(c)}
                       >
                         Preview
                       </Button>

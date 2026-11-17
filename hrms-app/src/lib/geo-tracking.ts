@@ -36,7 +36,7 @@ export const OFFICE_LOCATIONS = [
     name: 'Office Premises (Hyderabad HQ)',
     latitude: 17.450167,
     longitude: 78.387000,
-    radiusMeters: 500, // 500 meters geofence radius
+    radiusMeters: 3000, // 3000 meters geofence radius covering Hitec City / Madhapur tech hub
   },
 ]
 
@@ -103,7 +103,8 @@ export function calculateDistanceMeters(
  */
 export function evaluateOfficeGeofence(
   lat: number,
-  lng: number
+  lng: number,
+  accuracy?: number
 ): { isOffice: boolean; distanceMeters: number; closestOffice: string; workMode: 'Office Premises' | 'WFH' } {
   let minDistance = Infinity
   let matchedOffice = OFFICE_LOCATIONS[0]
@@ -116,7 +117,9 @@ export function evaluateOfficeGeofence(
     }
   }
 
-  const isOffice = minDistance <= matchedOffice.radiusMeters
+  // Account for GPS/WiFi accuracy margin of error (up to 2000m)
+  const margin = accuracy ? Math.min(accuracy, 2000) : 0
+  const isOffice = minDistance <= (matchedOffice.radiusMeters + margin)
   const workMode: 'Office Premises' | 'WFH' = isOffice ? 'Office Premises' : 'WFH'
 
   return {
@@ -222,7 +225,7 @@ export async function getNetworkIpLocation(): Promise<GeoLocationData> {
         const city = d.city || d.locality || 'Hyderabad'
         const state = d.principalSubdivision || 'Telangana'
         const country = d.countryName || 'India'
-        const geofence = evaluateOfficeGeofence(lat, lng)
+        const geofence = evaluateOfficeGeofence(lat, lng, 1500)
 
         return {
           latitude: Number(lat.toFixed(6)),
@@ -258,7 +261,7 @@ export async function getNetworkIpLocation(): Promise<GeoLocationData> {
         const city = d2.city || 'Hyderabad'
         const state = d2.region || 'Telangana'
         const country = d2.country || 'India'
-        const geofence = evaluateOfficeGeofence(lat, lng)
+        const geofence = evaluateOfficeGeofence(lat, lng, 1500)
 
         return {
           latitude: Number(lat.toFixed(6)),
@@ -390,7 +393,7 @@ export async function getCurrentGeoLocation(): Promise<GeoLocationData> {
         try {
           const { latitude, longitude, accuracy, altitude, heading, speed } = pos.coords
           const timestamp = new Date(pos.timestamp).toISOString()
-          const geofence = evaluateOfficeGeofence(latitude, longitude)
+          const geofence = evaluateOfficeGeofence(latitude, longitude, accuracy)
           const geocoded = await reverseGeocode(latitude, longitude)
 
           const locData: GeoLocationData = {

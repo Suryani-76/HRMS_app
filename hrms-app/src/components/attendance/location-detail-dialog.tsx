@@ -70,10 +70,10 @@ export function LocationDetailDialog({
     setSimMode(mode)
     toast.success(
       mode === 'office'
-        ? 'Simulating Office Premises (17°27\'00.6"N 78°23\'13.2"E)'
+        ? 'Active mode: Work From Office (Office Premises)'
         : mode === 'wfh'
-        ? 'Simulating WFH (Work From Home)'
-        : 'Restored real device GPS positioning'
+        ? 'Active mode: WFH (Work From Home)'
+        : 'Active mode: Auto GPS Geofence'
     )
     if (onLocationModeChange) onLocationModeChange()
     setTimeout(() => {
@@ -171,14 +171,14 @@ export function LocationDetailDialog({
             </div>
           </div>
 
-          {/* Location Simulator Controls (For testing both Office Premises & WFH locally) */}
+          {/* Work Mode Controls */}
           <div className="p-3 rounded-xl bg-slate-100/80 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                 <Radio className="h-3 w-3 text-indigo-500" />
-                Test Location Mode:
+                Active Work Mode:
               </span>
-              <span className="text-[10px] text-muted-foreground">Local development switcher</span>
+              <span className="text-[10px] text-muted-foreground">Select your work location</span>
             </div>
 
             <div className="grid grid-cols-3 gap-1.5">
@@ -190,7 +190,7 @@ export function LocationDetailDialog({
                   simMode === 'office' ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold' : ''
                 }`}
               >
-                🏢 Office
+                🏢 Work From Office
               </Button>
               <Button
                 size="sm"
@@ -200,7 +200,7 @@ export function LocationDetailDialog({
                   simMode === 'wfh' ? 'bg-amber-600 hover:bg-amber-700 text-white font-semibold' : ''
                 }`}
               >
-                🏠 WFH
+                🏠 WFH (Remote)
               </Button>
               <Button
                 size="sm"
@@ -210,7 +210,7 @@ export function LocationDetailDialog({
                   simMode === 'auto' ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-semibold' : ''
                 }`}
               >
-                🛰️ Real GPS
+                🛰️ Auto (GPS)
               </Button>
             </div>
           </div>

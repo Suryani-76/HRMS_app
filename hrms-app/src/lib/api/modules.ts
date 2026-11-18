@@ -6,6 +6,8 @@ import {
   sendInterviewScheduledAlertEmail,
   sendInterviewRescheduledAlertEmail,
   sendRoundClearedAlertEmail,
+  sendDocsRequiredAlertEmail,
+  sendDocsApprovedAlertEmail,
   sendOfferLetterReleasedAlertEmail,
 } from '@/lib/api/email'
 
@@ -426,17 +428,45 @@ export async function updateCandidateStatus(id: string, status: string, notes?: 
     .single()
   if (error) throw error
 
-  // Forward email alert to candidate
+  // Forward email alert to candidate based on the specific stage update
   try {
     if (data?.email) {
-      sendCandidateStatusAlertEmail({
-        candidateName: data.name,
-        candidateEmail: data.email,
-        jobTitle: (data.job_opening as any)?.title || 'Open Position',
-        referenceId: data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase(),
-        dateOfBirth: data.date_of_birth,
-        status,
-      }).catch((e) => console.warn('Candidate status email dispatch notice:', e))
+      const refId = data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase()
+      const jobTitle = (data.job_opening as any)?.title || 'Open Position'
+      const sLower = (status || '').toLowerCase()
+
+      if (sLower === 'document collection' || sLower.includes('collect doc')) {
+        sendDocsRequiredAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Docs required email notice:', e))
+      } else if (sLower === 'documents verified' || sLower.includes('docs verified') || sLower.includes('docs approved')) {
+        sendDocsApprovedAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Docs approved email notice:', e))
+      } else if (sLower.includes('offer sent') || sLower.includes('offered')) {
+        sendOfferLetterReleasedAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Offer letter released email notice:', e))
+      } else {
+        sendCandidateStatusAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          jobTitle,
+          referenceId: refId,
+          dateOfBirth: data.date_of_birth,
+          status,
+          feedback: notes || undefined,
+        }).catch((e) => console.warn('Candidate status email dispatch notice:', e))
+      }
     }
   } catch (emailErr) {
     console.warn('Status change email alert notice:', emailErr)
@@ -456,15 +486,42 @@ export async function updateCandidateStage(id: string, stage: string, rating?: n
 
   try {
     if (data?.email) {
-      sendCandidateStatusAlertEmail({
-        candidateName: data.name,
-        candidateEmail: data.email,
-        jobTitle: (data.job_opening as any)?.title || 'Open Position',
-        referenceId: data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase(),
-        dateOfBirth: data.date_of_birth,
-        status: stage,
-        feedback: notes || undefined,
-      }).catch((e) => console.warn('Stage change email alert notice:', e))
+      const refId = data.reference_id || data.temp_id || data.id.slice(0, 8).toUpperCase()
+      const jobTitle = (data.job_opening as any)?.title || 'Open Position'
+      const sLower = (stage || '').toLowerCase()
+
+      if (sLower === 'document collection' || sLower.includes('collect doc')) {
+        sendDocsRequiredAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Docs required email notice:', e))
+      } else if (sLower === 'documents verified' || sLower.includes('docs verified') || sLower.includes('docs approved')) {
+        sendDocsApprovedAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Docs approved email notice:', e))
+      } else if (sLower.includes('offer sent') || sLower.includes('offered')) {
+        sendOfferLetterReleasedAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          referenceId: refId,
+          jobTitle,
+        }).catch((e) => console.warn('Offer letter released email notice:', e))
+      } else {
+        sendCandidateStatusAlertEmail({
+          candidateName: data.name,
+          candidateEmail: data.email,
+          jobTitle,
+          referenceId: refId,
+          dateOfBirth: data.date_of_birth,
+          status: stage,
+          feedback: notes || undefined,
+        }).catch((e) => console.warn('Stage change email alert notice:', e))
+      }
     }
   } catch (err) {
     console.warn('updateCandidateStage email error:', err)

@@ -82,17 +82,35 @@ function sendEmailTls({ to, subject, html }) {
 }
 
 async function processPendingEmails() {
+  // A. Unstick stale in-progress logs older than 60s
+  try {
+    const staleThreshold = new Date(Date.now() - 60000).toISOString()
+    await supabase
+      .from('audit_logs')
+      .update({ action: 'EMAIL_PENDING' })
+      .eq('action', 'EMAIL_IN_PROGRESS')
+      .lt('created_at', staleThreshold)
+  } catch {}
+
+  // B. Fetch newest pending emails first
   const { data: pending, error } = await supabase
     .from('audit_logs')
-    .select('id, details')
+    .select('id, entity_type, details, created_at')
     .eq('action', 'EMAIL_PENDING')
-    .order('created_at', { ascending: true })
-    .limit(10)
+    .order('created_at', { ascending: false })
+    .limit(20)
 
   if (error) { console.error('[MAILER] Fetch error:', error.message); return }
   if (!pending || pending.length === 0) return
 
-  for (const log of pending) {
+  // Prioritize candidate & recruitment emails over bulk broadcast
+  const sorted = [...pending].sort((a, b) => {
+    const aIsCand = a.entity_type !== 'job_opening_broadcast' ? 1 : 0
+    const bIsCand = b.entity_type !== 'job_opening_broadcast' ? 1 : 0
+    return bIsCand - aIsCand
+  })
+
+  for (const log of sorted) {
     const details = log.details || {}
     const { to, subject, html, refId } = details
 

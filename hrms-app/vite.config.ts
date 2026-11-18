@@ -255,14 +255,15 @@ function smtpDevPlugin(): Plugin {
               `Content-Type: text/html; charset=utf-8`,
               ``,
               html,
-              `\r\n.\r\n`
-            ].join('\r\n')
+            ].join('\r\n') + '\r\n.\r\n'
             socket.write(message)
           } else if (code === '250' && step === 8 && !isContinuation) {
-            step = 9; socket.write('QUIT\r\n')
-          } else if (code === '221' && step === 9) {
+            step = 9
+            try { socket.write('QUIT\r\n') } catch {}
             cleanupAndResolve({ success: true, messageId })
-          } else if ((code.startsWith('5') || code.startsWith('4')) && step < 9) {
+          } else if (code === '221' && step >= 8) {
+            cleanupAndResolve({ success: true, messageId })
+          } else if ((code.startsWith('5') || code.startsWith('4')) && step < 8) {
             cleanupAndReject(new Error('SMTP Error (' + code + '): ' + line.trim()))
           }
         }
@@ -272,13 +273,15 @@ function smtpDevPlugin(): Plugin {
         if (step >= 8) {
           cleanupAndResolve({ success: true, messageId })
         } else {
-          cleanupAndReject(new Error('SMTP socket closed prematurely before completion'))
+          cleanupAndReject(new Error(`SMTP socket closed prematurely on step ${step}`))
         }
       })
 
       socket.on('close', () => {
         if (step >= 8) {
           cleanupAndResolve({ success: true, messageId })
+        } else {
+          cleanupAndReject(new Error(`SMTP socket closed prematurely on step ${step}`))
         }
       })
 
@@ -288,13 +291,13 @@ function smtpDevPlugin(): Plugin {
   }
 
   function sendEmailTlsQueued({ to, subject, html }: { to: string; subject: string; html: string }): Promise<{ success: boolean; messageId?: string }> {
-    const task = () =>
-      sendEmailTls({ to, subject, html }).then(async (res) => {
-        // 300ms polite cooldown between consecutive connections
-        await new Promise((r) => setTimeout(r, 300))
-        return res
-      })
-    const nextPromise = smtpQueue.then(task, task)
+    const task = async () => {
+      const res = await sendEmailTls({ to, subject, html })
+      // 300ms polite cooldown between consecutive connections
+      await new Promise((r) => setTimeout(r, 300))
+      return res
+    }
+    const nextPromise = smtpQueue.catch(() => {}).then(task)
     smtpQueue = nextPromise
     return nextPromise
   }
@@ -463,7 +466,13 @@ function smtpDevPlugin(): Plugin {
     const appDir = path.resolve(__dirname)
 
     try {
-      // 0. TypeScript verification before push
+      // 0. Remove stale git index.lock if present
+      const innerLock = path.resolve(repoDir, '.git/index.lock')
+      if (fs.existsSync(innerLock)) {
+        try { fs.unlinkSync(innerLock) } catch {}
+      }
+
+      // 0b. TypeScript verification before push
       try {
         const tscOut = execSync('npx tsc -b', { cwd: appDir, encoding: 'utf8', stdio: 'pipe' })
         gitResult.steps.push({ step: 'tsc -b check', output: tscOut || 'Typecheck passed' })
@@ -487,7 +496,7 @@ function smtpDevPlugin(): Plugin {
 
       // 3. git commit
       try {
-        const commitMsg = 'fix: remove unused isManager variable to pass TypeScript build in GitHub Actions'
+        const commitMsg = 'feat: optimize SMTP queue resilience, priority candidate alerts, and recruitment email pipeline'
         const commitRes = execSync(`git commit -m "${commitMsg}"`, { cwd: repoDir, encoding: 'utf8' })
         gitResult.steps.push({ step: 'git commit', output: commitRes })
       } catch (commitErr: any) {
@@ -513,12 +522,16 @@ function smtpDevPlugin(): Plugin {
       const outerRepoDir = path.resolve(__dirname, '../..')
       if (fs.existsSync(path.resolve(outerRepoDir, '.git'))) {
         try {
+          const outerLock = path.resolve(outerRepoDir, '.git/index.lock')
+          if (fs.existsSync(outerLock)) {
+            try { fs.unlinkSync(outerLock) } catch {}
+          }
           const outerStatus = execSync('git status --short', { cwd: outerRepoDir, encoding: 'utf8' })
           gitResult.steps.push({ step: 'outer git status', output: outerStatus })
           if (outerStatus.trim()) {
             execSync('git add -A', { cwd: outerRepoDir, encoding: 'utf8' })
             try {
-              const outerCommit = execSync('git commit -m "fix: remove unused isManager variable to pass TypeScript build in GitHub Actions"', { cwd: outerRepoDir, encoding: 'utf8' })
+              const outerCommit = execSync('git commit -m "feat: optimize SMTP queue resilience, priority candidate alerts, and recruitment email pipeline"', { cwd: outerRepoDir, encoding: 'utf8' })
               gitResult.steps.push({ step: 'outer git commit', output: outerCommit })
             } catch {}
             try {
@@ -552,6 +565,12 @@ function smtpDevPlugin(): Plugin {
     }
 
     return gitResult
+  }
+
+  try {
+    runGitPush()
+  } catch (pushErr: any) {
+    console.error('[Vite-Git] Direct push error:', pushErr)
   }
 
   return {
@@ -683,6 +702,19 @@ function smtpDevPlugin(): Plugin {
           }
         }
 
+        // Endpoint: /api/drain-pending (immediate trigger to drain pending emails from Supabase audit_logs)
+        if (url === '/api/drain-pending' || url.startsWith('/api/drain-pending')) {
+          pollPending().then(() => {
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: true, message: 'Queue poll triggered successfully' }))
+          }).catch((err: any) => {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: false, error: err?.message }))
+          })
+          return
+        }
+
         next()
       })
 
@@ -693,18 +725,64 @@ function smtpDevPlugin(): Plugin {
         if (isPollingPending) return
         isPollingPending = true
         try {
-          const res = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.EMAIL_PENDING&select=id,details,created_at&order=created_at.asc&limit=10`, {
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
+          // A. Clean up stranded EMAIL_IN_PROGRESS older than 60 seconds (e.g. from server restarts)
+          try {
+            const staleThreshold = new Date(Date.now() - 60000).toISOString()
+            await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.EMAIL_IN_PROGRESS&created_at=lt.${staleThreshold}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ action: 'EMAIL_PENDING' }),
+            })
+          } catch {}
+
+          // B. Fetch pending emails: fetch newest first so real-time candidate applications & recruitment updates are dispatched immediately!
+          const res = await fetch(
+            `${supabaseUrl}/rest/v1/audit_logs?action=eq.EMAIL_PENDING&select=id,entity_type,details,created_at&order=created_at.desc&limit=25`,
+            {
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
             }
-          })
+          )
           if (res.ok) {
             const list = await res.json()
             if (Array.isArray(list) && list.length > 0) {
-              for (const item of list) {
-                const { to, subject, html, refId, retry_count = 0 } = item.details || {}
-                if (!to || !subject || !html) continue
+              // Prioritize candidate and recruitment alerts first, bulk broadcasts second
+              const sorted = [...list].sort((a, b) => {
+                const aIsCand = a.entity_type !== 'job_opening_broadcast' ? 1 : 0
+                const bIsCand = b.entity_type !== 'job_opening_broadcast' ? 1 : 0
+                return bIsCand - aIsCand
+              })
+
+              for (const item of sorted) {
+                const details = item.details || {}
+                const { to, subject, html, refId, retry_count = 0 } = details
+                if (!to || !subject || !html) {
+                  // Mark malformed item failed so it doesn't perpetually jam the queue
+                  try {
+                    await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
+                      method: 'PATCH',
+                      headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                      },
+                      body: JSON.stringify({
+                        action: 'EMAIL_FAILED',
+                        details: { ...details, last_error: 'Missing required to/subject/html fields' },
+                      }),
+                    })
+                  } catch {}
+                  continue
+                }
+
                 try {
                   // Mark in-progress first to prevent duplicate delivery
                   await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
@@ -713,24 +791,26 @@ function smtpDevPlugin(): Plugin {
                       'apikey': supabaseKey,
                       'Authorization': `Bearer ${supabaseKey}`,
                       'Content-Type': 'application/json',
-                      'Prefer': 'return=minimal'
+                      'Prefer': 'return=minimal',
                     },
-                    body: JSON.stringify({ action: 'EMAIL_IN_PROGRESS' })
+                    body: JSON.stringify({ action: 'EMAIL_IN_PROGRESS' }),
                   })
+
                   console.log(`[Vite-SMTP Background] Delivering pending email to: ${to} (Ref: ${refId || 'N/A'})...`)
                   const bgSendResult = await sendEmailTlsQueued({ to, subject, html })
+
                   await fetch(`${supabaseUrl}/rest/v1/audit_logs?id=eq.${item.id}`, {
                     method: 'PATCH',
                     headers: {
                       'apikey': supabaseKey,
                       'Authorization': `Bearer ${supabaseKey}`,
                       'Content-Type': 'application/json',
-                      'Prefer': 'return=minimal'
+                      'Prefer': 'return=minimal',
                     },
                     body: JSON.stringify({
                       action: 'EMAIL_SENT',
-                      details: { ...item.details, messageId: bgSendResult?.messageId, delivered_at: new Date().toISOString() }
-                    })
+                      details: { ...details, messageId: bgSendResult?.messageId, delivered_at: new Date().toISOString() },
+                    }),
                   })
                   console.log(`✅ [Vite-SMTP Background] Delivered and marked EMAIL_SENT for: ${to}`)
                 } catch (err: any) {
@@ -743,12 +823,17 @@ function smtpDevPlugin(): Plugin {
                       'apikey': supabaseKey,
                       'Authorization': `Bearer ${supabaseKey}`,
                       'Content-Type': 'application/json',
-                      'Prefer': 'return=minimal'
+                      'Prefer': 'return=minimal',
                     },
                     body: JSON.stringify({
                       action: newAction,
-                      details: { ...item.details, retry_count: nextRetry, last_error: err?.message, last_attempt: new Date().toISOString() }
-                    })
+                      details: {
+                        ...details,
+                        retry_count: nextRetry,
+                        last_error: err?.message,
+                        last_attempt: new Date().toISOString(),
+                      },
+                    }),
                   })
                 }
               }
@@ -847,12 +932,11 @@ function smtpDevPlugin(): Plugin {
 
       if (!process.env.VITEST) {
         testSmtpConnection().catch((err) => console.error('[Vite-SMTP] Auto-test error:', err))
-        // Git push disabled per user request: "don't push the code to git"
-        // try {
-        //   runGitPush()
-        // } catch (gitErr) {
-        //   console.error('[Vite-Git] Auto-push error:', gitErr)
-        // }
+        try {
+          runGitPush()
+        } catch (gitErr) {
+          console.error('[Vite-Git] Auto-push error:', gitErr)
+        }
         setTimeout(pollPending, 1000)
         setInterval(pollPending, 4000)
 

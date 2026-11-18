@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "push": "node scripts/deploy-push.mjs",
+    "deploy": "node scripts/deploy-push.mjs",
     "smtp:daemon": "node scripts/smtp-daemon.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -929,6 +929,24 @@ export function CandidateDocumentsAdminViewer({
     setRejectDialogDoc(null)
     setRejectReason('')
     toast.warning('Document marked as rejected. Candidate will be asked to re-upload.')
+
+    // Send email alert to candidate about document rejection / re-upload request
+    try {
+      if (candidateEmail) {
+        import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
+          sendCandidateStatusAlertEmail({
+            candidateName: candidate.name || 'Candidate',
+            candidateEmail: candidateEmail,
+            referenceId: candidate.reference_id || candidate.temp_id || candidate.id?.slice(0, 8)?.toUpperCase(),
+            jobTitle: candidate.job_opening?.title || 'Open Position',
+            status: 'Action Required: Re-upload Verification Documents',
+            reason: `Your submitted document "${rejectDialogDoc.title}" requires re-upload. Note: ${rejectReason.trim()}`,
+          }).catch((err) => console.warn('Docs reject email notice:', err))
+        })
+      }
+    } catch (e) {
+      console.warn('sendCandidateStatusAlertEmail trigger error:', e)
+    }
   }
 
   const handleVerifyAll = async () => {
@@ -978,6 +996,22 @@ export function CandidateDocumentsAdminViewer({
 
     onVerifiedChange?.()
     toast.success('Profile and verification documents approved! Terms & Conditions is now unlocked.')
+
+    // Send email alert to candidate about documents approved
+    try {
+      if (candidateEmail) {
+        import('@/lib/api/email').then(({ sendDocsApprovedAlertEmail }) => {
+          sendDocsApprovedAlertEmail({
+            candidateName: candidate.name || 'Candidate',
+            candidateEmail: candidateEmail,
+            referenceId: candidate.reference_id || candidate.temp_id || candidate.id?.slice(0, 8)?.toUpperCase(),
+            jobTitle: candidate.job_opening?.title || 'Open Position',
+          }).catch((err) => console.warn('Docs approved email notice:', err))
+        })
+      }
+    } catch (e) {
+      console.warn('sendDocsApprovedAlertEmail trigger error:', e)
+    }
   }
 
   const handleRejectAll = async () => {
@@ -1012,6 +1046,20 @@ export function CandidateDocumentsAdminViewer({
       setSubmission(rejectedSubmission)
       saveCandidateVerificationDocs(candidateId, rejectedSubmission, candidateEmail)
       toast.error(`Candidate profile rejected. Status updated to Rejected.`)
+
+      // Send status email alert
+      if (candidateEmail) {
+        import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
+          sendCandidateStatusAlertEmail({
+            candidateName: candidate.name || 'Candidate',
+            candidateEmail: candidateEmail,
+            referenceId: candidate.reference_id || candidate.temp_id || candidate.id?.slice(0, 8)?.toUpperCase(),
+            jobTitle: candidate.job_opening?.title || 'Open Position',
+            status: 'Rejected',
+            reason: 'Document verification was unsuccessful or documents did not meet criteria.',
+          }).catch((err) => console.warn('Docs rejected candidate status email notice:', err))
+        })
+      }
     } catch (err) {
       console.warn('DB candidate reject error:', err)
       toast.error('Failed to update candidate status to rejected.')

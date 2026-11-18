@@ -14,10 +14,12 @@ const SMTP_USER = Deno.env.get('SMTP_USER') || 'hr@oklut.com'
 const SMTP_PASS = Deno.env.get('SMTP_PASS') || 'Hr@oklut25$'
 
 async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resources' }: { to: string; subject: string; html: string; fromName?: string }) {
+  console.log(`[send-email] Connecting to SMTP server ${SMTP_HOST}:${SMTP_PORT}...`)
   const conn = await Deno.connectTls({
     hostname: SMTP_HOST,
     port: SMTP_PORT,
   })
+  console.log(`[send-email] TLS connection established`)
 
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
@@ -26,10 +28,13 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
     const buf = new Uint8Array(4096)
     const n = await conn.read(buf)
     if (n === null) return ''
-    return decoder.decode(buf.subarray(0, n))
+    const txt = decoder.decode(buf.subarray(0, n))
+    console.log(`[send-email SMTP S]: ${txt.trim()}`)
+    return txt
   }
 
-  async function sendCommand(cmd: string): Promise<string> {
+  async function sendCommand(cmd: string, hideLog = false): Promise<string> {
+    if (!hideLog) console.log(`[send-email SMTP C]: ${cmd}`)
     await conn.write(encoder.encode(cmd + '\r\n'))
     return await readResponse()
   }
@@ -43,7 +48,7 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   // 3. AUTH LOGIN
   await sendCommand('AUTH LOGIN')
   await sendCommand(btoa(SMTP_USER))
-  const authRes = await sendCommand(btoa(SMTP_PASS))
+  const authRes = await sendCommand(btoa(SMTP_PASS), true)
   if (!authRes.startsWith('235')) {
     conn.close()
     throw new Error('SMTP Authentication Failed: ' + authRes)

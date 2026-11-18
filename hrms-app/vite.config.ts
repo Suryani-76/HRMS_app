@@ -609,10 +609,13 @@ function smtpDevPlugin(): Plugin {
 
         // Endpoint: /api/run-audit-test (triggers complete Supabase audit query and all 8 scenarios)
         if (url === '/api/run-audit-test' || url.startsWith('/api/run-audit-test')) {
+          // @ts-ignore
           import('./scripts/run-smtp-audit-test.mjs')
-            .then(async ({ executeAuditAndTriggers }) => {
+            .then(async (mod: any) => {
               try {
-                await executeAuditAndTriggers()
+                if (typeof mod?.executeAuditAndTriggers === 'function') {
+                  await mod.executeAuditAndTriggers()
+                }
                 const reportPath = path.resolve(__dirname, 'scripts/smtp-audit-test-report.json')
                 const reportData = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : { status: 'completed' }
                 res.setHeader('Content-Type', 'application/json')

@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-18T08:04:12.483Z",
+  "testedAt": "2026-11-18T08:15:42.403Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,8 +7,8 @@
     "passConfigured": true
   },
   "steps": [
-    "[+85ms] TLS Connected to kindle.herosite.pro:465",
-    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Wed, 18 Nov 2026 13:34:14 +0530 ",
+    "[+195ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Wed, 18 Nov 2026 13:45:44 +0530 ",
     "S: 220-We do not authorize the use of this system to transport unsolicited, ",
     "S: 220 and/or bulk e-mail.",
     "C: EHLO localhost",
@@ -36,9 +36,87 @@
   "error": null,
   "serverBanner": "220 and/or bulk e-mail.",
   "authResponse": "235 Authentication succeeded",
-  "connectionTimeMs": 85,
-  "totalTimeMs": 223,
+  "connectionTimeMs": 195,
+  "totalTimeMs": 1235,
   "recentAuditLogs": [
+    {
+      "id": "c7095152-e1f7-4926-be01-2a2eed08f8dc",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:06:43.288Z",
+        "subject": "🌟 Official Offer Letter Released: SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989202510.o0kkpvu@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:06:45.090686+00:00"
+    },
+    {
+      "id": "cbc8d965-f6e9-4e83-855d-c5f97837ebc0",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:06:18.889Z",
+        "subject": "✓ Verification Documents Approved: SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989178242.k1f187b@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:06:20.824277+00:00"
+    },
+    {
+      "id": "772345e4-6679-44bc-9397-16e00a700347",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:06:18.256Z",
+        "subject": "✓ Verification Documents Approved: SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989177608.w2nczjg@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:06:20.03678+00:00"
+    },
+    {
+      "id": "2705c5c2-0e7d-488a-835b-6fa01c126614",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:06:17.730Z",
+        "subject": "✓ Verification Documents Approved: SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989176871.w7b6vk3@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:06:19.69335+00:00"
+    },
+    {
+      "id": "d51b597a-0fde-49e3-9a0e-e0b96d423259",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:05:20.132Z",
+        "subject": "📄 Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989119218.0smn7uf@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:05:21.914261+00:00"
+    },
+    {
+      "id": "6660c976-65d2-434c-a7c5-4e1c789cd873",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-SNG09F",
+        "sent_at": "2026-11-18T08:05:19.775Z",
+        "subject": "📄 Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer — OKLUT",
+        "messageId": "<1794989118303.impxyde@oklut.com>"
+      },
+      "created_at": "2026-11-18T08:05:21.551786+00:00"
+    },
     {
       "id": "c4e5e952-8e16-4358-8273-837a291d89c3",
       "action": "EMAIL_SENT",
@@ -94,96 +172,6 @@
         "delivered_at": "2026-11-18T08:01:36.658Z"
       },
       "created_at": "2026-11-18T07:35:38.793395+00:00"
-    },
-    {
-      "id": "c1c1580f-e85c-4753-aadd-5a0188889695",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "suryani@nygenx.com",
-        "from": "hr@oklut.com",
-        "html": "\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Application Received — SAP MDG Consultant / Engineer</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <!-- Header -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);padding:36px 32px;text-align:center;\">\n        <h1 style=\"margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;\">OKLUT HRMS</h1>\n        <p style=\"margin:8px 0 0 0;color:#e0e7ff;font-size:14px;\">Talent Acquisition & Careers</p>\n      </td>\n    </tr>\n\n    <!-- Body Content -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <h2 style=\"margin:0 0 16px 0;font-size:20px;font-weight:600;color:#0f172a;\">Application Confirmation</h2>\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Dear <strong>surya</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Thank you for applying for the <strong>SAP MDG Consultant / Engineer</strong> role at <strong>OKLUT</strong>! We have received your application and our talent team is reviewing your profile.\n        </p>\n\n        <!-- Details Card -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f1f5f9;border-radius:8px;padding:20px;margin:24px 0;border-left:4px solid #4f46e5;\">\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Applied Role:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">SAP MDG Consultant / Engineer</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Application Reference ID:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:700;color:#4f46e5;text-align:right;font-family:monospace;\">CAND-67CXUO</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Portal Password:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">2026-11-18 (Format: YYYY-MM-DD / DDMMYYYY)</td>\n          </tr>\n        </table>\n\n        <p style=\"margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          You can log in to the Candidate Portal anytime using your <strong>Application Reference ID</strong> and <strong>Date of Birth</strong> as your password to track application status, view interview schedules, and respond to offers.\n        </p>\n\n        <!-- CTA Button -->\n        <div style=\"text-align:center;margin:32px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.25);\">\n            Access Candidate Portal →\n          </a>\n        </div>\n\n        <p style=\"margin:24px 0 0 0;font-size:13px;line-height:1.5;color:#94a3b8;text-align:center;\">\n          Direct Link: <a href=\"https://hrm.oklut.com/candidate-portal\" style=\"color:#4f46e5;word-break:break-all;\">https://hrm.oklut.com/candidate-portal</a>\n        </p>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#94a3b8;\">\n          © 2026 OKLUT HRMS. Sent from <a href=\"mailto:hr@oklut.com\" style=\"color:#64748b;text-decoration:none;\">hr@oklut.com</a>\n        </p>\n        <p style=\"margin:4px 0 0 0;font-size:11px;color:#cbd5e1;\">\n          Please do not reply directly to this automated notification.\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n",
-        "refId": "CAND-67CXUO",
-        "sent_at": "2026-11-18T05:25:21.853Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)",
-        "messageId": "<1794988897317.tjt3zyj@oklut.com>",
-        "delivered_at": "2026-11-18T08:01:37.955Z"
-      },
-      "created_at": "2026-11-18T05:25:23.572325+00:00"
-    },
-    {
-      "id": "a55bca32-36c2-4b7e-a70c-41fc7bd4f30a",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "s.ganji@oklut.com",
-        "from": "hr@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Document Collection — SAP MDG Consultant / Engineer</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);padding:36px 32px;text-align:center;\">\n        <span style=\"display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;\">\n          Stage Updated: Document Collection\n        </span>\n        <h1 style=\"margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;\">OKLUT Recruitment</h1>\n        <p style=\"margin:4px 0 0 0;color:#e0e7ff;font-size:14px;\">Role: SAP MDG Consultant / Engineer</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Shireesha</strong>,\n        </p>\n\n        \n          <div style=\"background-color:#f1f5f9;border-left:4px solid #6366f1;padding:16px;border-radius:6px;margin:20px 0;\">\n            <p style=\"margin:0;font-size:14px;line-height:1.6;color:#312e81;font-weight:600;\">\n              Your application status has been updated to: <strong>Document Collection</strong>\n            </p>\n            <p style=\"margin:8px 0 0 0;font-size:13px;color:#4338ca;\">\n              Please log in to your Candidate Portal to review the updated status and next steps.\n            </p>\n          </div>\n        \n\n        \n        <!-- Credentials Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:8px;padding:18px;margin:20px 0;border:1px solid #e2e8f0;\">\n          <tr>\n            <td style=\"padding:4px 0;font-size:13px;color:#64748b;\">Candidate Reference ID:</td>\n            <td style=\"padding:4px 0;font-size:13px;font-weight:700;color:#4338ca;text-align:right;font-family:monospace;\">CAND-IWZUTP</td>\n          </tr>\n          <tr>\n            <td style=\"padding:4px 0;font-size:13px;color:#64748b;\">Portal Password:</td>\n            <td style=\"padding:4px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;\">2026-11-18 (YYYY-MM-DD)</td>\n          </tr>\n        </table>\n\n        <!-- CTA -->\n        <div style=\"text-align:center;margin:30px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.2);\">\n            Open Candidate Portal →\n          </a>\n        </div>\n        \n\n        <p style=\"margin:24px 0 0 0;font-size:13px;color:#94a3b8;line-height:1.5;\">\n          Direct Portal URL: <a href=\"https://hrm.oklut.com/candidate-portal\" style=\"color:#6366f1;\">https://hrm.oklut.com/candidate-portal</a>\n        </p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;\">\n        © 2026 OKLUT Inc. &bull; Automated notification from OKLUT HRMS\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
-        "refId": "CAND-IWZUTP",
-        "sent_at": "2026-11-18T05:14:57.130Z",
-        "subject": "Application Status Updated: Document Collection (SAP MDG Consultant / Engineer) — OKLUT",
-        "messageId": "<1794988898576.owlijbc@oklut.com>",
-        "delivered_at": "2026-11-18T08:01:39.209Z"
-      },
-      "created_at": "2026-11-18T05:14:58.854331+00:00"
-    },
-    {
-      "id": "503042eb-8dbf-42df-b190-3768053b55d6",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "s.ganji@oklut.com",
-        "from": "hr@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>Action Required: Upload Verification Documents</title></head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #6366f1 0%, #4338ca 100%);padding:36px 32px;text-align:center;\">\n        <span style=\"display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;\">\n          📄 Pre-Offer Verification\n        </span>\n        <h1 style=\"margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;\">Upload Verification Softcopies</h1>\n        <p style=\"margin:4px 0 0 0;color:#e0e7ff;font-size:14px;\">Role: SAP MDG Consultant / Engineer</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Shireesha</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          Congratulations on clearing all interview rounds and accepting the terms &amp; conditions for the <strong>SAP MDG Consultant / Engineer</strong> position!\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          As per standard company policy, please upload softcopies of the following verification documents in your Candidate Portal before your official offer letter is released by HR:\n        </p>\n\n        <ul style=\"font-size:13px;line-height:1.8;color:#334155;background:#f8fafc;padding:16px 32px;border-radius:8px;border:1px solid #e2e8f0;\">\n          <li><strong>Government Photo ID Proof</strong> (Aadhaar / Passport / Driving License)</li>\n          <li><strong>PAN Card</strong></li>\n          <li><strong>Highest Educational Degree / Certificates / Marksheets</strong></li>\n          <li><strong>Experience / Relieving Letter</strong> (for experienced candidates)</li>\n          <li><strong>Recent Payslips / Bank Statement (3 Months)</strong> (for experienced candidates)</li>\n          <li><strong>Recent Passport-Size Photograph</strong></li>\n        </ul>\n\n        <p style=\"margin:20px 0;font-size:13px;color:#64748b;line-height:1.6;\">\n          Once your softcopies are submitted, our HR team will review and release your Official Employment Offer Letter directly in the portal.\n        </p>\n\n        <div style=\"text-align:center;margin:30px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;\">\n            Upload Documents Now →\n          </a>\n        </div>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;\">\n        © 2026 OKLUT Inc. &bull; Automated notification from OKLUT HRMS\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
-        "refId": "CAND-IWZUTP",
-        "sent_at": "2026-11-18T05:14:57.133Z",
-        "subject": "📄 Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer — OKLUT",
-        "messageId": "<1794988901470.z1p5s4q@oklut.com>",
-        "delivered_at": "2026-11-18T08:01:56.204Z"
-      },
-      "created_at": "2026-11-18T05:14:58.836518+00:00"
-    },
-    {
-      "id": "5939b450-63fb-452b-a80c-5dca088e7f1f",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "s.ganji@oklut.com",
-        "from": "hr@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>Stage Cleared — Face-to-Face Interview</title></head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #059669 0%, #047857 100%);padding:36px 32px;text-align:center;\">\n        <span style=\"display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;\">\n          🏆 Stage Cleared Successfully\n        </span>\n        <h1 style=\"margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;\">Congratulations, Shireesha!</h1>\n        <p style=\"margin:4px 0 0 0;color:#d1fae5;font-size:14px;\">You have qualified Face-to-Face Interview</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Shireesha</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          We are pleased to inform you that you have successfully cleared the <strong>Face-to-Face Interview</strong> round for the <strong>SAP MDG Consultant / Engineer</strong> position at OKLUT!\n        </p>\n\n        \n\n        <p style=\"margin:20px 0;font-size:14px;color:#475569;line-height:1.6;\">\n          HR Discussion Round\n        </p>\n\n        <div style=\"text-align:center;margin:30px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#059669;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;\">\n            Open Candidate Portal →\n          </a>\n        </div>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;\">\n        © 2026 OKLUT Inc. &bull; Automated notification from OKLUT HRMS\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
-        "refId": "CAND-IWZUTP",
-        "sent_at": "2026-11-18T05:10:34.173Z",
-        "subject": "🏆 Stage Cleared: You passed Face-to-Face Interview (SAP MDG Consultant / Engineer) — OKLUT",
-        "messageId": "<1794988918012.eekcx4p@oklut.com>",
-        "delivered_at": "2026-11-18T08:01:58.712Z"
-      },
-      "created_at": "2026-11-18T05:10:35.876489+00:00"
-    },
-    {
-      "id": "b14a6a99-6c8e-4f64-9884-0a5b1015498f",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "s.ganji@oklut.com",
-        "from": "hr@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>Interview Scheduled — Face-to-Face Interview</title></head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #312e81 100%);padding:36px 32px;text-align:center;\">\n        <span style=\"display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;\">\n          📅 Interview Confirmed\n        </span>\n        <h1 style=\"margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;\">Face-to-Face Interview</h1>\n        <p style=\"margin:4px 0 0 0;color:#e0e7ff;font-size:14px;\">Role: SAP MDG Consultant / Engineer</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Shireesha</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          Your interview for the <strong>SAP MDG Consultant / Engineer</strong> position has been scheduled. Below are your appointment details:\n        </p>\n\n        <!-- Interview Details Card -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;border-left:4px solid #4f46e5;\">\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Round:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:700;color:#0f172a;text-align:right;\">Face-to-Face Interview</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Scheduled Date &amp; Time:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:700;color:#4338ca;text-align:right;\">2026-11-18T05:10:00.000Z</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Interview Mode:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;text-transform:capitalize;\">Face-to-Face / In-Person (Direct Docs Submission)</td>\n          </tr>\n          \n          \n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Office Location / Venue Instructions:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:600;color:#2563eb;text-align:right;word-break:break-all;\">\n              <span>Oklut Office / Corporate Headquarters</span>\n            </td>\n          </tr>\n        </table>\n\n        <p style=\"margin:20px 0;font-size:13px;color:#475569;line-height:1.6;\">\n          For this <strong>Face-to-Face Interview</strong>, online evaluation rounds are waived. Please log in to your Candidate Portal to directly upload and submit your pre-offer verification documents.\n        </p>\n\n        <div style=\"text-align:center;margin:30px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.2);\">\n            View Interview in Candidate Portal →\n          </a>\n        </div>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;\">\n        © 2026 OKLUT Inc. &bull; Automated notification from OKLUT HRMS\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
-        "refId": "CAND-IWZUTP",
-        "sent_at": "2026-11-18T05:10:27.842Z",
-        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP MDG Consultant / Engineer) — OKLUT",
-        "messageId": "<1794988919390.cyrbdzk@oklut.com>",
-        "delivered_at": "2026-11-18T08:02:00.199Z"
-      },
-      "created_at": "2026-11-18T05:10:29.579274+00:00"
-    },
-    {
-      "id": "af8da0da-3020-439c-a01f-5d60cf13d630",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "s.ganji@oklut.com",
-        "from": "hr@oklut.com",
-        "html": "\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Application Received — SAP MDG Consultant / Engineer</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <!-- Header -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);padding:36px 32px;text-align:center;\">\n        <h1 style=\"margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;\">OKLUT HRMS</h1>\n        <p style=\"margin:8px 0 0 0;color:#e0e7ff;font-size:14px;\">Talent Acquisition & Careers</p>\n      </td>\n    </tr>\n\n    <!-- Body Content -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <h2 style=\"margin:0 0 16px 0;font-size:20px;font-weight:600;color:#0f172a;\">Application Confirmation</h2>\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Dear <strong>Shireesha</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          Thank you for applying for the <strong>SAP MDG Consultant / Engineer</strong> role at <strong>OKLUT</strong>! We have received your application and our talent team is reviewing your profile.\n        </p>\n\n        <!-- Details Card -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f1f5f9;border-radius:8px;padding:20px;margin:24px 0;border-left:4px solid #4f46e5;\">\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Applied Role:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">SAP MDG Consultant / Engineer</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Application Reference ID:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:700;color:#4f46e5;text-align:right;font-family:monospace;\">CAND-IWZUTP</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:14px;color:#64748b;\">Portal Password:</td>\n            <td style=\"padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right;\">2026-11-18 (Format: YYYY-MM-DD / DDMMYYYY)</td>\n          </tr>\n        </table>\n\n        <p style=\"margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          You can log in to the Candidate Portal anytime using your <strong>Application Reference ID</strong> and <strong>Date of Birth</strong> as your password to track application status, view interview schedules, and respond to offers.\n        </p>\n\n        <!-- CTA Button -->\n        <div style=\"text-align:center;margin:32px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.25);\">\n            Access Candidate Portal →\n          </a>\n        </div>\n\n        <p style=\"margin:24px 0 0 0;font-size:13px;line-height:1.5;color:#94a3b8;text-align:center;\">\n          Direct Link: <a href=\"https://hrm.oklut.com/candidate-portal\" style=\"color:#4f46e5;word-break:break-all;\">https://hrm.oklut.com/candidate-portal</a>\n        </p>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#94a3b8;\">\n          © 2026 OKLUT HRMS. Sent from <a href=\"mailto:hr@oklut.com\" style=\"color:#64748b;text-decoration:none;\">hr@oklut.com</a>\n        </p>\n        <p style=\"margin:4px 0 0 0;font-size:11px;color:#cbd5e1;\">\n          Please do not reply directly to this automated notification.\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n",
-        "refId": "CAND-IWZUTP",
-        "sent_at": "2026-11-18T05:09:39.189Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)",
-        "messageId": "<1794988920790.l4ncqkq@oklut.com>",
-        "delivered_at": "2026-11-18T08:02:01.423Z"
-      },
-      "created_at": "2026-11-18T05:09:40.906732+00:00"
     }
   ]
 }

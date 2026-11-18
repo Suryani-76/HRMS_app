@@ -99,7 +99,6 @@ export async function runAllEmailScenariosInBrowser(): Promise<{
       roundName: 'Technical Round 1 (Rescheduled)',
       scheduledAt: new Date(Date.now() + 172800000).toISOString(),
       meetingLink: 'https://meet.google.com/test-room-2',
-      interviewerName: 'Lead Architect',
       rescheduleReason: 'Panel availability updated',
     })
     record('Scenario 4: Interview Rescheduled Alert', res)

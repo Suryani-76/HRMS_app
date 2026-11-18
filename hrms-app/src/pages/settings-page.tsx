@@ -12,7 +12,6 @@ import {
   KeyRound,
   Trash2,
   Mail,
-  Send,
   Play,
   CheckCircle2,
   XCircle,

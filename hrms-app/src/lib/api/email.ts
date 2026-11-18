@@ -371,7 +371,40 @@ export async function dispatchCandidateAlertEmail({
     return { success: false, message: 'Invalid recipient email' }
   }
 
-  // 1. Direct local dev server SMTP dispatch (relative endpoint)
+  // 1. First priority: Direct Supabase Edge Function (works 24/7 anywhere in cloud and production)
+  try {
+    const { data: edgeData, error: edgeError } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: cleanTo,
+        fromName: DEFAULT_SENDER_NAME,
+        subject,
+        html,
+        refId,
+      },
+    })
+    if (!edgeError && edgeData?.success) {
+      console.log(`[Email Alert] Successfully sent via Supabase Edge Function to ${cleanTo} (${subject})`)
+      try {
+        await supabase.from('audit_logs').insert({
+          action: 'EMAIL_SENT',
+          entity_type: alertType,
+          details: {
+            to: cleanTo,
+            subject,
+            refId,
+            from: DEFAULT_SENDER_EMAIL,
+            sent_at: new Date().toISOString(),
+            channel: 'supabase-edge-function',
+          },
+        })
+      } catch {}
+      return { success: true, message: `Email delivered to ${cleanTo}` }
+    }
+  } catch (err) {
+    console.warn('[Email Alert] Edge function invocation attempt failed, trying fallbacks:', err)
+  }
+
+  // 2. Direct local dev server SMTP dispatch (relative endpoint)
   try {
     const res = await fetch('/api/send-email', {
       method: 'POST',
@@ -403,7 +436,7 @@ export async function dispatchCandidateAlertEmail({
     /* fallback */
   }
 
-  // 1b. Direct fallback to local dev server (http://localhost:5174/api/send-email) if hosted on another origin or port
+  // 3. Direct fallback to local dev server (http://localhost:5174/api/send-email) if hosted on another origin or port
   if (typeof window !== 'undefined' && window.location?.origin !== 'http://localhost:5174') {
     try {
       const res = await fetch('http://localhost:5174/api/send-email', {
@@ -435,7 +468,7 @@ export async function dispatchCandidateAlertEmail({
     } catch {}
   }
 
-  // 2. Queue in audit_logs for immediate background delivery by local dev server / daemon
+  // 4. Queue in audit_logs as backup
   try {
     await supabase.from('audit_logs').insert({
       action: 'EMAIL_PENDING',
@@ -449,22 +482,8 @@ export async function dispatchCandidateAlertEmail({
         sent_at: new Date().toISOString(),
       },
     })
-    // Wake up the local poller immediately
     try { fetch('/api/drain-pending').catch(() => {}) } catch {}
     try { fetch('http://localhost:5174/api/drain-pending').catch(() => {}) } catch {}
-  } catch {}
-
-  // 3. Supabase Edge Function fallback
-  try {
-    await supabase.functions.invoke('send-email', {
-      body: {
-        to: cleanTo,
-        from: `${DEFAULT_SENDER_NAME} <${DEFAULT_SENDER_EMAIL}>`,
-        subject,
-        html,
-        refId,
-      },
-    })
   } catch {}
 
   return { success: true, message: `Email alert queued for ${cleanTo}` }

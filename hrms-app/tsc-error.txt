@@ -1,1 +1,3 @@
-TypeScript check: Passed (no compilation errors)
+src/lib/api/smtp-scenario-runner.ts(102,7): error TS2353: Object literal may only specify known properties, and 'interviewerName' does not exist in type 'InterviewRescheduledAlertPayload'.
+src/pages/settings-page.tsx(15,3): error TS6133: 'Send' is declared but its value is never read.
+vite.config.ts(612,18): error TS7016: Could not find a declaration file for module './scripts/run-smtp-audit-test.mjs'. 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/HRMS_app-main/hrms-app/scripts/run-smtp-audit-test.mjs' implicitly has an 'any' type.

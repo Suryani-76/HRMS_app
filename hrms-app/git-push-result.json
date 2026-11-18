@@ -1,36 +1,12 @@
 {
-  "timestamp": "2026-11-17T08:51:08.526Z",
-  "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
+  "timestamp": "2026-11-18T08:04:13.107Z",
+  "repoDir": "C:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
-      "step": "tsc -b check",
-      "output": "Typecheck passed"
-    },
-    {
-      "step": "git status",
-      "output": " M hrms-app/smtp-test-result.json\n"
-    },
-    {
-      "step": "git add -A",
-      "output": ""
-    },
-    {
-      "step": "git commit",
-      "output": "[main 0d9966b] fix: remove unused isManager variable to pass TypeScript build in GitHub Actions\n 1 file changed, 33 insertions(+), 35 deletions(-)\n"
-    },
-    {
-      "step": "git push origin main",
-      "output": ""
-    },
-    {
-      "step": "outer git status",
-      "output": " M HRMS_app-main\n"
-    },
-    {
-      "step": "outer repo check",
-      "note": "Command failed: git add -A\nfatal: Unable to create 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository, e.g.\nan editor opened by 'git commit'. Please make sure all processes\nare terminated then try again. If it still fails, a git process\nmay have crashed in this repository earlier:\nremove the file manually to continue.\n"
+      "step": "tsc -b check failed",
+      "output": "src/lib/api/smtp-scenario-runner.ts(102,7): error TS2353: Object literal may only specify known properties, and 'interviewerName' does not exist in type 'InterviewRescheduledAlertPayload'.\r\nsrc/pages/settings-page.tsx(15,3): error TS6133: 'Send' is declared but its value is never read.\r\nvite.config.ts(612,18): error TS7016: Could not find a declaration file for module './scripts/run-smtp-audit-test.mjs'. 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/HRMS_app-main/hrms-app/scripts/run-smtp-audit-test.mjs' implicitly has an 'any' type."
     }
   ],
-  "success": true,
-  "error": null
+  "success": false,
+  "error": "TypeScript check failed:\nsrc/lib/api/smtp-scenario-runner.ts(102,7): error TS2353: Object literal may only specify known properties, and 'interviewerName' does not exist in type 'InterviewRescheduledAlertPayload'.\r\nsrc/pages/settings-page.tsx(15,3): error TS6133: 'Send' is declared but its value is never read.\r\nvite.config.ts(612,18): error TS7016: Could not find a declaration file for module './scripts/run-smtp-audit-test.mjs'. 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/HRMS_app-main/hrms-app/scripts/run-smtp-audit-test.mjs' implicitly has an 'any' type."
 }

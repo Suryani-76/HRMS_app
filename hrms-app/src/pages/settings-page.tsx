@@ -11,7 +11,13 @@ import {
   Unlock,
   KeyRound,
   Trash2,
+  Mail,
+  Send,
+  Play,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
+import { runAllEmailScenariosInBrowser, type ScenarioResult } from '@/lib/api/smtp-scenario-runner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -77,6 +83,11 @@ export default function SettingsPage() {
   const [reAuthTargetAction, setReAuthTargetAction] = useState<'re-register' | 'disable' | null>(null)
   const [reAuthPassword, setReAuthPassword] = useState('')
   const [reAuthError, setReAuthError] = useState<string | null>(null)
+
+  // SMTP & Supabase Live Audit State
+  const [testingSmtp, setTestingSmtp] = useState(false)
+  const [smtpResults, setSmtpResults] = useState<ScenarioResult[] | null>(null)
+  const [supabaseLogs, setSupabaseLogs] = useState<any[] | null>(null)
 
   const employeeId = employee?.id || user?.employee_id || ''
 
@@ -357,6 +368,111 @@ export default function SettingsPage() {
               <Label className="text-xs text-muted-foreground">Supabase URL</Label>
               <p className="font-mono text-xs break-all">{import.meta.env.VITE_SUPABASE_URL ?? 'Not configured'}</p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* =============================================================== */}
+        {/* SMTP SERVER & SUPABASE EMAIL TRIGGER AUDIT                      */}
+        {/* =============================================================== */}
+        <Card className="border-indigo-100 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+                  <Mail className="h-4 w-4 text-indigo-600" />
+                  SMTP & Recruitment Email Trigger Diagnostics
+                </CardTitle>
+                <CardDescription>
+                  Audit Supabase audit_logs and test all 8 email trigger scenarios live.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                disabled={testingSmtp}
+                onClick={async () => {
+                  setTestingSmtp(true)
+                  try {
+                    const data = await runAllEmailScenariosInBrowser()
+                    setSmtpResults(data.results)
+                    setSupabaseLogs(data.supabaseLogsAfter)
+                  } catch (err: any) {
+                    console.error('Trigger error:', err)
+                  } finally {
+                    setTestingSmtp(false)
+                  }
+                }}
+              >
+                {testingSmtp ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Executing 8 Triggers...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3.5 w-3.5" /> Execute All 8 Scenarios & Show Logs
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-slate-50 border p-3 text-xs space-y-1 text-slate-700">
+              <p><strong>Configured SMTP Host:</strong> kindle.herosite.pro (Port 465 SSL/TLS)</p>
+              <p><strong>Sender:</strong> hr@oklut.com (OKLUT Human Resources)</p>
+              <p><strong>Supabase Logging:</strong> audit_logs table (actions: EMAIL_PENDING, EMAIL_SENT, EMAIL_FAILED)</p>
+            </div>
+
+            {smtpResults && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Scenario Execution Results ({smtpResults.length} Scenarios Tested)
+                </h4>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {smtpResults.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-2 rounded border bg-white text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        {r.success ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                        )}
+                        <span className="font-medium text-slate-800">{r.scenario}</span>
+                      </div>
+                      <Badge variant="outline" className={r.success ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}>
+                        {r.success ? 'Queued / Sent' : 'Failed'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {supabaseLogs && supabaseLogs.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Latest Supabase Audit Logs (Captured from Server)
+                </h4>
+                <div className="bg-slate-900 text-slate-100 p-3 rounded-lg font-mono text-[11px] max-h-64 overflow-y-auto space-y-1.5">
+                  {supabaseLogs.map((l) => (
+                    <div key={l.id} className="border-b border-slate-800 pb-1">
+                      <div className="flex items-center justify-between text-indigo-300">
+                        <span>[{l.action}] {l.entity_type || 'system'}</span>
+                        <span className="text-slate-500">{new Date(l.created_at).toLocaleTimeString()}</span>
+                      </div>
+                      <div className="text-slate-400">
+                        To: {l.details?.to || l.details?.email || 'N/A'} | Subj: {l.details?.subject || 'N/A'}
+                      </div>
+                      {l.details?.error && (
+                        <div className="text-rose-400">Error: {l.details.error}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

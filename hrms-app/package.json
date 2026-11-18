@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --noEmit",
     "push": "node scripts/deploy-push.mjs",
     "deploy": "node scripts/deploy-push.mjs",
+    "smtp:audit": "node scripts/run-smtp-audit-test.mjs",
     "smtp:daemon": "node scripts/smtp-daemon.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

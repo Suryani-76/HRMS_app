@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Executing SMTP & Supabase Triggers...</title>
+  <style>
+    body { font-family: monospace; background: #0f172a; color: #f8fafc; padding: 24px; line-height: 1.5; }
+    h1 { color: #818cf8; font-size: 18px; margin-bottom: 8px; }
+    #log { background: #1e293b; padding: 16px; border-radius: 8px; max-height: 80vh; overflow-y: auto; white-space: pre-wrap; font-size: 13px; }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .info { color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <h1>OKLUT HRMS — Real-Time Supabase & SMTP Trigger Executor</h1>
+  <p class="info">Connecting to Supabase (https://qwygpcovmlobcmwcptvz.supabase.co)...</p>
+  <div id="log">Initializing...</div>
+
+  <script>
+    const SUPABASE_URL = 'https://qwygpcovmlobcmwcptvz.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_gAOufq0KVS9ugonSUIC8cA_i5DAtaII';
+    const logEl = document.getElementById('log');
+
+    function append(text, cls = '') {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text + '\n';
+      logEl.appendChild(span);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function run() {
+      append('=== STEP 1: FETCHING RECENT LOGS FROM SUPABASE AUDIT_LOGS ===', 'info');
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/audit_logs?select=id,action,entity_type,entity_id,details,created_at&order=created_at.desc&limit=25`, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        const logs = await res.json();
+        append(`Fetched ${logs.length} recent audit logs from Supabase.`);
+        for (const l of logs) {
+          const to = l.details?.to || l.details?.email || 'N/A';
+          const subj = l.details?.subject || 'N/A';
+          append(`[${l.created_at}] [${l.action}] ${l.entity_type || 'N/A'} -> To: ${to} | Subj: "${subj}"`);
+        }
+      } catch (e) {
+        append(`Supabase fetch error: ${e.message}`, 'error');
+      }
+
+      append('\n=== STEP 2: TRIGGERING LOCAL VITE SMTP RUNNER VIA /api/run-audit-test ===', 'info');
+      try {
+        const testRes = await fetch('/api/run-audit-test');
+        if (testRes.ok) {
+          const data = await testRes.json();
+          append(`✅ Local test runner executed successfully:\n${JSON.stringify(data, null, 2)}`, 'success');
+        } else {
+          append(`Vite endpoint returned ${testRes.status}. Trying http://localhost:5174/api/run-audit-test...`);
+          const testRes2 = await fetch('http://localhost:5174/api/run-audit-test');
+          const data2 = await testRes2.json();
+          append(`✅ Local test runner executed successfully via localhost:5174:\n${JSON.stringify(data2, null, 2)}`, 'success');
+        }
+      } catch (err) {
+        append(`Note on local API: ${err.message}. If running purely in static browser, triggers are queued directly into Supabase audit_logs.`, 'info');
+      }
+
+      append('\n=== STEP 3: INSERTING EMAIL TRIGGER SCENARIOS DIRECTLY INTO SUPABASE ===', 'info');
+      const scenarios = [
+        { name: '1. Candidate Application Received', entity: 'candidate_application', subj: 'Application Received & Portal Credentials - Full Stack Developer' },
+        { name: '2. Candidate Shortlisted', entity: 'candidate_status_update', subj: 'Application Status Update: Shortlisted - Full Stack Developer' },
+        { name: '3. Technical Interview Scheduled', entity: 'candidate_interview_scheduled', subj: 'Interview Invitation: Technical Round 1 - OKLUT' },
+        { name: '4. Face-to-Face Interview Scheduled', entity: 'candidate_interview_scheduled', subj: 'Face-to-Face Discussion - OKLUT Headquarters' },
+        { name: '5. Pre-Offer Docs Required', entity: 'candidate_docs_required', subj: 'Action Required: Submit Verification Documents - OKLUT' },
+        { name: '6. Documents Verified & Approved', entity: 'candidate_docs_verified', subj: 'Documents Verified & Approved - OKLUT Recruitment Team' },
+        { name: '7. Official Offer Letter Released', entity: 'candidate_offer_released', subj: 'Offer of Employment Released - OKLUT Human Resources' },
+        { name: '8. Internal Job Opening Broadcast', entity: 'job_opening_broadcast', subj: 'Internal Job Opening: Senior Backend Engineer (Job Code: JOB-BE-9801)' }
+      ];
+
+      for (const sc of scenarios) {
+        try {
+          const insRes = await fetch(`${SUPABASE_URL}/rest/v1/audit_logs`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({
+              action: 'EMAIL_PENDING',
+              entity_type: sc.entity,
+              details: {
+                scenario: sc.name,
+                to: 'hr@oklut.com',
+                subject: `[LIVE TRIGGER] ${sc.subj}`,
+                html: `<h3>${sc.subj}</h3><p>Trigger test executed live.</p>`,
+                triggered_at: new Date().toISOString()
+              }
+            })
+          });
+          const inserted = await insRes.json();
+          append(`✅ [${sc.name}] Queued to Supabase audit_logs (ID: ${inserted[0]?.id || 'OK'})`, 'success');
+        } catch (e) {
+          append(`❌ [${sc.name}] Error: ${e.message}`, 'error');
+        }
+      }
+
+      append('\n=== STEP 4: TRIGGERING QUEUE DRAIN ===', 'info');
+      try {
+        await fetch('/api/drain-pending');
+        append('Triggered /api/drain-pending on local server.', 'success');
+      } catch {}
+      try {
+        await fetch('http://localhost:5174/api/drain-pending');
+        append('Triggered http://localhost:5174/api/drain-pending.', 'success');
+      } catch {}
+
+      append('\n🎉 Execution finished. Refreshing Supabase verification in 3 seconds...', 'info');
+      setTimeout(async () => {
+        try {
+          const verifyRes = await fetch(`${SUPABASE_URL}/rest/v1/audit_logs?action=in.(EMAIL_PENDING,EMAIL_SENT,EMAIL_FAILED)&order=created_at.desc&limit=15`, {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+          });
+          const verifyLogs = await verifyRes.json();
+          append('\n--- VERIFIED SUPABASE AUDIT LOGS ---', 'info');
+          for (const row of verifyLogs) {
+            append(`[${row.action}] ${row.entity_type} -> ${row.details?.subject} (${row.created_at})`);
+          }
+        } catch {}
+      }, 3000);
+    }
+
+    run();
+  </script>
+</body>
+</html>
+

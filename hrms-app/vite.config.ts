@@ -567,12 +567,6 @@ function smtpDevPlugin(): Plugin {
     return gitResult
   }
 
-  try {
-    runGitPush()
-  } catch (pushErr: any) {
-    console.error('[Vite-Git] Direct push error:', pushErr)
-  }
-
   return {
     name: 'vite-plugin-smtp-mailer',
     configureServer(server) {
@@ -610,6 +604,30 @@ function smtpDevPlugin(): Plugin {
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ success: false, error: err?.message }))
           })
+          return
+        }
+
+        // Endpoint: /api/run-audit-test (triggers complete Supabase audit query and all 8 scenarios)
+        if (url === '/api/run-audit-test' || url.startsWith('/api/run-audit-test')) {
+          import('./scripts/run-smtp-audit-test.mjs')
+            .then(async ({ executeAuditAndTriggers }) => {
+              try {
+                await executeAuditAndTriggers()
+                const reportPath = path.resolve(__dirname, 'scripts/smtp-audit-test-report.json')
+                const reportData = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : { status: 'completed' }
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify(reportData, null, 2))
+              } catch (runErr: any) {
+                res.statusCode = 500
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({ success: false, error: runErr?.message }))
+              }
+            })
+            .catch((impErr) => {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: false, error: impErr?.message }))
+            })
           return
         }
 
@@ -932,11 +950,6 @@ function smtpDevPlugin(): Plugin {
 
       if (!process.env.VITEST) {
         testSmtpConnection().catch((err) => console.error('[Vite-SMTP] Auto-test error:', err))
-        try {
-          runGitPush()
-        } catch (gitErr) {
-          console.error('[Vite-Git] Auto-push error:', gitErr)
-        }
         setTimeout(pollPending, 1000)
         setInterval(pollPending, 4000)
 

@@ -1228,9 +1228,52 @@ function CandidatesTab() {
                         <div className="flex items-center gap-2">
                           <Select
                             value={c.status ?? 'Applied'}
-                            onValueChange={(v) => {
+                            onValueChange={async (v) => {
                               updateStatus.mutate({ id: c.id, status: v })
                               toast.success(`Updated ${c.name} to "${v}"`)
+
+                              // Trigger automated stage email alert
+                              try {
+                                if (c.email) {
+                                  const refId = (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase()
+                                  const jobTitle = c.job_opening?.title || 'Position'
+                                  const sLower = v.toLowerCase()
+
+                                  if (sLower === 'document collection' || sLower.includes('collect doc')) {
+                                    sendDocsRequiredAlertEmail({
+                                      candidateName: c.name,
+                                      candidateEmail: c.email,
+                                      referenceId: refId,
+                                      jobTitle,
+                                    }).catch(() => {})
+                                  } else if (sLower === 'documents verified' || sLower.includes('docs verified')) {
+                                    sendDocsApprovedAlertEmail({
+                                      candidateName: c.name,
+                                      candidateEmail: c.email,
+                                      referenceId: refId,
+                                      jobTitle,
+                                    }).catch(() => {})
+                                  } else if (sLower.includes('offer sent') || sLower.includes('offered')) {
+                                    sendOfferLetterReleasedAlertEmail({
+                                      candidateName: c.name,
+                                      candidateEmail: c.email,
+                                      referenceId: refId,
+                                      jobTitle,
+                                    }).catch(() => {})
+                                  } else {
+                                    sendCandidateStatusAlertEmail({
+                                      candidateName: c.name,
+                                      candidateEmail: c.email,
+                                      jobTitle,
+                                      referenceId: refId,
+                                      dateOfBirth: c.date_of_birth,
+                                      status: v,
+                                    }).catch(() => {})
+                                  }
+                                }
+                              } catch (e) {
+                                console.warn('Status change alert dispatch warning:', e)
+                              }
                             }}
                           >
                             <SelectTrigger className="h-8 w-36 text-xs font-medium">
@@ -1250,6 +1293,19 @@ function CandidatesTab() {
                               onClick={() => {
                                 updateStatus.mutate({ id: c.id, status: 'Shortlisted' })
                                 toast.success(`Shortlisted ${c.name}!`)
+
+                                if (c.email) {
+                                  import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
+                                    sendCandidateStatusAlertEmail({
+                                      candidateName: c.name,
+                                      candidateEmail: c.email,
+                                      jobTitle: c.job_opening?.title || 'Open Position',
+                                      referenceId: (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase(),
+                                      dateOfBirth: c.date_of_birth,
+                                      status: 'Shortlisted',
+                                    }).catch(() => {})
+                                  })
+                                }
                               }}
                             >
                               Shortlist
@@ -2089,7 +2145,48 @@ function InterviewsTab() {
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <Select value={i.status ?? 'scheduled'} onValueChange={(v) => updateStatus.mutate({ id: i.id, status: v })}>
+                        <Select
+                          value={i.status ?? 'scheduled'}
+                          onValueChange={async (v) => {
+                            updateStatus.mutate({ id: i.id, status: v })
+                            toast.success(`Updated interview status to ${v}`)
+
+                            // Send stage alert email when interview is marked passed/failed
+                            try {
+                              const cand = i.candidate
+                              if (cand?.email && (v === 'passed' || v === 'failed')) {
+                                const refId = (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase()
+                                const jobTitle = i.job_opening?.title || 'Selected Position'
+
+                                if (v === 'passed') {
+                                  import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
+                                    sendRoundClearedAlertEmail({
+                                      candidateName: cand.name,
+                                      candidateEmail: cand.email,
+                                      referenceId: refId,
+                                      jobTitle,
+                                      roundName: i.round,
+                                      nextStep: 'Please visit your Candidate Portal for the next interview round or document verification stage.',
+                                    }).catch(() => {})
+                                  })
+                                } else if (v === 'failed') {
+                                  import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
+                                    sendCandidateStatusAlertEmail({
+                                      candidateName: cand.name,
+                                      candidateEmail: cand.email,
+                                      jobTitle,
+                                      referenceId: refId,
+                                      status: 'Rejected',
+                                      reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,
+                                    }).catch(() => {})
+                                  })
+                                }
+                              }
+                            } catch (e) {
+                              console.warn('Interview status email notice:', e)
+                            }
+                          }}
+                        >
                           <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="scheduled">Scheduled</SelectItem>

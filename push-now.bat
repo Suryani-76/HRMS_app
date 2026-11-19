@@ -1,14 +1,14 @@
 @echo off
 echo ========================================================
-echo   OKLUT HRMS - Push Deployment Clean
+echo   OKLUT HRMS - Push Document Collection Email Template & Resend Fix
 echo ========================================================
 cd /d "%~dp0"
 echo.
 echo [1] Staging files...
 git add -A
 echo.
-echo [2] Committing clean build fix...
-git commit -m "fix(recruitment): clean jsx syntax and deploy document collection email trigger"
+echo [2] Committing email template & resend trigger fix...
+git commit -m "fix(recruitment): deliver document collection email on doc status change & fix resend button"
 echo.
 echo [3] Pushing to GitHub main...
 git push origin main

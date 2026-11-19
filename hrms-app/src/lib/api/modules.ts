@@ -770,31 +770,32 @@ export async function updateInterviewStatus(
         const refId = cand.reference_id || data.candidate_id.slice(0, 8).toUpperCase()
 
         if (isPassed) {
-          if (isF2f || roundLower.includes('hr') || roundLower.includes('round 3') || candStatus === 'Document Collection') {
-            // HR round / F2F cleared -> Immediately dispatch Document Collection email
+          const isDocStage = isDocCollection || isF2f || roundLower.includes('hr') || roundLower.includes('round 3') || candStatus === 'Document Collection'
+
+          if (isDocStage) {
+            // HR round / F2F cleared or switched to Document Collection -> Send ONLY Document Collection email
             sendDocsRequiredAlertEmail({
               candidateName: cand.name,
               candidateEmail: cand.email,
               referenceId: refId,
               jobTitle,
             }).catch((e) => console.warn('Docs required email notice after interview clear:', e))
-          }
-
-          const nextStep = roundLower.includes('hr') || roundLower.includes('round 3')
-            ? 'Verification Softcopies & Formal Offer Letter'
-            : roundLower.includes('screen') || roundLower.includes('exam')
+          } else {
+            // Intermediate rounds (Screening/Technical) -> Send Stage Cleared email
+            const nextStep = roundLower.includes('screen') || roundLower.includes('exam')
               ? 'Technical Interview Round'
               : 'HR Discussion Round'
 
-          sendRoundClearedAlertEmail({
-            candidateName: cand.name,
-            candidateEmail: cand.email,
-            referenceId: refId,
-            jobTitle,
-            roundName: data.round || 'Evaluation Round',
-            nextStep,
-            feedback: combinedFeedback || undefined,
-          }).catch((e) => console.warn('Round cleared email dispatch notice:', e))
+            sendRoundClearedAlertEmail({
+              candidateName: cand.name,
+              candidateEmail: cand.email,
+              referenceId: refId,
+              jobTitle,
+              roundName: data.round || 'Evaluation Round',
+              nextStep,
+              feedback: combinedFeedback || undefined,
+            }).catch((e) => console.warn('Round cleared email dispatch notice:', e))
+          }
         } else if (isFailed) {
           sendCandidateStatusAlertEmail({
             candidateName: cand.name,

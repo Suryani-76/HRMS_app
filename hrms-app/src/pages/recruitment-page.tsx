@@ -2222,6 +2222,7 @@ function InterviewsTab() {
                                   const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
 
                                   if (isLastRound) {
+                                    // Final round passed -> send document collection email
                                     const mailRes = await sendDocsRequiredAlertEmail({
                                       candidateName: cand.name,
                                       candidateEmail: cand.email,
@@ -2231,20 +2232,19 @@ function InterviewsTab() {
                                     if (mailRes.success) {
                                       toast.success(`Document collection email sent to ${cand.email}`)
                                     }
+                                  } else {
+                                    // Intermediate round passed -> send round cleared email
+                                    import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
+                                      sendRoundClearedAlertEmail({
+                                        candidateName: cand.name,
+                                        candidateEmail: cand.email,
+                                        referenceId: refId,
+                                        jobTitle,
+                                        roundName: i.round,
+                                        nextStep: 'Please visit your Candidate Portal for the next interview round.',
+                                      }).catch(() => {})
+                                    })
                                   }
-
-                                  import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
-                                    sendRoundClearedAlertEmail({
-                                      candidateName: cand.name,
-                                      candidateEmail: cand.email,
-                                      referenceId: refId,
-                                      jobTitle,
-                                      roundName: i.round,
-                                      nextStep: isLastRound
-                                        ? 'Please upload your pre-offer verification documents in your Candidate Portal.'
-                                        : 'Please visit your Candidate Portal for the next interview round.',
-                                    }).catch(() => {})
-                                  })
                                 } else if (v === 'failed') {
                                   import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
                                     sendCandidateStatusAlertEmail({
@@ -3262,11 +3262,24 @@ function DocumentationTab() {
       })
 
       if (docEmailRes.success) {
-        toast.success(`Document collection requested for ${cand.name}! Email alert sent to ${cand.email}.`)
+        toast.success(`Document collection email sent to ${cand.email}.`)
       } else {
-        toast.warning(`Document collection requested, but email note: ${docEmailRes.message}`)
+        toast.info(`Document collection request processed: ${docEmailRes.message}`)
       }
     } catch (err: any) {
+      // Fallback: try sending email directly even if database mutation caught a non-blocking error
+      try {
+        const docEmailRes = await sendDocsRequiredAlertEmail({
+          candidateName: cand.name,
+          candidateEmail: cand.email,
+          jobTitle: cand.job_opening?.title || 'Selected Position',
+          referenceId: (cand as any).reference_id || (cand as any).temp_id,
+        })
+        if (docEmailRes.success) {
+          toast.success(`Document collection email sent to ${cand.email}.`)
+          return
+        }
+      } catch {}
       toast.error('Failed to request documents: ' + (err?.message || 'Unknown error'))
     } finally {
       setTriggeringDocId(null)

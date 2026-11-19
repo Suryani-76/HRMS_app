@@ -960,10 +960,10 @@ export function generateDocsRequiredHtml(payload: DocsRequiredAlertPayload): str
           Dear <strong>${payload.candidateName}</strong>,
         </p>
         <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;">
-          Congratulations on clearing all interview rounds and accepting the terms &amp; conditions for the <strong>${payload.jobTitle}</strong> position!
+          Congratulations on clearing your interview rounds for the <strong>${payload.jobTitle}</strong> position at OKLUT! Your profile has officially advanced to the <strong>Document Collection</strong> stage.
         </p>
         <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;">
-          As per standard company policy, please upload softcopies of the following verification documents in your Candidate Portal before your official offer letter is released by HR:
+          As per standard onboarding procedure, please upload softcopies of the following verification documents directly through your Candidate Portal:
         </p>
 
         <ul style="font-size:13px;line-height:1.8;color:#334155;background:#f8fafc;padding:16px 32px;border-radius:8px;border:1px solid #e2e8f0;">
@@ -997,7 +997,7 @@ export function generateDocsRequiredHtml(payload: DocsRequiredAlertPayload): str
 }
 
 export async function sendDocsRequiredAlertEmail(payload: DocsRequiredAlertPayload) {
-  const subject = `📄 Action Required: Upload Verification Documents for ${payload.jobTitle} — OKLUT`
+  const subject = `Action Required: Upload Verification Documents for ${payload.jobTitle} - OKLUT`
   const html = generateDocsRequiredHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,

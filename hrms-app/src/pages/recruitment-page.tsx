@@ -986,12 +986,12 @@ function CandidatesTab() {
 
       const job = jobs.find((j) => j.id === jobId)
       if (directDocsMode) {
-        sendDocsRequiredAlertEmail({
+        await sendDocsRequiredAlertEmail({
           candidateName: name.trim(),
           candidateEmail: email.trim(),
           jobTitle: job?.title || 'Open Position',
           referenceId: refId,
-        }).catch(() => {})
+        })
       } else {
         await sendCandidateApplicationEmail({
           candidateName: name.trim(),
@@ -3256,9 +3256,9 @@ function DocumentationTab() {
       // Send automated email alert via SMTP
       const docEmailRes = await sendDocsRequiredAlertEmail({
         candidateName: cand.name,
-        candidateEmail: cand.email,
+        candidateEmail: (cand.email || '').trim(),
         jobTitle: cand.job_opening?.title || 'Selected Position',
-        referenceId: (cand as any).reference_id || (cand as any).temp_id,
+        referenceId: (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase(),
       })
 
       if (docEmailRes.success) {
@@ -3271,9 +3271,9 @@ function DocumentationTab() {
       try {
         const docEmailRes = await sendDocsRequiredAlertEmail({
           candidateName: cand.name,
-          candidateEmail: cand.email,
+          candidateEmail: (cand.email || '').trim(),
           jobTitle: cand.job_opening?.title || 'Selected Position',
-          referenceId: (cand as any).reference_id || (cand as any).temp_id,
+          referenceId: (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase(),
         })
         if (docEmailRes.success) {
           toast.success(`Document collection email sent to ${cand.email}.`)

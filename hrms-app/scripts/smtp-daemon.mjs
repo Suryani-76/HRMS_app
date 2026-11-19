@@ -40,7 +40,7 @@ function sendEmailTls({ to, subject, html }) {
       for (const line of lines) {
         if (!line) continue
         if (line.startsWith('220') && step === 0) {
-          step = 1; socket.write('EHLO localhost\r\n')
+          step = 1; socket.write(`EHLO ${SMTP_CONFIG.host}\r\n`)
         } else if (line.startsWith('250') && step === 1) {
           step = 2; socket.write('AUTH LOGIN\r\n')
         } else if (line.startsWith('334') && step === 2) {
@@ -55,14 +55,39 @@ function sendEmailTls({ to, subject, html }) {
           step = 7; socket.write('DATA\r\n')
         } else if (line.startsWith('354') && step === 7) {
           step = 8
+          const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+          const cleanSubject = (subject || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
+          const plainText = (html || '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+
           const message = [
+            `Date: ${new Date().toUTCString()}`,
+            `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(2, 10)}@oklut.com>`,
             `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
+            `Reply-To: ${SMTP_CONFIG.user}`,
             `To: <${to}>`,
-            `Subject: ${subject}`,
+            `Subject: ${cleanSubject}`,
             `MIME-Version: 1.0`,
+            `Content-Type: multipart/alternative; boundary="${boundary}"`,
+            `X-Mailer: OKLUT HRMS Enterprise Mailer`,
+            ``,
+            `--${boundary}`,
+            `Content-Type: text/plain; charset=utf-8`,
+            `Content-Transfer-Encoding: 8bit`,
+            ``,
+            plainText,
+            ``,
+            `--${boundary}`,
             `Content-Type: text/html; charset=utf-8`,
+            `Content-Transfer-Encoding: 8bit`,
             ``,
             html,
+            ``,
+            `--${boundary}--`,
             `\r\n.\r\n`
           ].join('\r\n')
           socket.write(message)

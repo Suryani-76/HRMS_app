@@ -42,8 +42,8 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   // 1. Initial greeting
   await readResponse()
 
-  // 2. EHLO
-  await sendCommand('EHLO localhost')
+  // 2. EHLO with proper domain hostname (never localhost to pass rSPAM / SpamAssassin)
+  await sendCommand(`EHLO ${SMTP_HOST}`)
 
   // 3. AUTH LOGIN
   await sendCommand('AUTH LOGIN')
@@ -65,9 +65,21 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   // 5. DATA
   await sendCommand('DATA')
 
-  // Generate valid RFC 2822 Message-ID and Date headers to pass spam filters
+  // Generate valid RFC 2822 Message-ID, Date, and multipart/alternative body to pass spam filters
   const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2, 10)}@oklut.com>`
   const dateHeader = new Date().toUTCString()
+  const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+
+  // Strip emojis from subject to avoid mailbaby / rspam spam triggers
+  const cleanSubject = subject.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
+
+  // Generate readable plain text version from html
+  const plainText = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
   const message = [
     `Date: ${dateHeader}`,
@@ -75,13 +87,24 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
     `From: "${fromName}" <${SMTP_USER}>`,
     `Reply-To: ${SMTP_USER}`,
     `To: <${to}>`,
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    `Subject: ${cleanSubject}`,
     `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    `X-Mailer: OKLUT HRMS Enterprise Mailer`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/plain; charset=utf-8`,
+    `Content-Transfer-Encoding: 8bit`,
+    ``,
+    plainText,
+    ``,
+    `--${boundary}`,
     `Content-Type: text/html; charset=utf-8`,
     `Content-Transfer-Encoding: 8bit`,
-    `X-Mailer: OKLUT HRMS Mailer`,
     ``,
     html,
+    ``,
+    `--${boundary}--`,
     `\r\n.`
   ].join('\r\n')
 

@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-19T11:18:39.938Z",
+  "testedAt": "2026-11-19T11:41:45.107Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,8 +7,8 @@
     "passConfigured": true
   },
   "steps": [
-    "[+90ms] TLS Connected to kindle.herosite.pro:465",
-    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 16:48:41 +0530 ",
+    "[+83ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 17:11:47 +0530 ",
     "S: 220-We do not authorize the use of this system to transport unsolicited, ",
     "S: 220 and/or bulk e-mail.",
     "C: EHLO localhost",
@@ -36,136 +36,136 @@
   "error": null,
   "serverBanner": "220 and/or bulk e-mail.",
   "authResponse": "235 Authentication succeeded",
-  "connectionTimeMs": 90,
-  "totalTimeMs": 248,
+  "connectionTimeMs": 83,
+  "totalTimeMs": 221,
   "recentAuditLogs": [
     {
-      "id": "f440f5ac-fbc2-4e60-a6b2-f34b07b7e59e",
+      "id": "0fd5043e-e6f5-452a-b166-2bd470fc2f8e",
       "action": "EMAIL_SENT",
       "details": {
-        "to": "goudasuryani@gmail.com",
+        "to": "suryani@nygenx.com",
         "from": "hr@oklut.com",
-        "refId": "CAND-0L5YZB",
+        "refId": "CAND-KXGSF6",
         "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:08:56.955Z",
-        "subject": "Action Required: Upload Verification Documents for SAP VIM Consultant - OKLUT"
+        "sent_at": "2026-11-19T11:40:08.452Z",
+        "subject": "OKLUT - Official Offer Letter Released for SAP VIM Consultant"
       },
-      "created_at": "2026-11-19T11:08:59.067579+00:00"
+      "created_at": "2026-11-19T11:40:10.582482+00:00"
     },
     {
-      "id": "42dba34f-81bf-4e61-8bcd-e3dd0b2be34f",
+      "id": "962cf0a3-82f1-4007-8c3c-7cbc44ba8089",
       "action": "EMAIL_SENT",
       "details": {
-        "to": "goudasuryani@gmail.com",
+        "to": "suryani@nygenx.com",
         "from": "hr@oklut.com",
+        "refId": "CAND-KXGSF6",
         "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:08:55.669Z",
-        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
+        "sent_at": "2026-11-19T11:39:25.948Z",
+        "subject": "OKLUT Recruitment - Documents Approved for SAP VIM Consultant"
       },
-      "created_at": "2026-11-19T11:08:57.791692+00:00"
+      "created_at": "2026-11-19T11:39:28.095008+00:00"
     },
     {
-      "id": "08cae3bc-ca8c-4e72-bc7d-5e1f76379331",
+      "id": "480f8ffb-34ea-4a07-86d1-35ee759358c3",
       "action": "EMAIL_SENT",
       "details": {
-        "to": "goudasuryani@gmail.com",
+        "to": "suryani@nygenx.com",
         "from": "hr@oklut.com",
-        "refId": "CAND-0L5YZB",
+        "refId": "CAND-KXGSF6",
         "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:08:24.200Z",
-        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP VIM Consultant) — OKLUT"
+        "sent_at": "2026-11-19T11:39:25.931Z",
+        "subject": "OKLUT Recruitment - Documents Approved for SAP VIM Consultant"
       },
-      "created_at": "2026-11-19T11:08:26.324241+00:00"
+      "created_at": "2026-11-19T11:39:28.067167+00:00"
     },
     {
-      "id": "884ef14f-23c2-4231-aadd-c97d031c169f",
+      "id": "1bbd84c2-a1f8-418d-bfcc-f531f697dbf2",
       "action": "EMAIL_SENT",
       "details": {
-        "to": "goudasuryani@gmail.com",
+        "to": "suryani@nygenx.com",
         "from": "hr@oklut.com",
-        "refId": "CAND-0L5YZB",
+        "refId": "CAND-KXGSF6",
         "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:07:52.998Z",
+        "sent_at": "2026-11-19T11:39:25.293Z",
+        "subject": "OKLUT Recruitment - Documents Approved for SAP VIM Consultant"
+      },
+      "created_at": "2026-11-19T11:39:27.414202+00:00"
+    },
+    {
+      "id": "758fea71-bea0-4705-8d2d-eb02a117d99d",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-KXGSF6",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:37:21.785Z",
+        "subject": "OKLUT Recruitment - Document Verification for SAP VIM Consultant"
+      },
+      "created_at": "2026-11-19T11:37:23.904823+00:00"
+    },
+    {
+      "id": "dc102a2f-25b1-48c1-9a72-6d1144fa435f",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:37:20.570Z",
+        "subject": "OKLUT Recruitment - Document Verification for Selected Position"
+      },
+      "created_at": "2026-11-19T11:37:22.703364+00:00"
+    },
+    {
+      "id": "84502d33-f20f-45d7-a082-1d3bb23ab5db",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-KXGSF6",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:37:07.039Z",
+        "subject": "🏆 Stage Cleared: You passed Face-to-Face Interview (SAP VIM Consultant) — OKLUT"
+      },
+      "created_at": "2026-11-19T11:37:09.167792+00:00"
+    },
+    {
+      "id": "006bb931-3b8e-47ed-993c-4474bd4f0611",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:37:05.916Z",
+        "subject": "🏆 Stage Cleared: You passed Face-to-Face Interview (Selected Position) — OKLUT"
+      },
+      "created_at": "2026-11-19T11:37:08.037557+00:00"
+    },
+    {
+      "id": "f39747f1-43a0-4523-9e86-471bcc729da1",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-KXGSF6",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:36:48.352Z",
+        "subject": "OKLUT Interview Scheduled - Face-to-Face Interview (SAP VIM Consultant)"
+      },
+      "created_at": "2026-11-19T11:36:50.489361+00:00"
+    },
+    {
+      "id": "1714b574-d863-496b-803a-4824c29ab089",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "suryani@nygenx.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-KXGSF6",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:36:15.976Z",
         "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP VIM Consultant)"
       },
-      "created_at": "2026-11-19T11:07:55.721959+00:00"
-    },
-    {
-      "id": "e7f6d39d-6464-4ed4-bbc1-7462ce00e507",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-0L5YZB",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:07:52.999Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP VIM Consultant)"
-      },
-      "created_at": "2026-11-19T11:07:55.694608+00:00"
-    },
-    {
-      "id": "b0f6e876-144d-412f-937e-366e5e5b1761",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:05:57.939Z",
-        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
-      },
-      "created_at": "2026-11-19T11:06:00.095733+00:00"
-    },
-    {
-      "id": "23c13154-2505-4e5e-9157-a2fa4011b5ca",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:05:57.832Z",
-        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
-      },
-      "created_at": "2026-11-19T11:05:59.936489+00:00"
-    },
-    {
-      "id": "fced16e8-93ce-48e1-9cb1-0bab1b878aaf",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:05:18.509Z",
-        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
-      },
-      "created_at": "2026-11-19T11:05:20.613063+00:00"
-    },
-    {
-      "id": "8d8e6238-a915-44f3-b65e-1d9742cc109f",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:05:17.377Z",
-        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
-      },
-      "created_at": "2026-11-19T11:05:19.493557+00:00"
-    },
-    {
-      "id": "73b9a389-5f68-4e99-a5e0-2e806dd7ea4e",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:03:31.527Z",
-        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
-      },
-      "created_at": "2026-11-19T11:03:33.651413+00:00"
+      "created_at": "2026-11-19T11:36:18.132132+00:00"
     }
   ]
 }

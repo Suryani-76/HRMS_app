@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { Briefcase, Plus, Loader2, Pencil, Trash2, CalendarClock, FileText, Mail, ExternalLink, Copy, Eye, Search, Phone, User, Sparkles, MessageSquare, Upload, CheckCircle2, XCircle, Star, Download, UserCheck, Clock, ChevronDown, ChevronUp, Paperclip, FileCheck } from 'lucide-react'
 import {
   sendCandidateApplicationEmail,
+  sendCandidateStatusAlertEmail,
+  sendOfferLetterReleasedAlertEmail,
   getEffectivePortalUrl,
   broadcastJobOpeningToEmployees,
   generateJobCode,
@@ -1266,7 +1268,7 @@ function CandidatesTab() {
                                       candidateEmail: c.email,
                                       jobTitle,
                                       referenceId: refId,
-                                      dateOfBirth: c.date_of_birth,
+                                      dateOfBirth: c.date_of_birth || undefined,
                                       status: v,
                                     }).catch(() => {})
                                   }
@@ -1301,7 +1303,7 @@ function CandidatesTab() {
                                       candidateEmail: c.email,
                                       jobTitle: c.job_opening?.title || 'Open Position',
                                       referenceId: (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase(),
-                                      dateOfBirth: c.date_of_birth,
+                                      dateOfBirth: c.date_of_birth || undefined,
                                       status: 'Shortlisted',
                                     }).catch(() => {})
                                   })

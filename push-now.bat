@@ -1,20 +1,20 @@
 @echo off
 echo ========================================================
-echo   OKLUT HRMS - Push All Email Triggers & Cloud Fix
+echo   OKLUT HRMS - Push Deployment Fix
 echo ========================================================
 cd /d "%~dp0"
 echo.
 echo [1] Staging files...
 git add -A
 echo.
-echo [2] Committing all stage email triggers...
-git commit -m "feat(email): wire interview scheduled, round passed, docs requested and status alert emails directly to UI actions"
+echo [2] Committing imports and date_of_birth typing fix...
+git commit -m "fix(recruitment): import sendCandidateStatusAlertEmail and sendOfferLetterReleasedAlertEmail, sanitize dateOfBirth"
 echo.
 echo [3] Pushing to GitHub main...
 git push origin main
 echo.
 echo ========================================================
 echo   PUSH COMPLETED!
-echo   Deployment running on: https://github.com/Suryani-76/HRMS_app/actions
+echo   Monitor deployment: https://github.com/Suryani-76/HRMS_app/actions
 echo ========================================================
 pause

@@ -1164,18 +1164,26 @@ export async function saveCandidateVerificationDocs(
         offerReleasedBy: payload.offerReleasedBy,
         termsAgreedAt: payload.termsAgreedAt,
         docCount: payload.documents.filter((d) => !!d.fileName).length,
-        documents: payload.documents.map((d) => ({
-          id: d.id,
-          docType: d.docType,
-          title: d.title,
-          fileName: d.fileName,
-          fileSize: d.fileSize,
-          fileType: d.fileType,
-          fileData: d.fileData,
-          uploadedAt: d.uploadedAt,
-          status: d.status,
-          adminNotes: d.adminNotes,
-        })),
+        documents: payload.documents.map((d) => {
+          // If fileData is a giant Base64 string (>2000 chars), omit it from the DB notes column
+          // and keep the clean cloud URL so the DB update never fails due to size limits
+          const isLargeBase64 = d.fileData && d.fileData.startsWith('data:') && d.fileData.length > 2000
+          const safeData = isLargeBase64 ? (d.fileUrl && !d.fileUrl.startsWith('data:') ? d.fileUrl : undefined) : d.fileData
+
+          return {
+            id: d.id,
+            docType: d.docType,
+            title: d.title,
+            fileName: d.fileName,
+            fileSize: d.fileSize,
+            fileType: d.fileType,
+            fileData: safeData || d.fileUrl,
+            fileUrl: d.fileUrl,
+            uploadedAt: d.uploadedAt,
+            status: d.status,
+            adminNotes: d.adminNotes,
+          }
+        }),
       })}]`
 
       const verifiedTag = payload.status === 'verified' ? '\n[DOCS_VERIFIED: true]' : ''

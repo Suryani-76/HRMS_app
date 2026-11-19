@@ -393,12 +393,56 @@ export function CandidateDocumentUploadSection({
   const allRequiredUploaded = requiredDocs.length > 0 && uploadedRequiredDocs.length === requiredDocs.length
   const progressPercent = requiredDocs.length > 0 ? (uploadedRequiredDocs.length / requiredDocs.length) * 100 : 100
 
-  const handleFileSelect = (docId: string, file: File) => {
+  const handleFileSelect = async (docId: string, file: File) => {
+    const docTitle = submission.documents.find((d) => d.id === docId)?.title || 'document'
+    const cleanCandId = candidateId || 'temp'
+    const ext = file.name.split('.').pop() || 'pdf'
+    const storagePath = `${cleanCandId}/${docId}-${Date.now()}.${ext}`
+
+    toast.loading(`Uploading ${file.name}...`, { id: `upload-${docId}` })
+
+    let remoteFileUrl: string | undefined = undefined
+
+    // 1. Upload to Supabase Storage candidate-documents bucket
+    try {
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('candidate-documents')
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        })
+
+      if (!uploadErr && uploadData?.path) {
+        const { data: publicUrlData } = supabase.storage
+          .from('candidate-documents')
+          .getPublicUrl(uploadData.path)
+        remoteFileUrl = publicUrlData?.publicUrl
+      } else if (uploadErr) {
+        console.warn('Storage bucket candidate-documents upload warning, attempting CANDIDATE-DOCS:', uploadErr)
+        // Fallback check for case sensitivity
+        const { data: fallbackData } = await supabase.storage
+          .from('CANDIDATE-DOCS')
+          .upload(storagePath, file, { upsert: true })
+        if (fallbackData?.path) {
+          const { data: pUrl } = supabase.storage
+            .from('CANDIDATE-DOCS')
+            .getPublicUrl(fallbackData.path)
+          remoteFileUrl = pUrl?.publicUrl
+        }
+      }
+    } catch (sErr) {
+      console.warn('Supabase storage upload error:', sErr)
+    }
+
+    const fileSize = `${(file.size / 1024).toFixed(1)} KB`
+    const nowIso = new Date().toISOString()
+
+    // 2. Read lightweight thumbnail or use remote URL directly
     const reader = new FileReader()
     reader.onload = (e) => {
-      const fileData = String(e.target?.result || '')
-      const fileSize = `${(file.size / 1024).toFixed(1)} KB`
-      const nowIso = new Date().toISOString()
+      const base64Data = String(e.target?.result || '')
+      // Prefer clean cloud URL so database write is tiny & shared with HRMS
+      const effectiveDataUrl = remoteFileUrl || base64Data
 
       const updatedDocs = submission.documents.map((d) => {
         if (d.id === docId) {
@@ -407,7 +451,8 @@ export function CandidateDocumentUploadSection({
             fileName: file.name,
             fileSize,
             fileType: file.type || 'application/octet-stream',
-            fileData,
+            fileData: effectiveDataUrl,
+            fileUrl: remoteFileUrl || effectiveDataUrl,
             uploadedAt: nowIso,
             status: 'pending' as const,
             rejectionReason: undefined,
@@ -424,7 +469,13 @@ export function CandidateDocumentUploadSection({
       }
       setSubmission(nextSubmission)
       saveCandidateVerificationDocs(candidateId, nextSubmission, candidateEmail)
-      toast.success(`Uploaded ${file.name} for ${submission.documents.find((d) => d.id === docId)?.title}`)
+
+      toast.dismiss(`upload-${docId}`)
+      toast.success(
+        remoteFileUrl
+          ? `Uploaded ${file.name} to cloud for ${docTitle}!`
+          : `Uploaded ${file.name} for ${docTitle}`
+      )
     }
     reader.readAsDataURL(file)
   }

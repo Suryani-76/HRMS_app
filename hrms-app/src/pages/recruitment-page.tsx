@@ -1231,7 +1231,15 @@ function CandidatesTab() {
                           <Select
                             value={c.status ?? 'Applied'}
                             onValueChange={async (v) => {
-                              updateStatus.mutate({ id: c.id, status: v })
+                              const existingNotes = (c as any)?.notes || ''
+                              let updatedNotes = existingNotes
+                              const sLower = v.toLowerCase()
+                              if (sLower === 'document collection' || sLower.includes('collect doc')) {
+                                if (!updatedNotes.includes('[DIRECT_DOCS: true]')) updatedNotes = `${updatedNotes}\n[DIRECT_DOCS: true]`.trim()
+                                if (!updatedNotes.includes('[DOCS_REQUESTED: true]')) updatedNotes = `${updatedNotes}\n[DOCS_REQUESTED: true]`.trim()
+                              }
+
+                              updateStatus.mutate({ id: c.id, status: v, notes: updatedNotes })
                               toast.success(`Updated ${c.name} to "${v}"`)
 
                               // Trigger automated stage email alert
@@ -1239,15 +1247,19 @@ function CandidatesTab() {
                                 if (c.email) {
                                   const refId = (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase()
                                   const jobTitle = c.job_opening?.title || 'Position'
-                                  const sLower = v.toLowerCase()
 
                                   if (sLower === 'document collection' || sLower.includes('collect doc')) {
-                                    sendDocsRequiredAlertEmail({
+                                    const res = await sendDocsRequiredAlertEmail({
                                       candidateName: c.name,
                                       candidateEmail: c.email,
                                       referenceId: refId,
                                       jobTitle,
-                                    }).catch(() => {})
+                                    })
+                                    if (res.success) {
+                                      toast.success(`Document collection email sent to ${c.email}`)
+                                    } else {
+                                      toast.info(`Document collection notice: ${res.message}`)
+                                    }
                                   } else if (sLower === 'documents verified' || sLower.includes('docs verified')) {
                                     sendDocsApprovedAlertEmail({
                                       candidateName: c.name,
@@ -1328,13 +1340,17 @@ function CandidatesTab() {
                                   status: 'Document Collection',
                                   notes: updatedNotes,
                                 })
-                                sendDocsRequiredAlertEmail({
+                                const mailRes = await sendDocsRequiredAlertEmail({
                                   candidateName: c.name,
                                   candidateEmail: c.email,
                                   jobTitle: c.job_opening?.title || 'Selected Position',
                                   referenceId: (c as any).reference_id || (c as any).temp_id,
-                                }).catch(() => {})
-                                toast.success(`Switched ${c.name} to Direct Document Collection! Upload email alert sent.`)
+                                })
+                                if (mailRes.success) {
+                                  toast.success(`Switched ${c.name} to Direct Document Collection! Upload email alert sent.`)
+                                } else {
+                                  toast.warning(`Status updated, but email alert note: ${mailRes.message}`)
+                                }
                               }}
                               title="Directly request pre-offer verification documents from candidate"
                             >

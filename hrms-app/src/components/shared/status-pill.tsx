@@ -19,6 +19,8 @@ const STATUS_MAP: Record<string, { variant: 'success' | 'warning' | 'destructive
   scheduled: { variant: 'secondary', label: 'Scheduled' },
   interview: { variant: 'warning', label: 'Interview' },
   shortlisted: { variant: 'warning', label: 'Shortlisted' },
+  'document collection': { variant: 'warning', label: 'Document Collection' },
+  'document_collection': { variant: 'warning', label: 'Document Collection' },
   rejected: { variant: 'destructive', label: 'Rejected' },
   cancelled: { variant: 'destructive', label: 'Cancelled' },
   absent: { variant: 'destructive', label: 'Absent' },

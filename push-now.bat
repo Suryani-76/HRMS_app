@@ -1,14 +1,14 @@
 @echo off
 echo ========================================================
-echo   OKLUT HRMS - Push Document Collection Email Fix
+echo   OKLUT HRMS - Push Document Collection in Interviews Tab
 echo ========================================================
 cd /d "%~dp0"
 echo.
 echo [1] Staging files...
 git add -A
 echo.
-echo [2] Committing document collection email fixes...
-git commit -m "fix(recruitment): ensure document collection email triggers on interview pass and stage change"
+echo [2] Committing Document Collection status in Interviews...
+git commit -m "feat(interviews): add Document Collection option to status dropdown & trigger email"
 echo.
 echo [3] Pushing to GitHub main...
 git push origin main

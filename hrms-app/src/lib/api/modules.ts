@@ -673,8 +673,10 @@ export async function updateInterviewStatus(
   try {
     if (data?.candidate_id) {
       const roundLower = (data.round || '').toLowerCase()
-      const isPassed = status.toLowerCase() === 'passed' || status.toLowerCase() === 'completed'
-      const isFailed = status.toLowerCase() === 'failed'
+      const statusLower = status.toLowerCase()
+      const isDocCollection = statusLower === 'document collection' || statusLower.includes('document')
+      const isPassed = statusLower === 'passed' || statusLower === 'completed' || isDocCollection
+      const isFailed = statusLower === 'failed'
       let candStatus = 'In Review'
 
       const candUpdate: Record<string, unknown> = {
@@ -684,7 +686,18 @@ export async function updateInterviewStatus(
       const modeLower = (data.mode || '').toLowerCase()
       const isF2f = modeLower.includes('face') || modeLower === 'face_to_face' || roundLower.includes('face to face')
 
-      if (isF2f) {
+      if (isDocCollection) {
+        candStatus = 'Document Collection'
+        candUpdate.technical_interview_status = 'passed'
+        candUpdate.hr_interview_status = 'passed'
+        const existingNotes = (await supabase.from('candidates').select('notes').eq('id', data.candidate_id).maybeSingle())?.data?.notes || ''
+        let newNotes = existingNotes
+        if (isF2f && !newNotes.includes('[FACE_TO_FACE: true]')) newNotes = `${newNotes}\n[FACE_TO_FACE: true]`.trim()
+        if (isF2f && !newNotes.includes('[F2F_PASSED: true]')) newNotes = `${newNotes}\n[F2F_PASSED: true]`.trim()
+        if (!newNotes.includes('[DIRECT_DOCS: true]')) newNotes = `${newNotes}\n[DIRECT_DOCS: true]`.trim()
+        if (!newNotes.includes('[DOCS_REQUESTED: true]')) newNotes = `${newNotes}\n[DOCS_REQUESTED: true]`.trim()
+        candUpdate.notes = newNotes
+      } else if (isF2f) {
         if (isPassed) {
           candStatus = 'Document Collection'
           candUpdate.technical_interview_status = 'passed'

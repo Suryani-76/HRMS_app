@@ -2091,6 +2091,7 @@ function InterviewsTab() {
               <SelectItem value="scheduled">Scheduled</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="passed">Passed</SelectItem>
+              <SelectItem value="document collection">Document Collection</SelectItem>
               <SelectItem value="failed">Failed</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
@@ -2169,14 +2170,46 @@ function InterviewsTab() {
                             updateStatus.mutate({ id: i.id, status: v })
                             toast.success(`Updated interview status to ${v}`)
 
-                            // Send stage alert email when interview is marked passed/failed
+                            // Send stage alert email when interview is marked passed/failed/document collection
                             try {
                               const cand = i.candidate
-                              if (cand?.email && (v === 'passed' || v === 'failed')) {
+                              if (cand?.email) {
                                 const refId = (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase()
                                 const jobTitle = i.job_opening?.title || 'Selected Position'
 
-                                if (v === 'passed') {
+                                if (v === 'document collection' || v === 'Document Collection') {
+                                  import('@/lib/api/email').then(async ({ sendDocsRequiredAlertEmail }) => {
+                                    const mailRes = await sendDocsRequiredAlertEmail({
+                                      candidateName: cand.name,
+                                      candidateEmail: cand.email,
+                                      referenceId: refId,
+                                      jobTitle,
+                                    })
+                                    if (mailRes.success) {
+                                      toast.success(`Document collection email sent to ${cand.email}`)
+                                    } else {
+                                      toast.info(`Document collection notice: ${mailRes.message}`)
+                                    }
+                                  })
+                                } else if (v === 'passed') {
+                                  const rLower = (i.round || '').toLowerCase()
+                                  const mLower = (i.mode || '').toLowerCase()
+                                  const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
+
+                                  if (isLastRound) {
+                                    import('@/lib/api/email').then(async ({ sendDocsRequiredAlertEmail }) => {
+                                      const mailRes = await sendDocsRequiredAlertEmail({
+                                        candidateName: cand.name,
+                                        candidateEmail: cand.email,
+                                        referenceId: refId,
+                                        jobTitle,
+                                      })
+                                      if (mailRes.success) {
+                                        toast.success(`Document collection email sent to ${cand.email}`)
+                                      }
+                                    })
+                                  }
+
                                   import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
                                     sendRoundClearedAlertEmail({
                                       candidateName: cand.name,
@@ -2184,7 +2217,9 @@ function InterviewsTab() {
                                       referenceId: refId,
                                       jobTitle,
                                       roundName: i.round,
-                                      nextStep: 'Please visit your Candidate Portal for the next interview round or document verification stage.',
+                                      nextStep: isLastRound
+                                        ? 'Please upload your pre-offer verification documents in your Candidate Portal.'
+                                        : 'Please visit your Candidate Portal for the next interview round.',
                                     }).catch(() => {})
                                   })
                                 } else if (v === 'failed') {
@@ -2205,11 +2240,12 @@ function InterviewsTab() {
                             }
                           }}
                         >
-                          <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="scheduled">Scheduled</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="passed">Passed</SelectItem>
+                            <SelectItem value="document collection">Document Collection</SelectItem>
                             <SelectItem value="failed">Failed</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                           </SelectContent>
@@ -2542,6 +2578,7 @@ function InterviewsTab() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="passed">Passed / Cleared</SelectItem>
+                    <SelectItem value="document collection">Document Collection (Passed &amp; Request Docs)</SelectItem>
                     <SelectItem value="completed">Completed (Under Review)</SelectItem>
                     <SelectItem value="failed">Failed / Rejected</SelectItem>
                   </SelectContent>

@@ -1946,6 +1946,33 @@ function InterviewsTab() {
       rating: feedbackRating,
       metrics: feedbackMetrics,
     })
+
+    // If feedback sets status to document collection or passed last round, trigger document collection email
+    try {
+      const cand = feedbackModal.candidate
+      if (cand?.email) {
+        const refId = (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase()
+        const jobTitle = feedbackModal.job_opening?.title || 'Selected Position'
+        const rLower = (feedbackModal.round || '').toLowerCase()
+        const mLower = (feedbackModal.mode || '').toLowerCase()
+        const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
+
+        if (feedbackStatus === 'document collection' || feedbackStatus === 'Document Collection' || (feedbackStatus === 'passed' && isLastRound)) {
+          const mailRes = await sendDocsRequiredAlertEmail({
+            candidateName: cand.name,
+            candidateEmail: cand.email,
+            referenceId: refId,
+            jobTitle,
+          })
+          if (mailRes.success) {
+            toast.success(`Document collection email sent to ${cand.email}`)
+          }
+        }
+      }
+    } catch (mailErr) {
+      console.warn('Feedback mail dispatch notice:', mailErr)
+    }
+
     setFeedbackModal(null)
   }
 
@@ -2178,7 +2205,23 @@ function InterviewsTab() {
                                 const jobTitle = i.job_opening?.title || 'Selected Position'
 
                                 if (v === 'document collection' || v === 'Document Collection') {
-                                  import('@/lib/api/email').then(async ({ sendDocsRequiredAlertEmail }) => {
+                                  const mailRes = await sendDocsRequiredAlertEmail({
+                                    candidateName: cand.name,
+                                    candidateEmail: cand.email,
+                                    referenceId: refId,
+                                    jobTitle,
+                                  })
+                                  if (mailRes.success) {
+                                    toast.success(`Document collection email sent to ${cand.email}`)
+                                  } else {
+                                    toast.info(`Document collection notice: ${mailRes.message}`)
+                                  }
+                                } else if (v === 'passed') {
+                                  const rLower = (i.round || '').toLowerCase()
+                                  const mLower = (i.mode || '').toLowerCase()
+                                  const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
+
+                                  if (isLastRound) {
                                     const mailRes = await sendDocsRequiredAlertEmail({
                                       candidateName: cand.name,
                                       candidateEmail: cand.email,
@@ -2187,27 +2230,7 @@ function InterviewsTab() {
                                     })
                                     if (mailRes.success) {
                                       toast.success(`Document collection email sent to ${cand.email}`)
-                                    } else {
-                                      toast.info(`Document collection notice: ${mailRes.message}`)
                                     }
-                                  })
-                                } else if (v === 'passed') {
-                                  const rLower = (i.round || '').toLowerCase()
-                                  const mLower = (i.mode || '').toLowerCase()
-                                  const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
-
-                                  if (isLastRound) {
-                                    import('@/lib/api/email').then(async ({ sendDocsRequiredAlertEmail }) => {
-                                      const mailRes = await sendDocsRequiredAlertEmail({
-                                        candidateName: cand.name,
-                                        candidateEmail: cand.email,
-                                        referenceId: refId,
-                                        jobTitle,
-                                      })
-                                      if (mailRes.success) {
-                                        toast.success(`Document collection email sent to ${cand.email}`)
-                                      }
-                                    })
                                   }
 
                                   import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
@@ -2228,6 +2251,18 @@ function InterviewsTab() {
                                       candidateName: cand.name,
                                       candidateEmail: cand.email,
                                       jobTitle,
+                                      referenceId: refId,
+                                      status: 'Rejected',
+                                      reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,
+                                    }).catch(() => {})
+                                  })
+                                }
+                              }
+                            } catch (e) {
+                              console.warn('Interview status email notice:', e)
+                            }
+                          }}
+                        >
                                       referenceId: refId,
                                       status: 'Rejected',
                                       reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,

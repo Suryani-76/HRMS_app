@@ -174,6 +174,7 @@ export interface CandidateVerificationDoc {
   fileSize?: string
   fileType?: string
   fileData?: string // Base64 data URL or document URL
+  fileUrl?: string // Remote Supabase storage public URL
   uploadedAt?: string
   status: 'pending' | 'verified' | 'rejected'
   rejectionReason?: string

@@ -2263,18 +2263,6 @@ function InterviewsTab() {
                             }
                           }}
                         >
-                                      referenceId: refId,
-                                      status: 'Rejected',
-                                      reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,
-                                    }).catch(() => {})
-                                  })
-                                }
-                              }
-                            } catch (e) {
-                              console.warn('Interview status email notice:', e)
-                            }
-                          }}
-                        >
                           <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="scheduled">Scheduled</SelectItem>
@@ -2613,7 +2601,7 @@ function InterviewsTab() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="passed">Passed / Cleared</SelectItem>
-                    <SelectItem value="document collection">Document Collection (Passed &amp; Request Docs)</SelectItem>
+                    <SelectItem value="document collection">Document Collection (Passed and Request Docs)</SelectItem>
                     <SelectItem value="completed">Completed (Under Review)</SelectItem>
                     <SelectItem value="failed">Failed / Rejected</SelectItem>
                   </SelectContent>

@@ -70,8 +70,16 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   const dateHeader = new Date().toUTCString()
   const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
 
-  // Strip emojis from subject to avoid mailbaby / rspam spam triggers
-  const cleanSubject = subject.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
+  // Encode subject with RFC 2047 if it contains unicode or emojis to maintain RFC 2822 compliance
+  let formattedSubject = subject
+  if (/[^\x20-\x7E]/.test(subject)) {
+    const bytes = new TextEncoder().encode(subject)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    formattedSubject = `=?UTF-8?B?${btoa(binary)}?=`
+  }
 
   // Generate readable plain text version from html
   const plainText = html
@@ -87,7 +95,7 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
     `From: "${fromName}" <${SMTP_USER}>`,
     `Reply-To: ${SMTP_USER}`,
     `To: <${to}>`,
-    `Subject: ${cleanSubject}`,
+    `Subject: ${formattedSubject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     `X-Mailer: OKLUT HRMS Enterprise Mailer`,

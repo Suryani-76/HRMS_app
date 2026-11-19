@@ -915,7 +915,7 @@ export function generateRoundClearedHtml(payload: RoundClearedAlertPayload): str
 }
 
 export async function sendRoundClearedAlertEmail(payload: RoundClearedAlertPayload) {
-  const subject = `OKLUT Recruitment - You Passed ${payload.roundName} (${payload.jobTitle})`
+  const subject = `🏆 Stage Cleared: You passed ${payload.roundName} (${payload.jobTitle}) — OKLUT`
   const html = generateRoundClearedHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,

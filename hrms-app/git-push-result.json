@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-11-19T11:07:01.103Z",
+  "timestamp": "2026-11-19T11:18:42.414Z",
   "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
       "step": "tsc -b check failed",
-      "output": "^C"
+      "output": "src/pages/recruitment-page.tsx(11,3): error TS6133: 'sendInterviewScheduledAlertEmail' is declared but its value is never read."
     }
   ],
   "success": false,
-  "error": "TypeScript check failed:\n^C"
+  "error": "TypeScript check failed:\nsrc/pages/recruitment-page.tsx(11,3): error TS6133: 'sendInterviewScheduledAlertEmail' is declared but its value is never read."
 }

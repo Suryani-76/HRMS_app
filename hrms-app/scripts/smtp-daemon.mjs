@@ -40,7 +40,7 @@ function sendEmailTls({ to, subject, html }) {
       for (const line of lines) {
         if (!line) continue
         if (line.startsWith('220') && step === 0) {
-          step = 1; socket.write(`EHLO ${SMTP_CONFIG.host}\r\n`)
+          step = 1; socket.write(`EHLO oklut.com\r\n`)
         } else if (line.startsWith('250') && step === 1) {
           step = 2; socket.write('AUTH LOGIN\r\n')
         } else if (line.startsWith('334') && step === 2) {
@@ -56,7 +56,9 @@ function sendEmailTls({ to, subject, html }) {
         } else if (line.startsWith('354') && step === 7) {
           step = 8
           const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-          const cleanSubject = (subject || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
+          const formattedSubject = /[^\x20-\x7E]/.test(subject || '')
+            ? `=?UTF-8?B?${Buffer.from(subject || '').toString('base64')}?=`
+            : (subject || '')
           const plainText = (html || '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -70,7 +72,7 @@ function sendEmailTls({ to, subject, html }) {
             `From: "${SMTP_CONFIG.fromName}" <${SMTP_CONFIG.user}>`,
             `Reply-To: ${SMTP_CONFIG.user}`,
             `To: <${to}>`,
-            `Subject: ${cleanSubject}`,
+            `Subject: ${formattedSubject}`,
             `MIME-Version: 1.0`,
             `Content-Type: multipart/alternative; boundary="${boundary}"`,
             `X-Mailer: OKLUT HRMS Enterprise Mailer`,

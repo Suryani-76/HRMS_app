@@ -1947,17 +1947,20 @@ function InterviewsTab() {
       metrics: feedbackMetrics,
     })
 
-    // If feedback sets status to document collection or passed last round, trigger document collection email
+    // If feedback sets status to document collection or passed, trigger corresponding stage email
     try {
       const cand = feedbackModal.candidate
       if (cand?.email) {
         const refId = (cand as any).reference_id || (cand as any).temp_id || cand.id?.slice(0, 8)?.toUpperCase()
         const jobTitle = feedbackModal.job_opening?.title || 'Selected Position'
         const rLower = (feedbackModal.round || '').toLowerCase()
-        const mLower = (feedbackModal.mode || '').toLowerCase()
-        const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
+        const nextStep = rLower.includes('screen') || rLower.includes('exam')
+          ? 'Technical Interview Round'
+          : rLower.includes('tech')
+          ? 'Face-to-Face Interview Round'
+          : 'HR Discussion Round'
 
-        if (feedbackStatus === 'document collection' || feedbackStatus === 'Document Collection' || (feedbackStatus === 'passed' && isLastRound)) {
+        if (feedbackStatus === 'document collection' || feedbackStatus === 'Document Collection') {
           const mailRes = await sendDocsRequiredAlertEmail({
             candidateName: cand.name,
             candidateEmail: cand.email,
@@ -1966,6 +1969,19 @@ function InterviewsTab() {
           })
           if (mailRes.success) {
             toast.success(`Document collection email sent to ${cand.email}`)
+          }
+        } else if (feedbackStatus === 'passed') {
+          const mailRes = await sendRoundClearedAlertEmail({
+            candidateName: cand.name,
+            candidateEmail: cand.email,
+            referenceId: refId,
+            jobTitle,
+            roundName: feedbackModal.round || 'Evaluation Round',
+            nextStep,
+            feedback: feedbackText || undefined,
+          })
+          if (mailRes.success) {
+            toast.success(`Stage cleared email sent to ${cand.email}`)
           }
         }
       }
@@ -2218,33 +2234,24 @@ function InterviewsTab() {
                                   }
                                 } else if (v === 'passed') {
                                   const rLower = (i.round || '').toLowerCase()
-                                  const mLower = (i.mode || '').toLowerCase()
-                                  const isLastRound = rLower.includes('hr') || rLower.includes('face') || mLower.includes('face')
+                                  const nextStep = rLower.includes('screen') || rLower.includes('exam')
+                                    ? 'Technical Interview Round'
+                                    : rLower.includes('tech')
+                                    ? 'Face-to-Face Interview Round'
+                                    : 'HR Discussion Round'
 
-                                  if (isLastRound) {
-                                    // Final round passed -> send document collection email
-                                    const mailRes = await sendDocsRequiredAlertEmail({
-                                      candidateName: cand.name,
-                                      candidateEmail: cand.email,
-                                      referenceId: refId,
-                                      jobTitle,
-                                    })
-                                    if (mailRes.success) {
-                                      toast.success(`Document collection email sent to ${cand.email}`)
-                                    }
+                                  const mailRes = await sendRoundClearedAlertEmail({
+                                    candidateName: cand.name,
+                                    candidateEmail: cand.email,
+                                    referenceId: refId,
+                                    jobTitle,
+                                    roundName: i.round || 'Evaluation Round',
+                                    nextStep,
+                                  })
+                                  if (mailRes.success) {
+                                    toast.success(`Stage cleared email sent to ${cand.email}`)
                                   } else {
-                                    // Intermediate round passed -> send round cleared email
-                                    const mailRes = await sendRoundClearedAlertEmail({
-                                      candidateName: cand.name,
-                                      candidateEmail: cand.email,
-                                      referenceId: refId,
-                                      jobTitle,
-                                      roundName: i.round,
-                                      nextStep: 'Please visit your Candidate Portal for the next interview round.',
-                                    })
-                                    if (mailRes.success) {
-                                      toast.success(`Round cleared email sent to ${cand.email}`)
-                                    }
+                                    toast.info(`Stage cleared notice: ${mailRes.message}`)
                                   }
                                 } else if (v === 'failed') {
                                   const mailRes = await sendCandidateStatusAlertEmail({

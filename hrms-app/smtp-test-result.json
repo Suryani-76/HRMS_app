@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-19T11:06:59.370Z",
+  "testedAt": "2026-11-19T11:18:39.938Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,8 +7,8 @@
     "passConfigured": true
   },
   "steps": [
-    "[+74ms] TLS Connected to kindle.herosite.pro:465",
-    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 16:37:01 +0530 ",
+    "[+90ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 16:48:41 +0530 ",
     "S: 220-We do not authorize the use of this system to transport unsolicited, ",
     "S: 220 and/or bulk e-mail.",
     "C: EHLO localhost",
@@ -36,9 +36,73 @@
   "error": null,
   "serverBanner": "220 and/or bulk e-mail.",
   "authResponse": "235 Authentication succeeded",
-  "connectionTimeMs": 74,
-  "totalTimeMs": 231,
+  "connectionTimeMs": 90,
+  "totalTimeMs": 248,
   "recentAuditLogs": [
+    {
+      "id": "f440f5ac-fbc2-4e60-a6b2-f34b07b7e59e",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-0L5YZB",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:08:56.955Z",
+        "subject": "Action Required: Upload Verification Documents for SAP VIM Consultant - OKLUT"
+      },
+      "created_at": "2026-11-19T11:08:59.067579+00:00"
+    },
+    {
+      "id": "42dba34f-81bf-4e61-8bcd-e3dd0b2be34f",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:08:55.669Z",
+        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
+      },
+      "created_at": "2026-11-19T11:08:57.791692+00:00"
+    },
+    {
+      "id": "08cae3bc-ca8c-4e72-bc7d-5e1f76379331",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-0L5YZB",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:08:24.200Z",
+        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP VIM Consultant) — OKLUT"
+      },
+      "created_at": "2026-11-19T11:08:26.324241+00:00"
+    },
+    {
+      "id": "884ef14f-23c2-4231-aadd-c97d031c169f",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-0L5YZB",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:07:52.998Z",
+        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP VIM Consultant)"
+      },
+      "created_at": "2026-11-19T11:07:55.721959+00:00"
+    },
+    {
+      "id": "e7f6d39d-6464-4ed4-bbc1-7462ce00e507",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-0L5YZB",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:07:52.999Z",
+        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP VIM Consultant)"
+      },
+      "created_at": "2026-11-19T11:07:55.694608+00:00"
+    },
     {
       "id": "b0f6e876-144d-412f-937e-366e5e5b1761",
       "action": "EMAIL_SENT",
@@ -102,72 +166,6 @@
         "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
       },
       "created_at": "2026-11-19T11:03:33.651413+00:00"
-    },
-    {
-      "id": "3d3681ff-b4a7-414f-82f3-414db00c78a7",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:03:30.378Z",
-        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
-      },
-      "created_at": "2026-11-19T11:03:32.487397+00:00"
-    },
-    {
-      "id": "e6bfca02-5640-4e6a-bdd3-4b52e8949075",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:03:09.605Z",
-        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP MDG Consultant / Engineer) — OKLUT"
-      },
-      "created_at": "2026-11-19T11:03:11.722738+00:00"
-    },
-    {
-      "id": "28d1aace-5cf4-4153-9000-5387e67c7534",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:02:17.877Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
-      },
-      "created_at": "2026-11-19T11:02:20.046451+00:00"
-    },
-    {
-      "id": "8310c268-428d-433c-9370-0b57a7694f22",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-R75G16",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T11:02:17.878Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
-      },
-      "created_at": "2026-11-19T11:02:20.046451+00:00"
-    },
-    {
-      "id": "da3cc91e-0cf1-4095-b6c4-82bca030626c",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>Interview Scheduled — Face-to-Face Interview</title></head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;margin:30px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #4f46e5 0%, #312e81 100%);padding:36px 32px;text-align:center;\">\n        <span style=\"display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;\">\n          📅 Interview Confirmed\n        </span>\n        <h1 style=\"margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;\">Face-to-Face Interview</h1>\n        <p style=\"margin:4px 0 0 0;color:#e0e7ff;font-size:14px;\">Role: SAP MDG Consultant / Engineer</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>gouda suryani</strong>,\n        </p>\n        <p style=\"margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;\">\n          Your interview for the <strong>SAP MDG Consultant / Engineer</strong> position has been scheduled. Below are your appointment details:\n        </p>\n\n        <!-- Interview Details Card -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;border-left:4px solid #4f46e5;\">\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Round:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:700;color:#0f172a;text-align:right;\">Face-to-Face Interview</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Scheduled Date &amp; Time:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:700;color:#4338ca;text-align:right;\">2026-11-19T10:49:00.000Z</td>\n          </tr>\n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Interview Mode:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;text-transform:capitalize;\">Face-to-Face / In-Person (Direct Docs Submission)</td>\n          </tr>\n          \n          \n          <tr>\n            <td style=\"padding:6px 0;font-size:13px;color:#64748b;\">Office Location / Venue Instructions:</td>\n            <td style=\"padding:6px 0;font-size:13px;font-weight:600;color:#2563eb;text-align:right;word-break:break-all;\">\n              <span>Oklut Office / Corporate Headquarters</span>\n            </td>\n          </tr>\n        </table>\n\n        <p style=\"margin:20px 0;font-size:13px;color:#475569;line-height:1.6;\">\n          For this <strong>Face-to-Face Interview</strong>, online evaluation rounds are waived. Please log in to your Candidate Portal to directly upload and submit your pre-offer verification documents.\n        </p>\n\n        <div style=\"text-align:center;margin:30px 0;\">\n          <a href=\"https://hrm.oklut.com/candidate-portal\" target=\"_blank\" style=\"background-color:#4f46e5;color:#ffffff;padding:12px 28px;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;display:inline-block;box-shadow:0 2px 4px rgba(79,70,229,0.2);\">\n            View Interview in Candidate Portal →\n          </a>\n        </div>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;\">\n        © 2026 OKLUT Inc. &bull; Automated notification from OKLUT HRMS\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
-        "refId": "CAND-J3BQZX",
-        "sent_at": "2026-11-19T10:49:21.464Z",
-        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP MDG Consultant / Engineer) — OKLUT",
-        "messageId": "<1795085998612.a868xm2@oklut.com>",
-        "delivered_at": "2026-11-19T11:00:06.248Z"
-      },
-      "created_at": "2026-11-19T10:49:23.580333+00:00"
     }
   ]
 }

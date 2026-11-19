@@ -1,1 +1,1 @@
-^C
+src/pages/recruitment-page.tsx(11,3): error TS6133: 'sendInterviewScheduledAlertEmail' is declared but its value is never read.

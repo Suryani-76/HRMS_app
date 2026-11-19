@@ -461,10 +461,10 @@ export function CandidateDocumentUploadSection({
         return d
       })
 
+      // Keep status as 'draft' until candidate actually clicks "Submit Softcopies for HR Verification"
       const nextSubmission: CandidateDocSubmission = {
         ...submission,
-        status: submission.status === 'draft' ? 'submitted' : submission.status,
-        submittedAt: submission.submittedAt || nowIso,
+        status: submission.status === 'verified' ? 'verified' : 'draft',
         documents: updatedDocs,
       }
       setSubmission(nextSubmission)

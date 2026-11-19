@@ -1425,8 +1425,15 @@ export default function CandidatePortalPage() {
     return null
   }, [effectiveOffer, termsAcceptedEffective, candidate, job])
 
+  // Must only count as submitted if all required documents are attached AND candidate has submitted them
+  const allRequiredSoftcopiesAttached = useMemo(() => {
+    const req = (docSubmission.documents || []).filter((d) => d.required)
+    return req.length > 0 && req.every((d) => !!d.fileName)
+  }, [docSubmission.documents])
+
   const docsSubmitted =
     hasUploadedDocs &&
+    allRequiredSoftcopiesAttached &&
     (docSubmission.status === 'submitted' ||
       docSubmission.status === 'under_review' ||
       docSubmission.status === 'verified' ||

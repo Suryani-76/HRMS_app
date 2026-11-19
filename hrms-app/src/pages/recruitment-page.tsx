@@ -3178,14 +3178,18 @@ function DocumentationTab() {
       })
 
       // Send automated email alert via SMTP
-      await sendDocsRequiredAlertEmail({
+      const docEmailRes = await sendDocsRequiredAlertEmail({
         candidateName: cand.name,
         candidateEmail: cand.email,
         jobTitle: cand.job_opening?.title || 'Selected Position',
         referenceId: (cand as any).reference_id || (cand as any).temp_id,
       })
 
-      toast.success(`Document collection requested for ${cand.name}! Email alert sent and portal section unlocked.`)
+      if (docEmailRes.success) {
+        toast.success(`Document collection requested for ${cand.name}! Email alert sent to ${cand.email}.`)
+      } else {
+        toast.warning(`Document collection requested, but email note: ${docEmailRes.message}`)
+      }
     } catch (err: any) {
       toast.error('Failed to request documents: ' + (err?.message || 'Unknown error'))
     } finally {

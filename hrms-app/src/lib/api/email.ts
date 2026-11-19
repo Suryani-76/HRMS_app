@@ -382,7 +382,9 @@ export async function dispatchCandidateAlertEmail({
         refId,
       },
     })
-    if (!edgeError && edgeData?.success) {
+    if (edgeError) {
+      console.error('[Email Alert] Supabase Edge Function error:', edgeError)
+    } else if (edgeData?.success) {
       console.log(`[Email Alert] Successfully sent via Supabase Edge Function to ${cleanTo} (${subject})`)
       try {
         await supabase.from('audit_logs').insert({
@@ -399,9 +401,11 @@ export async function dispatchCandidateAlertEmail({
         })
       } catch {}
       return { success: true, message: `Email delivered to ${cleanTo}` }
+    } else {
+      console.warn('[Email Alert] Edge function returned unsuccessful payload:', edgeData)
     }
   } catch (err) {
-    console.warn('[Email Alert] Edge function invocation attempt failed, trying fallbacks:', err)
+    console.error('[Email Alert] Edge function invocation exception:', err)
   }
 
   // 2. Direct local dev server SMTP dispatch (relative endpoint)

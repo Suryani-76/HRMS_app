@@ -65,12 +65,21 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   // 5. DATA
   await sendCommand('DATA')
 
+  // Generate valid RFC 2822 Message-ID and Date headers to pass spam filters
+  const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2, 10)}@oklut.com>`
+  const dateHeader = new Date().toUTCString()
+
   const message = [
+    `Date: ${dateHeader}`,
+    `Message-ID: ${messageId}`,
     `From: "${fromName}" <${SMTP_USER}>`,
+    `Reply-To: ${SMTP_USER}`,
     `To: <${to}>`,
-    `Subject: ${subject}`,
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset=utf-8`,
+    `Content-Transfer-Encoding: 8bit`,
+    `X-Mailer: OKLUT HRMS Mailer`,
     ``,
     html,
     `\r\n.`

@@ -8,7 +8,6 @@ import {
   sendCandidateStatusAlertEmail,
   sendOfferLetterReleasedAlertEmail,
   sendRoundClearedAlertEmail,
-  sendInterviewScheduledAlertEmail,
   getEffectivePortalUrl,
   broadcastJobOpeningToEmployees,
   generateJobCode,

@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-19T11:41:45.107Z",
+  "testedAt": "2026-11-19T11:47:38.742Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,8 +7,8 @@
     "passConfigured": true
   },
   "steps": [
-    "[+83ms] TLS Connected to kindle.herosite.pro:465",
-    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 17:11:47 +0530 ",
+    "[+107ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 17:17:40 +0530 ",
     "S: 220-We do not authorize the use of this system to transport unsolicited, ",
     "S: 220 and/or bulk e-mail.",
     "C: EHLO localhost",
@@ -36,8 +36,8 @@
   "error": null,
   "serverBanner": "220 and/or bulk e-mail.",
   "authResponse": "235 Authentication succeeded",
-  "connectionTimeMs": 83,
-  "totalTimeMs": 221,
+  "connectionTimeMs": 107,
+  "totalTimeMs": 241,
   "recentAuditLogs": [
     {
       "id": "0fd5043e-e6f5-452a-b166-2bd470fc2f8e",

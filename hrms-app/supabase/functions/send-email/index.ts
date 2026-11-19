@@ -42,8 +42,8 @@ async function sendSmtpEmail({ to, subject, html, fromName = 'OKLUT Human Resour
   // 1. Initial greeting
   await readResponse()
 
-  // 2. EHLO with proper domain hostname (never localhost to pass rSPAM / SpamAssassin)
-  await sendCommand(`EHLO ${SMTP_HOST}`)
+  // 2. EHLO with sender domain oklut.com (matches sender domain to avoid HELO forgery flags)
+  await sendCommand('EHLO oklut.com')
 
   // 3. AUTH LOGIN
   await sendCommand('AUTH LOGIN')

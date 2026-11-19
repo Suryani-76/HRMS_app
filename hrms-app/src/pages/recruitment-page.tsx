@@ -7,6 +7,8 @@ import {
   sendCandidateApplicationEmail,
   sendCandidateStatusAlertEmail,
   sendOfferLetterReleasedAlertEmail,
+  sendRoundClearedAlertEmail,
+  sendInterviewScheduledAlertEmail,
   getEffectivePortalUrl,
   broadcastJobOpeningToEmployees,
   generateJobCode,
@@ -1304,21 +1306,19 @@ function CandidatesTab() {
                               size="sm"
                               variant="outline"
                               className="h-8 px-2 text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                              onClick={() => {
+                              onClick={async () => {
                                 updateStatus.mutate({ id: c.id, status: 'Shortlisted' })
                                 toast.success(`Shortlisted ${c.name}!`)
 
                                 if (c.email) {
-                                  import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
-                                    sendCandidateStatusAlertEmail({
-                                      candidateName: c.name,
-                                      candidateEmail: c.email,
-                                      jobTitle: c.job_opening?.title || 'Open Position',
-                                      referenceId: (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase(),
-                                      dateOfBirth: c.date_of_birth || undefined,
-                                      status: 'Shortlisted',
-                                    }).catch(() => {})
-                                  })
+                                  sendCandidateStatusAlertEmail({
+                                    candidateName: c.name,
+                                    candidateEmail: c.email,
+                                    jobTitle: c.job_opening?.title || 'Open Position',
+                                    referenceId: (c as any).reference_id || (c as any).temp_id || c.id.slice(0, 8).toUpperCase(),
+                                    dateOfBirth: c.date_of_birth || undefined,
+                                    status: 'Shortlisted',
+                                  }).catch(() => {})
                                 }
                               }}
                             >
@@ -2234,28 +2234,30 @@ function InterviewsTab() {
                                     }
                                   } else {
                                     // Intermediate round passed -> send round cleared email
-                                    import('@/lib/api/email').then(({ sendRoundClearedAlertEmail }) => {
-                                      sendRoundClearedAlertEmail({
-                                        candidateName: cand.name,
-                                        candidateEmail: cand.email,
-                                        referenceId: refId,
-                                        jobTitle,
-                                        roundName: i.round,
-                                        nextStep: 'Please visit your Candidate Portal for the next interview round.',
-                                      }).catch(() => {})
-                                    })
-                                  }
-                                } else if (v === 'failed') {
-                                  import('@/lib/api/email').then(({ sendCandidateStatusAlertEmail }) => {
-                                    sendCandidateStatusAlertEmail({
+                                    const mailRes = await sendRoundClearedAlertEmail({
                                       candidateName: cand.name,
                                       candidateEmail: cand.email,
-                                      jobTitle,
                                       referenceId: refId,
-                                      status: 'Rejected',
-                                      reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,
-                                    }).catch(() => {})
+                                      jobTitle,
+                                      roundName: i.round,
+                                      nextStep: 'Please visit your Candidate Portal for the next interview round.',
+                                    })
+                                    if (mailRes.success) {
+                                      toast.success(`Round cleared email sent to ${cand.email}`)
+                                    }
+                                  }
+                                } else if (v === 'failed') {
+                                  const mailRes = await sendCandidateStatusAlertEmail({
+                                    candidateName: cand.name,
+                                    candidateEmail: cand.email,
+                                    jobTitle,
+                                    referenceId: refId,
+                                    status: 'Rejected',
+                                    reason: `We regret to inform you that you were not shortlisted following the ${i.round} round.`,
                                   })
+                                  if (mailRes.success) {
+                                    toast.info(`Status update email sent to ${cand.email}`)
+                                  }
                                 }
                               }
                             } catch (e) {

@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-11-19T11:00:28.271Z",
+  "testedAt": "2026-11-19T11:06:59.370Z",
   "config": {
     "host": "kindle.herosite.pro",
     "port": 465,
@@ -7,17 +7,153 @@
     "passConfigured": true
   },
   "steps": [
-    "ERROR: 443D0000:error:0A00010B:SSL routines:tls_validate_record_header:wrong version number:openssl\\ssl\\record\\methods\\tlsany_meth.c:78:\n"
+    "[+74ms] TLS Connected to kindle.herosite.pro:465",
+    "S: 220-kindle.herosite.pro ESMTP Exim 4.100.1 #2 Thu, 19 Nov 2026 16:37:01 +0530 ",
+    "S: 220-We do not authorize the use of this system to transport unsolicited, ",
+    "S: 220 and/or bulk e-mail.",
+    "C: EHLO localhost",
+    "S: 250-kindle.herosite.pro Hello localhost [183.83.230.30]",
+    "S: 250-SIZE 52428800",
+    "S: 250-LIMITS MAILMAX=1000 RCPTMAX=50000",
+    "S: 250-8BITMIME",
+    "S: 250-PIPELINING",
+    "S: 250-PIPECONNECT",
+    "S: 250-AUTH PLAIN LOGIN",
+    "S: 250 HELP",
+    "C: AUTH LOGIN",
+    "S: 334 VXNlcm5hbWU6",
+    "C: <base64 user: hr@oklut.com>",
+    "S: 334 UGFzc3dvcmQ6",
+    "C: <base64 pass: *****>",
+    "S: 235 Authentication succeeded",
+    "C: AUTH OK (235 Authentication succeeded)",
+    "C: QUIT",
+    "S: 221 kindle.herosite.pro closing connection"
   ],
-  "connected": false,
-  "authenticated": false,
-  "success": false,
-  "error": "443D0000:error:0A00010B:SSL routines:tls_validate_record_header:wrong version number:openssl\\ssl\\record\\methods\\tlsany_meth.c:78:\n",
-  "serverBanner": null,
-  "authResponse": null,
-  "connectionTimeMs": null,
-  "totalTimeMs": 66,
+  "connected": true,
+  "authenticated": true,
+  "success": true,
+  "error": null,
+  "serverBanner": "220 and/or bulk e-mail.",
+  "authResponse": "235 Authentication succeeded",
+  "connectionTimeMs": 74,
+  "totalTimeMs": 231,
   "recentAuditLogs": [
+    {
+      "id": "b0f6e876-144d-412f-937e-366e5e5b1761",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:05:57.939Z",
+        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
+      },
+      "created_at": "2026-11-19T11:06:00.095733+00:00"
+    },
+    {
+      "id": "23c13154-2505-4e5e-9157-a2fa4011b5ca",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:05:57.832Z",
+        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
+      },
+      "created_at": "2026-11-19T11:05:59.936489+00:00"
+    },
+    {
+      "id": "fced16e8-93ce-48e1-9cb1-0bab1b878aaf",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:05:18.509Z",
+        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
+      },
+      "created_at": "2026-11-19T11:05:20.613063+00:00"
+    },
+    {
+      "id": "8d8e6238-a915-44f3-b65e-1d9742cc109f",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:05:17.377Z",
+        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
+      },
+      "created_at": "2026-11-19T11:05:19.493557+00:00"
+    },
+    {
+      "id": "73b9a389-5f68-4e99-a5e0-2e806dd7ea4e",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:03:31.527Z",
+        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT"
+      },
+      "created_at": "2026-11-19T11:03:33.651413+00:00"
+    },
+    {
+      "id": "3d3681ff-b4a7-414f-82f3-414db00c78a7",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:03:30.378Z",
+        "subject": "Action Required: Upload Verification Documents for Selected Position - OKLUT"
+      },
+      "created_at": "2026-11-19T11:03:32.487397+00:00"
+    },
+    {
+      "id": "e6bfca02-5640-4e6a-bdd3-4b52e8949075",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:03:09.605Z",
+        "subject": "📅 Interview Scheduled: Face-to-Face Interview (SAP MDG Consultant / Engineer) — OKLUT"
+      },
+      "created_at": "2026-11-19T11:03:11.722738+00:00"
+    },
+    {
+      "id": "28d1aace-5cf4-4153-9000-5387e67c7534",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:02:17.877Z",
+        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
+      },
+      "created_at": "2026-11-19T11:02:20.046451+00:00"
+    },
+    {
+      "id": "8310c268-428d-433c-9370-0b57a7694f22",
+      "action": "EMAIL_SENT",
+      "details": {
+        "to": "goudasuryani@gmail.com",
+        "from": "hr@oklut.com",
+        "refId": "CAND-R75G16",
+        "channel": "supabase-edge-function",
+        "sent_at": "2026-11-19T11:02:17.878Z",
+        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
+      },
+      "created_at": "2026-11-19T11:02:20.046451+00:00"
+    },
     {
       "id": "da3cc91e-0cf1-4095-b6c4-82bca030626c",
       "action": "EMAIL_SENT",
@@ -32,124 +168,6 @@
         "delivered_at": "2026-11-19T11:00:06.248Z"
       },
       "created_at": "2026-11-19T10:49:23.580333+00:00"
-    },
-    {
-      "id": "7d4d5433-ccf2-4f51-9b3c-8c4890348360",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-J3BQZX",
-        "channel": "smtp-tls-verified",
-        "sent_at": "2026-11-19T10:47:46Z",
-        "subject": "Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer - OKLUT",
-        "smtp_status": "accepted-zero-bounce"
-      },
-      "created_at": "2026-11-19T10:47:48.858304+00:00"
-    },
-    {
-      "id": "b737e0bd-61bb-4f96-9052-c70383d5b973",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-J3BQZX",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T10:40:00.000Z",
-        "subject": "📄 Action Required: Upload Verification Documents for SAP MDG Consultant / Engineer — OKLUT"
-      },
-      "created_at": "2026-11-19T10:39:34.656136+00:00"
-    },
-    {
-      "id": "1246589e-cbee-44ee-a0c6-1829358465aa",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-J3BQZX",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T10:22:23.619Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
-      },
-      "created_at": "2026-11-19T10:22:25.783058+00:00"
-    },
-    {
-      "id": "1b5b4698-6b06-4303-86a5-534e715395b0",
-      "action": "EMAIL_SENT",
-      "details": {
-        "to": "goudasuryani@gmail.com",
-        "from": "hr@oklut.com",
-        "refId": "CAND-J3BQZX",
-        "channel": "supabase-edge-function",
-        "sent_at": "2026-11-19T10:22:23.626Z",
-        "subject": "Welcome to OKLUT — Application Received & Portal Credentials (SAP MDG Consultant / Engineer)"
-      },
-      "created_at": "2026-11-19T10:22:25.78227+00:00"
-    },
-    {
-      "id": "72def317-a3b9-475d-a274-6832a5bfa57d",
-      "action": "EMAIL_PENDING",
-      "details": {
-        "to": "n.mannepalli@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>New Job Opening: Senior Full Stack Engineer — JOB-SEN-CAST</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);\">\n    \n    <!-- Top Announcement Ribbon -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;\">\n        <span style=\"display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;\">\n          🚀 Internal Talent &amp; Referral Announcement\n        </span>\n        <h1 style=\"margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;\">\n          Senior Full Stack Engineer\n        </h1>\n        <p style=\"margin:0;font-size:14px;color:#c7d2fe;\">\n          Corporate &bull; Hyderabad &bull; 2 Open Positions\n        </p>\n      </td>\n    </tr>\n\n    <!-- Body Container -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>mannepalli navaneeth</strong>,\n        </p>\n        <p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.\n        </p>\n\n        <!-- Codes & Key Metrics Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;\">\n          <tr>\n            <td style=\"padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n                <tr>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-right:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Official Job Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;\">\n                      JOB-SEN-CAST\n                    </div>\n                  </td>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-left:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Employee Referral Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;\">\n                      REF-SENCAST\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:18px 20px;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:13px;line-height:1.8;color:#475569;\">\n                <tr>\n                  <td width=\"35%\" style=\"color:#64748b;font-weight:600;\">Department:</td>\n                  <td width=\"65%\" style=\"color:#0f172a;font-weight:700;\">Corporate</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Work Location:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Hyderabad</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Employment Type:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Full-time</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Available Vacancies:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">2 Position(s)</td>\n                </tr>\n                \n              </table>\n            </td>\n          </tr>\n        </table>\n\n        <!-- Description Section -->\n        \n\n        <!-- Requirements Section -->\n        \n\n        <!-- Referral Bonus Card -->\n        <div style=\"background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;\">\n          <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n            <tr>\n              <td width=\"36\" style=\"vertical-align:top;font-size:24px;\">🎁</td>\n              <td style=\"vertical-align:top;padding-left:12px;\">\n                <h4 style=\"margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;\">\n                  How to Refer &amp; Earn Your Employee Bonus\n                </h4>\n                <p style=\"margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;\">\n                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.\n                </p>\n                <ol style=\"margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;\">\n                  <li>Share the <strong>Job Code (JOB-SEN-CAST)</strong> and <strong>Referral Code (REF-SENCAST)</strong> with your candidate.</li>\n                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>\n                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>\n                </ol>\n              </td>\n            </tr>\n          </table>\n        </div>\n\n        <!-- Action CTA -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:24px;\">\n          <tr>\n            <td align=\"center\">\n              <a href=\"https://hrm.oklut.com/careers\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;\">\n                View Careers Portal &rarr;\n              </a>\n              <a href=\"https://hrm.oklut.com/recruitment\" target=\"_blank\" style=\"display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;\">\n                Internal HR Portal\n              </a>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#64748b;line-height:1.5;\">\n          This official announcement was automatically dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.\n        </p>\n        <p style=\"margin:6px 0 0 0;font-size:11px;color:#94a3b8;\">\n          &copy; 2026 OKLUT Inc. Confidential &bull; For internal company use only.\n        </p>\n      </td>\n    </tr>\n\n  </table>\n</body>\n</html>",
-        "jobId": "job-test-broadcast",
-        "refId": "REF-SENCAST",
-        "subject": "🚀 New Job Opening: Senior Full Stack Engineer | Job Code: JOB-SEN-CAST | Referral Code: REF-SENCAST",
-        "automated": true
-      },
-      "created_at": "2026-11-19T10:15:35.359391+00:00"
-    },
-    {
-      "id": "59638e97-fad7-454f-b5c5-7d2f841f1f97",
-      "action": "EMAIL_PENDING",
-      "details": {
-        "to": "n.sonti@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>New Job Opening: Senior Full Stack Engineer — JOB-SEN-CAST</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);\">\n    \n    <!-- Top Announcement Ribbon -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;\">\n        <span style=\"display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;\">\n          🚀 Internal Talent &amp; Referral Announcement\n        </span>\n        <h1 style=\"margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;\">\n          Senior Full Stack Engineer\n        </h1>\n        <p style=\"margin:0;font-size:14px;color:#c7d2fe;\">\n          Corporate &bull; Hyderabad &bull; 2 Open Positions\n        </p>\n      </td>\n    </tr>\n\n    <!-- Body Container -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Sonti Naveen</strong>,\n        </p>\n        <p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.\n        </p>\n\n        <!-- Codes & Key Metrics Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;\">\n          <tr>\n            <td style=\"padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n                <tr>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-right:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Official Job Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;\">\n                      JOB-SEN-CAST\n                    </div>\n                  </td>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-left:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Employee Referral Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;\">\n                      REF-SENCAST\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:18px 20px;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:13px;line-height:1.8;color:#475569;\">\n                <tr>\n                  <td width=\"35%\" style=\"color:#64748b;font-weight:600;\">Department:</td>\n                  <td width=\"65%\" style=\"color:#0f172a;font-weight:700;\">Corporate</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Work Location:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Hyderabad</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Employment Type:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Full-time</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Available Vacancies:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">2 Position(s)</td>\n                </tr>\n                \n              </table>\n            </td>\n          </tr>\n        </table>\n\n        <!-- Description Section -->\n        \n\n        <!-- Requirements Section -->\n        \n\n        <!-- Referral Bonus Card -->\n        <div style=\"background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;\">\n          <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n            <tr>\n              <td width=\"36\" style=\"vertical-align:top;font-size:24px;\">🎁</td>\n              <td style=\"vertical-align:top;padding-left:12px;\">\n                <h4 style=\"margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;\">\n                  How to Refer &amp; Earn Your Employee Bonus\n                </h4>\n                <p style=\"margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;\">\n                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.\n                </p>\n                <ol style=\"margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;\">\n                  <li>Share the <strong>Job Code (JOB-SEN-CAST)</strong> and <strong>Referral Code (REF-SENCAST)</strong> with your candidate.</li>\n                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>\n                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>\n                </ol>\n              </td>\n            </tr>\n          </table>\n        </div>\n\n        <!-- Action CTA -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:24px;\">\n          <tr>\n            <td align=\"center\">\n              <a href=\"https://hrm.oklut.com/careers\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;\">\n                View Careers Portal &rarr;\n              </a>\n              <a href=\"https://hrm.oklut.com/recruitment\" target=\"_blank\" style=\"display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;\">\n                Internal HR Portal\n              </a>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#64748b;line-height:1.5;\">\n          This official announcement was automatically dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.\n        </p>\n        <p style=\"margin:6px 0 0 0;font-size:11px;color:#94a3b8;\">\n          &copy; 2026 OKLUT Inc. Confidential &bull; For internal company use only.\n        </p>\n      </td>\n    </tr>\n\n  </table>\n</body>\n</html>",
-        "jobId": "job-test-broadcast",
-        "refId": "REF-SENCAST",
-        "subject": "🚀 New Job Opening: Senior Full Stack Engineer | Job Code: JOB-SEN-CAST | Referral Code: REF-SENCAST",
-        "automated": true
-      },
-      "created_at": "2026-11-19T10:15:35.359391+00:00"
-    },
-    {
-      "id": "f10515a4-efca-4428-acb4-96edad9cb41d",
-      "action": "EMAIL_PENDING",
-      "details": {
-        "to": "j.nannapaneni@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>New Job Opening: Senior Full Stack Engineer — JOB-SEN-CAST</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);\">\n    \n    <!-- Top Announcement Ribbon -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;\">\n        <span style=\"display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;\">\n          🚀 Internal Talent &amp; Referral Announcement\n        </span>\n        <h1 style=\"margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;\">\n          Senior Full Stack Engineer\n        </h1>\n        <p style=\"margin:0;font-size:14px;color:#c7d2fe;\">\n          Corporate &bull; Hyderabad &bull; 2 Open Positions\n        </p>\n      </td>\n    </tr>\n\n    <!-- Body Container -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>nannapaneni jai karthik</strong>,\n        </p>\n        <p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.\n        </p>\n\n        <!-- Codes & Key Metrics Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;\">\n          <tr>\n            <td style=\"padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n                <tr>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-right:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Official Job Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;\">\n                      JOB-SEN-CAST\n                    </div>\n                  </td>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-left:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Employee Referral Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;\">\n                      REF-SENCAST\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:18px 20px;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:13px;line-height:1.8;color:#475569;\">\n                <tr>\n                  <td width=\"35%\" style=\"color:#64748b;font-weight:600;\">Department:</td>\n                  <td width=\"65%\" style=\"color:#0f172a;font-weight:700;\">Corporate</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Work Location:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Hyderabad</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Employment Type:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Full-time</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Available Vacancies:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">2 Position(s)</td>\n                </tr>\n                \n              </table>\n            </td>\n          </tr>\n        </table>\n\n        <!-- Description Section -->\n        \n\n        <!-- Requirements Section -->\n        \n\n        <!-- Referral Bonus Card -->\n        <div style=\"background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;\">\n          <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n            <tr>\n              <td width=\"36\" style=\"vertical-align:top;font-size:24px;\">🎁</td>\n              <td style=\"vertical-align:top;padding-left:12px;\">\n                <h4 style=\"margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;\">\n                  How to Refer &amp; Earn Your Employee Bonus\n                </h4>\n                <p style=\"margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;\">\n                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.\n                </p>\n                <ol style=\"margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;\">\n                  <li>Share the <strong>Job Code (JOB-SEN-CAST)</strong> and <strong>Referral Code (REF-SENCAST)</strong> with your candidate.</li>\n                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>\n                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>\n                </ol>\n              </td>\n            </tr>\n          </table>\n        </div>\n\n        <!-- Action CTA -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:24px;\">\n          <tr>\n            <td align=\"center\">\n              <a href=\"https://hrm.oklut.com/careers\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;\">\n                View Careers Portal &rarr;\n              </a>\n              <a href=\"https://hrm.oklut.com/recruitment\" target=\"_blank\" style=\"display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;\">\n                Internal HR Portal\n              </a>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#64748b;line-height:1.5;\">\n          This official announcement was automatically dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.\n        </p>\n        <p style=\"margin:6px 0 0 0;font-size:11px;color:#94a3b8;\">\n          &copy; 2026 OKLUT Inc. Confidential &bull; For internal company use only.\n        </p>\n      </td>\n    </tr>\n\n  </table>\n</body>\n</html>",
-        "jobId": "job-test-broadcast",
-        "refId": "REF-SENCAST",
-        "subject": "🚀 New Job Opening: Senior Full Stack Engineer | Job Code: JOB-SEN-CAST | Referral Code: REF-SENCAST",
-        "automated": true
-      },
-      "created_at": "2026-11-19T10:15:35.359391+00:00"
-    },
-    {
-      "id": "a580c735-63b8-4398-8b7a-3f5f65d155c4",
-      "action": "EMAIL_PENDING",
-      "details": {
-        "to": "s.gadikota@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>New Job Opening: Senior Full Stack Engineer — JOB-SEN-CAST</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);\">\n    \n    <!-- Top Announcement Ribbon -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;\">\n        <span style=\"display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;\">\n          🚀 Internal Talent &amp; Referral Announcement\n        </span>\n        <h1 style=\"margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;\">\n          Senior Full Stack Engineer\n        </h1>\n        <p style=\"margin:0;font-size:14px;color:#c7d2fe;\">\n          Corporate &bull; Hyderabad &bull; 2 Open Positions\n        </p>\n      </td>\n    </tr>\n\n    <!-- Body Container -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Siva Reddy Gadikota</strong>,\n        </p>\n        <p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.\n        </p>\n\n        <!-- Codes & Key Metrics Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;\">\n          <tr>\n            <td style=\"padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n                <tr>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-right:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Official Job Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;\">\n                      JOB-SEN-CAST\n                    </div>\n                  </td>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-left:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Employee Referral Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;\">\n                      REF-SENCAST\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:18px 20px;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:13px;line-height:1.8;color:#475569;\">\n                <tr>\n                  <td width=\"35%\" style=\"color:#64748b;font-weight:600;\">Department:</td>\n                  <td width=\"65%\" style=\"color:#0f172a;font-weight:700;\">Corporate</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Work Location:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Hyderabad</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Employment Type:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Full-time</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Available Vacancies:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">2 Position(s)</td>\n                </tr>\n                \n              </table>\n            </td>\n          </tr>\n        </table>\n\n        <!-- Description Section -->\n        \n\n        <!-- Requirements Section -->\n        \n\n        <!-- Referral Bonus Card -->\n        <div style=\"background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;\">\n          <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n            <tr>\n              <td width=\"36\" style=\"vertical-align:top;font-size:24px;\">🎁</td>\n              <td style=\"vertical-align:top;padding-left:12px;\">\n                <h4 style=\"margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;\">\n                  How to Refer &amp; Earn Your Employee Bonus\n                </h4>\n                <p style=\"margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;\">\n                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.\n                </p>\n                <ol style=\"margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;\">\n                  <li>Share the <strong>Job Code (JOB-SEN-CAST)</strong> and <strong>Referral Code (REF-SENCAST)</strong> with your candidate.</li>\n                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>\n                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>\n                </ol>\n              </td>\n            </tr>\n          </table>\n        </div>\n\n        <!-- Action CTA -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:24px;\">\n          <tr>\n            <td align=\"center\">\n              <a href=\"https://hrm.oklut.com/careers\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;\">\n                View Careers Portal &rarr;\n              </a>\n              <a href=\"https://hrm.oklut.com/recruitment\" target=\"_blank\" style=\"display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;\">\n                Internal HR Portal\n              </a>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#64748b;line-height:1.5;\">\n          This official announcement was automatically dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.\n        </p>\n        <p style=\"margin:6px 0 0 0;font-size:11px;color:#94a3b8;\">\n          &copy; 2026 OKLUT Inc. Confidential &bull; For internal company use only.\n        </p>\n      </td>\n    </tr>\n\n  </table>\n</body>\n</html>",
-        "jobId": "job-test-broadcast",
-        "refId": "REF-SENCAST",
-        "subject": "🚀 New Job Opening: Senior Full Stack Engineer | Job Code: JOB-SEN-CAST | Referral Code: REF-SENCAST",
-        "automated": true
-      },
-      "created_at": "2026-11-19T10:15:35.359391+00:00"
-    },
-    {
-      "id": "db423ebc-f3de-45e0-94b7-4950adf09a14",
-      "action": "EMAIL_PENDING",
-      "details": {
-        "to": "p.mettupalli@oklut.com",
-        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>New Job Opening: Senior Full Stack Engineer — JOB-SEN-CAST</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0f172a;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:680px;margin:24px auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);\">\n    \n    <!-- Top Announcement Ribbon -->\n    <tr>\n      <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);padding:40px 32px;text-align:center;color:#ffffff;\">\n        <span style=\"display:inline-block;padding:6px 14px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#e0e7ff;margin-bottom:12px;\">\n          🚀 Internal Talent &amp; Referral Announcement\n        </span>\n        <h1 style=\"margin:12px 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;line-height:1.2;\">\n          Senior Full Stack Engineer\n        </h1>\n        <p style=\"margin:0;font-size:14px;color:#c7d2fe;\">\n          Corporate &bull; Hyderabad &bull; 2 Open Positions\n        </p>\n      </td>\n    </tr>\n\n    <!-- Body Container -->\n    <tr>\n      <td style=\"padding:36px 32px;\">\n        <p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;\">\n          Dear <strong>Pavan Mettupalli</strong>,\n        </p>\n        <p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#475569;\">\n          A new job opening has officially been uploaded and published on the OKLUT Careers &amp; Recruitment Portal! As part of our active Employee Referral Program, we encourage all team members to refer outstanding professionals from their network or explore internal career advancement.\n        </p>\n\n        <!-- Codes & Key Metrics Box -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 28px 0;overflow:hidden;\">\n          <tr>\n            <td style=\"padding:20px;border-bottom:1px solid #e2e8f0;background-color:#eef2ff;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n                <tr>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-right:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Official Job Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#1e1b4b;letter-spacing:1px;background-color:#ffffff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;display:inline-block;\">\n                      JOB-SEN-CAST\n                    </div>\n                  </td>\n                  <td width=\"50%\" style=\"vertical-align:top;padding-left:12px;\">\n                    <div style=\"font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;\">Employee Referral Code</div>\n                    <div style=\"font-size:18px;font-weight:800;font-family:monospace;color:#064e3b;letter-spacing:1px;background-color:#ecfdf5;padding:8px 12px;border-radius:8px;border:1px solid #a7f3d0;display:inline-block;\">\n                      REF-SENCAST\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:18px 20px;\">\n              <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:13px;line-height:1.8;color:#475569;\">\n                <tr>\n                  <td width=\"35%\" style=\"color:#64748b;font-weight:600;\">Department:</td>\n                  <td width=\"65%\" style=\"color:#0f172a;font-weight:700;\">Corporate</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Work Location:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Hyderabad</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Employment Type:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">Full-time</td>\n                </tr>\n                <tr>\n                  <td style=\"color:#64748b;font-weight:600;\">Available Vacancies:</td>\n                  <td style=\"color:#0f172a;font-weight:700;\">2 Position(s)</td>\n                </tr>\n                \n              </table>\n            </td>\n          </tr>\n        </table>\n\n        <!-- Description Section -->\n        \n\n        <!-- Requirements Section -->\n        \n\n        <!-- Referral Bonus Card -->\n        <div style=\"background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);border:1px solid #86efac;border-radius:12px;padding:20px;margin-bottom:32px;\">\n          <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n            <tr>\n              <td width=\"36\" style=\"vertical-align:top;font-size:24px;\">🎁</td>\n              <td style=\"vertical-align:top;padding-left:12px;\">\n                <h4 style=\"margin:0 0 4px 0;font-size:15px;font-weight:700;color:#14532d;\">\n                  How to Refer &amp; Earn Your Employee Bonus\n                </h4>\n                <p style=\"margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#166534;\">\n                  Every successful hire through employee referral is eligible for attractive referral rewards disbursed with your monthly payroll.\n                </p>\n                <ol style=\"margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#15803d;\">\n                  <li>Share the <strong>Job Code (JOB-SEN-CAST)</strong> and <strong>Referral Code (REF-SENCAST)</strong> with your candidate.</li>\n                  <li>Ask them to enter your referral code when applying on the Careers Portal.</li>\n                  <li>Our Talent Acquisition team will prioritize their screening and keep you posted!</li>\n                </ol>\n              </td>\n            </tr>\n          </table>\n        </div>\n\n        <!-- Action CTA -->\n        <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:24px;\">\n          <tr>\n            <td align=\"center\">\n              <a href=\"https://hrm.oklut.com/careers\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.3);margin-right:12px;\">\n                View Careers Portal &rarr;\n              </a>\n              <a href=\"https://hrm.oklut.com/recruitment\" target=\"_blank\" style=\"display:inline-block;padding:14px 24px;background-color:#f1f5f9;color:#334155;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;border:1px solid #cbd5e1;\">\n                Internal HR Portal\n              </a>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n\n    <!-- Footer -->\n    <tr>\n      <td style=\"background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;\">\n        <p style=\"margin:0;font-size:12px;color:#64748b;line-height:1.5;\">\n          This official announcement was automatically dispatched to all registered employees at their office email addresses by <strong>OKLUT Human Resources &amp; Talent Acquisition</strong>.\n        </p>\n        <p style=\"margin:6px 0 0 0;font-size:11px;color:#94a3b8;\">\n          &copy; 2026 OKLUT Inc. Confidential &bull; For internal company use only.\n        </p>\n      </td>\n    </tr>\n\n  </table>\n</body>\n</html>",
-        "jobId": "job-test-broadcast",
-        "refId": "REF-SENCAST",
-        "subject": "🚀 New Job Opening: Senior Full Stack Engineer | Job Code: JOB-SEN-CAST | Referral Code: REF-SENCAST",
-        "automated": true
-      },
-      "created_at": "2026-11-19T10:15:35.359391+00:00"
     }
   ]
 }

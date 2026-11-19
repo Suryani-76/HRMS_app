@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-11-18T08:04:13.107Z",
-  "repoDir": "C:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
+  "timestamp": "2026-11-19T11:07:01.103Z",
+  "repoDir": "c:\\Users\\Gouda Suryani\\Downloads\\HRMS_app-main (1)\\HRMS_app-main",
   "steps": [
     {
       "step": "tsc -b check failed",
-      "output": "src/lib/api/smtp-scenario-runner.ts(102,7): error TS2353: Object literal may only specify known properties, and 'interviewerName' does not exist in type 'InterviewRescheduledAlertPayload'.\r\nsrc/pages/settings-page.tsx(15,3): error TS6133: 'Send' is declared but its value is never read.\r\nvite.config.ts(612,18): error TS7016: Could not find a declaration file for module './scripts/run-smtp-audit-test.mjs'. 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/HRMS_app-main/hrms-app/scripts/run-smtp-audit-test.mjs' implicitly has an 'any' type."
+      "output": "^C"
     }
   ],
   "success": false,
-  "error": "TypeScript check failed:\nsrc/lib/api/smtp-scenario-runner.ts(102,7): error TS2353: Object literal may only specify known properties, and 'interviewerName' does not exist in type 'InterviewRescheduledAlertPayload'.\r\nsrc/pages/settings-page.tsx(15,3): error TS6133: 'Send' is declared but its value is never read.\r\nvite.config.ts(612,18): error TS7016: Could not find a declaration file for module './scripts/run-smtp-audit-test.mjs'. 'C:/Users/Gouda Suryani/Downloads/HRMS_app-main (1)/HRMS_app-main/hrms-app/scripts/run-smtp-audit-test.mjs' implicitly has an 'any' type."
+  "error": "TypeScript check failed:\n^C"
 }

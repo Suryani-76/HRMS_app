@@ -633,10 +633,10 @@ export async function sendCandidateStatusAlertEmail(payload: CandidateStatusAler
   const isRejected = normStatus.includes('reject') || normStatus.includes('failed')
 
   const subject = isShortlisted
-    ? `🎉 Profile Shortlisted: ${payload.jobTitle} — OKLUT`
+    ? `OKLUT Recruitment - Profile Shortlisted for ${payload.jobTitle}`
     : isRejected
-      ? `Application Update regarding ${payload.jobTitle} — OKLUT`
-      : `Application Status Updated: ${payload.status} (${payload.jobTitle}) — OKLUT`
+      ? `OKLUT Recruitment - Application Update for ${payload.jobTitle}`
+      : `OKLUT Recruitment - Status Update: ${payload.status} (${payload.jobTitle})`
 
   const html = generateCandidateStatusAlertHtml(payload)
   return dispatchCandidateAlertEmail({
@@ -744,7 +744,7 @@ export function generateInterviewScheduledHtml(payload: InterviewScheduledAlertP
 }
 
 export async function sendInterviewScheduledAlertEmail(payload: InterviewScheduledAlertPayload) {
-  const subject = `📅 Interview Scheduled: ${payload.roundName} (${payload.jobTitle}) — OKLUT`
+  const subject = `OKLUT Interview Scheduled - ${payload.roundName} (${payload.jobTitle})`
   const html = generateInterviewScheduledHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,
@@ -915,7 +915,7 @@ export function generateRoundClearedHtml(payload: RoundClearedAlertPayload): str
 }
 
 export async function sendRoundClearedAlertEmail(payload: RoundClearedAlertPayload) {
-  const subject = `🏆 Stage Cleared: You passed ${payload.roundName} (${payload.jobTitle}) — OKLUT`
+  const subject = `OKLUT Recruitment - You Passed ${payload.roundName} (${payload.jobTitle})`
   const html = generateRoundClearedHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,
@@ -948,7 +948,7 @@ export function generateDocsRequiredHtml(payload: DocsRequiredAlertPayload): str
     <tr>
       <td style="background:linear-gradient(135deg, #6366f1 0%, #4338ca 100%);padding:36px 32px;text-align:center;">
         <span style="display:inline-block;padding:5px 12px;background:rgba(255,255,255,0.2);border-radius:9999px;font-size:12px;font-weight:700;color:#ffffff;margin-bottom:8px;">
-          📄 Pre-Offer Verification
+          Pre-Offer Verification
         </span>
         <h1 style="margin:8px 0 0 0;color:#ffffff;font-size:22px;font-weight:700;">Upload Verification Softcopies</h1>
         <p style="margin:4px 0 0 0;color:#e0e7ff;font-size:14px;">Role: ${payload.jobTitle}</p>
@@ -997,7 +997,7 @@ export function generateDocsRequiredHtml(payload: DocsRequiredAlertPayload): str
 }
 
 export async function sendDocsRequiredAlertEmail(payload: DocsRequiredAlertPayload) {
-  const subject = `Action Required: Upload Verification Documents for ${payload.jobTitle} - OKLUT`
+  const subject = `OKLUT Recruitment - Document Verification for ${payload.jobTitle}`
   const html = generateDocsRequiredHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,
@@ -1068,7 +1068,7 @@ export function generateDocsApprovedHtml(payload: DocsApprovedAlertPayload): str
 }
 
 export async function sendDocsApprovedAlertEmail(payload: DocsApprovedAlertPayload) {
-  const subject = `✓ Verification Documents Approved: ${payload.jobTitle} — OKLUT`
+  const subject = `OKLUT Recruitment - Documents Approved for ${payload.jobTitle}`
   const html = generateDocsApprovedHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,
@@ -1163,7 +1163,7 @@ export function generateOfferLetterReleasedHtml(payload: OfferReleasedAlertPaylo
 }
 
 export async function sendOfferLetterReleasedAlertEmail(payload: OfferReleasedAlertPayload) {
-  const subject = `🌟 Official Offer Letter Released: ${payload.jobTitle} — OKLUT`
+  const subject = `OKLUT - Official Offer Letter Released for ${payload.jobTitle}`
   const html = generateOfferLetterReleasedHtml(payload)
   return dispatchCandidateAlertEmail({
     to: payload.candidateEmail,
